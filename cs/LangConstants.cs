@@ -77,6 +77,8 @@ public enum TokenType : Int32 {
 	SELF,
 	SUPER,
 	LOCALS,
+	OUTER,
+	GLOBALS,
 	END,
 	EOL,
 	COMMENT,

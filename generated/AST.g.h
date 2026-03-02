@@ -34,8 +34,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
-struct LocalsParselet;
-class LocalsParseletStorage;
+struct ScopeParselet;
+class ScopeParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -116,8 +116,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
-struct LocalsNode;
-class LocalsNodeStorage;
+struct ScopeNode;
+class ScopeNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -174,9 +174,16 @@ class IASTVisitor {
 	virtual Int32 Visit(IndexedAssignmentNode node) = 0;
 	virtual Int32 Visit(SelfNode node) = 0;
 	virtual Int32 Visit(SuperNode node) = 0;
-	virtual Int32 Visit(LocalsNode node) = 0;
+	virtual Int32 Visit(ScopeNode node) = 0;
 	virtual Int32 Visit(ComparisonChainNode node) = 0;
 }; // end of interface IASTVisitor
+
+// Scope type for the unified ScopeNode
+enum class ScopeType : Int32 {
+	Locals,
+	Outer,
+	Globals
+}; // end of enum ScopeType
 
 // Base class for all AST nodes.
 // When transpiled to C++, these become shared_ptr-wrapped classes.
@@ -557,13 +564,14 @@ class SuperNodeStorage : public ASTNodeStorage {
 	public: Int32 Accept(IASTVisitor& visitor);
 }; // end of class SuperNodeStorage
 
-class LocalsNodeStorage : public ASTNodeStorage {
-	friend struct LocalsNode;
-	public: LocalsNodeStorage() {}
+class ScopeNodeStorage : public ASTNodeStorage {
+	friend struct ScopeNode;
+	public: ScopeType Scope;
+	public: ScopeNodeStorage(ScopeType scope);
 	public: String ToStr();
 	public: ASTNode Simplify();
 	public: Int32 Accept(IASTVisitor& visitor);
-}; // end of class LocalsNodeStorage
+}; // end of class ScopeNodeStorage
 
 class ReturnNodeStorage : public ASTNodeStorage {
 	friend struct ReturnNode;
@@ -1175,21 +1183,23 @@ struct SuperNode : public ASTNode {
 	public: Int32 Accept(IASTVisitor& visitor) { return get()->Accept(visitor); }
 }; // end of struct SuperNode
 
-// Locals keyword node — returns a VarMap of local variables
-struct LocalsNode : public ASTNode {
-	friend class LocalsNodeStorage;
-	LocalsNode(std::shared_ptr<LocalsNodeStorage> stor);
-	LocalsNode() : ASTNode() {}
-	LocalsNode(std::nullptr_t) : ASTNode(nullptr) {}
-	private: LocalsNodeStorage* get() const;
+// Scope keyword node — returns a VarMap for locals, outer, or globals
+struct ScopeNode : public ASTNode {
+	friend class ScopeNodeStorage;
+	ScopeNode(std::shared_ptr<ScopeNodeStorage> stor);
+	ScopeNode() : ASTNode() {}
+	ScopeNode(std::nullptr_t) : ASTNode(nullptr) {}
+	private: ScopeNodeStorage* get() const;
 
-	public: static LocalsNode New() {
-		return LocalsNode(std::make_shared<LocalsNodeStorage>());
+	public: ScopeType Scope();
+	public: void set_Scope(ScopeType _v);
+	public: static ScopeNode New(ScopeType scope) {
+		return ScopeNode(std::make_shared<ScopeNodeStorage>(scope));
 	}
 	public: String ToStr() { return get()->ToStr(); }
 	public: ASTNode Simplify() { return get()->Simplify(); }
 	public: Int32 Accept(IASTVisitor& visitor) { return get()->Accept(visitor); }
-}; // end of struct LocalsNode
+}; // end of struct ScopeNode
 
 // Return statement node (e.g., return x + 1)
 struct ReturnNode : public ASTNode {
@@ -1383,8 +1393,10 @@ inline SelfNodeStorage* SelfNode::get() const { return static_cast<SelfNodeStora
 inline SuperNode::SuperNode(std::shared_ptr<SuperNodeStorage> stor) : ASTNode(stor) {}
 inline SuperNodeStorage* SuperNode::get() const { return static_cast<SuperNodeStorage*>(storage.get()); }
 
-inline LocalsNode::LocalsNode(std::shared_ptr<LocalsNodeStorage> stor) : ASTNode(stor) {}
-inline LocalsNodeStorage* LocalsNode::get() const { return static_cast<LocalsNodeStorage*>(storage.get()); }
+inline ScopeNode::ScopeNode(std::shared_ptr<ScopeNodeStorage> stor) : ASTNode(stor) {}
+inline ScopeNodeStorage* ScopeNode::get() const { return static_cast<ScopeNodeStorage*>(storage.get()); }
+inline ScopeType ScopeNode::Scope() { return get()->Scope; }
+inline void ScopeNode::set_Scope(ScopeType _v) { get()->Scope = _v; }
 
 inline ReturnNode::ReturnNode(std::shared_ptr<ReturnNodeStorage> stor) : ASTNode(stor) {}
 inline ReturnNodeStorage* ReturnNode::get() const { return static_cast<ReturnNodeStorage*>(storage.get()); }

@@ -214,7 +214,9 @@ public static class StringUtils {
 		}
 		if (is_funcref(v)) {
 			std::ostringstream oss;
-			oss << "FuncRef(" << funcref_index(v) << ")";
+			oss << "FuncRef(" << funcref_index(v);
+			if (!is_null(funcref_outer_vars(v))) oss << ", closure";
+			oss << ")";
 			return String(oss.str().c_str());
 		}
 		std::ostringstream oss;

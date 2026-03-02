@@ -34,8 +34,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
-struct LocalsParselet;
-class LocalsParseletStorage;
+struct ScopeParselet;
+class ScopeParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -116,8 +116,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
-struct LocalsNode;
-class LocalsNodeStorage;
+struct ScopeNode;
+class ScopeNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -195,6 +195,8 @@ enum class TokenType : Int32 {
 	SELF,
 	SUPER,
 	LOCALS,
+	OUTER,
+	GLOBALS,
 	END,
 	EOL,
 	COMMENT,

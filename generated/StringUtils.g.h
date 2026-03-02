@@ -42,8 +42,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
-struct LocalsParselet;
-class LocalsParseletStorage;
+struct ScopeParselet;
+class ScopeParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -124,8 +124,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
-struct LocalsNode;
-class LocalsNodeStorage;
+struct ScopeNode;
+class ScopeNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -212,7 +212,9 @@ class StringUtils {
 		}
 		if (is_funcref(v)) {
 			std::ostringstream oss;
-			oss << "FuncRef(" << funcref_index(v) << ")";
+			oss << "FuncRef(" << funcref_index(v);
+			if (!is_null(funcref_outer_vars(v))) oss << ", closure";
+			oss << ")";
 			return String(oss.str().c_str());
 		}
 		std::ostringstream oss;

@@ -603,15 +603,20 @@ Int32 SuperNodeStorage::Accept(IASTVisitor& visitor) {
 	return visitor.Visit(_this);
 }
 
-String LocalsNodeStorage::ToStr() {
+ScopeNodeStorage::ScopeNodeStorage(ScopeType scope) {
+	Scope = scope;
+}
+String ScopeNodeStorage::ToStr() {
+	if (Scope == ScopeType::Outer) return "outer";
+	if (Scope == ScopeType::Globals) return "globals";
 	return "locals";
 }
-ASTNode LocalsNodeStorage::Simplify() {
-	LocalsNode _this(std::static_pointer_cast<LocalsNodeStorage>(shared_from_this()));
+ASTNode ScopeNodeStorage::Simplify() {
+	ScopeNode _this(std::static_pointer_cast<ScopeNodeStorage>(shared_from_this()));
 	return _this;
 }
-Int32 LocalsNodeStorage::Accept(IASTVisitor& visitor) {
-	LocalsNode _this(std::static_pointer_cast<LocalsNodeStorage>(shared_from_this()));
+Int32 ScopeNodeStorage::Accept(IASTVisitor& visitor) {
+	ScopeNode _this(std::static_pointer_cast<ScopeNodeStorage>(shared_from_this()));
 	return visitor.Visit(_this);
 }
 

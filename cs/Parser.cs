@@ -57,7 +57,9 @@ public class Parser : IParser {
 		RegisterPrefix(TokenType.NEW, new UnaryOpParselet(Op.NEW, Precedence.UNARY_MINUS));
 		RegisterPrefix(TokenType.SELF, new SelfParselet());
 		RegisterPrefix(TokenType.SUPER, new SuperParselet());
-		RegisterPrefix(TokenType.LOCALS, new LocalsParselet());
+		RegisterPrefix(TokenType.LOCALS, new ScopeParselet(ScopeType.Locals));
+		RegisterPrefix(TokenType.OUTER, new ScopeParselet(ScopeType.Outer));
+		RegisterPrefix(TokenType.GLOBALS, new ScopeParselet(ScopeType.Globals));
 
 		// Binary operators
 		RegisterInfix(TokenType.PLUS, new BinaryOpParselet(Op.PLUS, Precedence.SUM));
@@ -225,6 +227,8 @@ public class Parser : IParser {
 			|| type == TokenType.SELF
 			|| type == TokenType.SUPER
 			|| type == TokenType.LOCALS
+			|| type == TokenType.OUTER
+			|| type == TokenType.GLOBALS
 			|| type == TokenType.FUNCTION;
 	}
 

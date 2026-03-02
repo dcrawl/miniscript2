@@ -1880,8 +1880,8 @@ Runtime Error: Attempt to modify a frozen map
 ==== freeze is recursive
 ================================
 inner = [10, 20]
-outer = [inner, 30]
-freeze outer
+outerList = [inner, 30]
+freeze outerList
 print isFrozen(inner)
 --------------------------------
 1
@@ -3762,6 +3762,43 @@ end function
 print f(3, 7)
 --------------------------------
 {"a": 3, "b": 7, "c": 10}
+================================
+==== globals at global scope
+================================
+x = 42; y = "hello"; print globals
+---------------------------------
+{"x": 42, "y": "hello"}
+================================
+==== globals from within a function
+================================
+g = 99
+f = function()
+a = 1
+return globals
+end function
+print f
+---------------------------------
+{"g": 99, "f": FuncRef(1, closure)}
+================================
+==== outer from a nested function
+================================
+f = function()
+a = 10
+inner = function()
+b = 20
+return outer
+end function
+return inner
+end function
+print f
+---------------------------------
+{"a": 10, "inner": FuncRef(2, closure)}
+================================
+==== outer at global scope equals globals
+================================
+x = 1; print outer == globals
+---------------------------------
+1
 ================================
 ==== END OF TESTS
 ================================================================================

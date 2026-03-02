@@ -838,21 +838,28 @@ public class VM {
 				}
 
 				case Opcode.OUTER_rA: {
-					// Create VarMap for outer variables and store in R[A]
-					// TODO: Implement outer variable map access
+					// Return VarMap for outer scope; fall back to globals if none
 					Byte a = BytecodeUtil.Au(instruction);
-					CallInfo frame = callStack[callStackTop - 1];
-					localStack[a] = frame.OuterVarMap;
+					if (callStackTop > 0 && !is_null(callStack[callStackTop - 1].OuterVarMap)) {
+						localStack[a] = callStack[callStackTop - 1].OuterVarMap;
+					} else {
+						// No enclosing scope or at global scope: outer == globals
+						CallInfo gframe = callStack[0];
+						Int32 regCount = (callStackTop == 0) ? curFunc.MaxRegs : functions[gframe.ReturnFuncIndex].MaxRegs;
+						localStack[a] = gframe.GetLocalVarMap(stack, names, 0, regCount);
+						callStack[0] = gframe;
+					}
 					names[baseIndex+a] = val_null;
 					break;
 				}
 
 				case Opcode.GLOBALS_rA: {
-					// Create VarMap for global variables and store in R[A]
-					// TODO: Implement global variable map access
+					// Return VarMap for global variables
 					Byte a = BytecodeUtil.Au(instruction);
-					Int32 globalRegCount = functions[callStack[0].ReturnFuncIndex].MaxRegs;
-					localStack[a] = callStack[0].GetLocalVarMap(stack, names, 0, globalRegCount);
+					CallInfo gframe = callStack[0];
+					Int32 regCount = (callStackTop == 0) ? curFunc.MaxRegs : functions[gframe.ReturnFuncIndex].MaxRegs;
+					localStack[a] = gframe.GetLocalVarMap(stack, names, 0, regCount);
+					callStack[0] = gframe;  // write back (CallInfo is a struct)
 					names[baseIndex+a] = val_null;
 					break;
 				}

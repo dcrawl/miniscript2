@@ -124,6 +124,10 @@ Token Lexer::NextToken() {
 			tok = Token(TokenType::SUPER, text, startLine, startColumn);
 		} else if (text == "locals") {
 			tok = Token(TokenType::LOCALS, text, startLine, startColumn);
+		} else if (text == "outer") {
+			tok = Token(TokenType::OUTER, text, startLine, startColumn);
+		} else if (text == "globals") {
+			tok = Token(TokenType::GLOBALS, text, startLine, startColumn);
 		} else if (text == "end") {
 			tok = Token(TokenType::END, text, startLine, startColumn);
 		} else {

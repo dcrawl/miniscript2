@@ -1105,9 +1105,15 @@ Int32 CodeGeneratorStorage::Visit(SuperNode node) {
 		Interp("r{} = super", resultReg));
 	return resultReg;
 }
-Int32 CodeGeneratorStorage::Visit(LocalsNode node) {
+Int32 CodeGeneratorStorage::Visit(ScopeNode node) {
 	Int32 resultReg = GetTargetOrAlloc();
-	_emitter.EmitA(Opcode::LOCALS_rA, resultReg, Interp("r{} = locals", resultReg));
+	if (node.Scope() == ScopeType::Outer) {
+		_emitter.EmitA(Opcode::OUTER_rA, resultReg, Interp("r{} = outer", resultReg));
+	} else if (node.Scope() == ScopeType::Globals) {
+		_emitter.EmitA(Opcode::GLOBALS_rA, resultReg, Interp("r{} = globals", resultReg));
+	} else {
+		_emitter.EmitA(Opcode::LOCALS_rA, resultReg, Interp("r{} = locals", resultReg));
+	}
 	return resultReg;
 }
 Int32 CodeGeneratorStorage::EmitMethodCall(Int32 receiverReg,String methodKey,List<ASTNode> arguments,bool preserveSelf) {

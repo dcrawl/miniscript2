@@ -61,11 +61,14 @@ public class SuperParselet : PrefixParselet {
 	}
 }
 
-// LocalsParselet: handles the 'locals' keyword.
-public class LocalsParselet : PrefixParselet {
-	public LocalsParselet() {}
+// ScopeParselet: handles 'locals', 'outer', and 'globals' keywords.
+public class ScopeParselet : PrefixParselet {
+	private ScopeType _scope;
+	public ScopeParselet(ScopeType scope) {
+		_scope = scope;
+	}
 	public override ASTNode Parse(IParser parser, Token token) {
-		return new LocalsNode();
+		return new ScopeNode(_scope);
 	}
 }
 

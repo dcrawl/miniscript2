@@ -1163,9 +1163,15 @@ public class CodeGenerator : IASTVisitor {
 		return resultReg;
 	}
 
-	public Int32 Visit(LocalsNode node) {
+	public Int32 Visit(ScopeNode node) {
 		Int32 resultReg = GetTargetOrAlloc();
-		_emitter.EmitA(Opcode.LOCALS_rA, resultReg, $"r{resultReg} = locals");
+		if (node.Scope == ScopeType.Outer) {
+			_emitter.EmitA(Opcode.OUTER_rA, resultReg, $"r{resultReg} = outer");
+		} else if (node.Scope == ScopeType.Globals) {
+			_emitter.EmitA(Opcode.GLOBALS_rA, resultReg, $"r{resultReg} = globals");
+		} else {
+			_emitter.EmitA(Opcode.LOCALS_rA, resultReg, $"r{resultReg} = locals");
+		}
 		return resultReg;
 	}
 

@@ -60,7 +60,7 @@ public interface IASTVisitor {
 	Int32 Visit(IndexedAssignmentNode node);
 	Int32 Visit(SelfNode node);
 	Int32 Visit(SuperNode node);
-	Int32 Visit(LocalsNode node);
+	Int32 Visit(ScopeNode node);
 	Int32 Visit(ComparisonChainNode node);
 }
 
@@ -843,10 +843,22 @@ public class SuperNode : ASTNode {
 	}
 }
 
-// Locals keyword node — returns a VarMap of local variables
-public class LocalsNode : ASTNode {
-	public LocalsNode() {}
+// Scope type for the unified ScopeNode
+public enum ScopeType : Int32 {
+	Locals,
+	Outer,
+	Globals
+}
+
+// Scope keyword node — returns a VarMap for locals, outer, or globals
+public class ScopeNode : ASTNode {
+	public ScopeType Scope;
+	public ScopeNode(ScopeType scope) {
+		Scope = scope;
+	}
 	public override String ToStr() {
+		if (Scope == ScopeType.Outer) return "outer";
+		if (Scope == ScopeType.Globals) return "globals";
 		return "locals";
 	}
 	public override ASTNode Simplify() {
