@@ -495,5 +495,5 @@ But our intrinsics currently don't have access to the VM, which is needed for al
 
 Though actually, now that I think about it, we probably need to keep `locals` and `globals` as keywords, and deal with them at the compiler level rather than make them standard intrinsics.  But the refactoring above will still be needed for `time` (and no doubt others to come).
 
-
+While implementing `locals`, I've found myself once again annoyed by the undefined order of key iteration in maps (e.g. when converting a map to a string for a test case!).  Going to tweak the CS_Dictionary implementation so that it can iterate over keys in insertion order rather than essentially random order.  Fixing that by rewriting value_map to use a chaining algorithm, like CS_Dictionary.h (which also had a couple of bugs that broke ordering, now fixed).  
 

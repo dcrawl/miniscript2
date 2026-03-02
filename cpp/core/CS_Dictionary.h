@@ -1,9 +1,23 @@
-// This is our Dictionary template used with transpiled C# --> C++ code.
-// It matches the API and behavior of System.Collections.Generic.Dictionary
-// as well as possible.  Memory management is done via std::shared_ptr and std::vector.
+// Dictionary template used with transpiled C# --> C++ code.
+// Matches the API and behavior of System.Collections.Generic.Dictionary
+// as closely as possible.  Memory management is via std::shared_ptr and std::vector.
 //
 // Dictionary is a lightweight handle (shared_ptr to DictionaryStorage), so
 // copies share the same underlying data — matching C# reference semantics.
+//
+// Uses chained hashing with a separate buckets vector and an append-only
+// entries vector.  New entries are always appended at entries[count++],
+// so iteration over entries[0..count-1] yields insertion order.  Each
+// bucket holds the index of the first entry in its chain; entries are
+// linked via their `next` field (-1 = end of chain, -2 = removed/hole).
+//
+// On resize, entries are copied in index order and holes are compacted,
+// preserving insertion order.  On remove, the entry is unlinked from its
+// bucket chain and marked as a hole (next = -2); freeCount tracks the
+// number of holes so that Count() returns count - freeCount.
+//
+// See also: value_map.c, which uses the same algorithm for the runtime
+// MiniScript map type (with GC-allocated arrays instead of std::vector).
 
 #pragma once
 #include <memory>
@@ -50,17 +64,19 @@ template<typename TKey, typename TValue>
 class DictionaryStorage {
 	friend class Dictionary<TKey, TValue>;
   public:
-	DictionaryStorage() : count(0) {}
+	DictionaryStorage() : count(0), freeCount(0) {}
   private:
 	std::vector<int> buckets;
 	std::vector<DictEntry<TKey, TValue>> entries;
-	int count;
+	int count;      // high-water mark: next free index in entries[]
+	int freeCount;  // number of removed entries (holes)
 
 	void createStorage(int initialCapacity) {
 		if (initialCapacity < 4) initialCapacity = 4;
 		buckets.assign(initialCapacity, -1);
 		entries.resize(initialCapacity);
 		count = 0;
+		freeCount = 0;
 	}
 
 	void resize() {
@@ -71,23 +87,23 @@ class DictionaryStorage {
 		std::vector<int> newBuckets(newCapacity, -1);
 		std::vector<DictEntry<TKey, TValue>> newEntries(newCapacity);
 
-		// Rehash all active entries by following bucket chains
+		// Rehash entries in index order to preserve insertion order
 		int newIndex = 0;
-		for (int bucket = 0; bucket < oldCapacity; bucket++) {
-			for (int i = buckets[bucket]; i >= 0; i = entries[i].next) {
-				int newBucket = entries[i].hashCode % newCapacity;
-				newEntries[newIndex].key = entries[i].key;
-				newEntries[newIndex].value = entries[i].value;
-				newEntries[newIndex].hashCode = entries[i].hashCode;
-				newEntries[newIndex].next = newBuckets[newBucket];
-				newBuckets[newBucket] = newIndex;
-				newIndex++;
-			}
+		for (int i = 0; i < count; i++) {
+			if (entries[i].next == -2) continue;  // skip removed entries
+			int newBucket = entries[i].hashCode % newCapacity;
+			newEntries[newIndex].key = entries[i].key;
+			newEntries[newIndex].value = entries[i].value;
+			newEntries[newIndex].hashCode = entries[i].hashCode;
+			newEntries[newIndex].next = newBuckets[newBucket];
+			newBuckets[newBucket] = newIndex;
+			newIndex++;
 		}
 
 		buckets = std::move(newBuckets);
 		entries = std::move(newEntries);
 		count = newIndex;
+		freeCount = 0;
 	}
 
 	int findEntry(const TKey& key) const {
@@ -156,7 +172,7 @@ public:
 
 	// Properties
 	int Count() const {
-		return data ? data->count : 0;
+		return data ? data->count - data->freeCount : 0;
 	}
 
 	bool Empty() const { return Count() == 0; }
@@ -259,7 +275,7 @@ public:
 					data->entries[last].next = data->entries[i].next;
 				}
 				data->entries[i].next = -2;  // Mark as removed
-				data->count--;
+				data->freeCount++;
 				return true;
 			}
 		}
@@ -275,6 +291,7 @@ public:
 			data->buckets[i] = -1;
 		}
 		data->count = 0;
+		data->freeCount = 0;
 	}
 
 	// Iterator support - simple key iteration

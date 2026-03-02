@@ -1,3 +1,20 @@
+// Hash table implementation for MiniScript runtime maps (NaN-boxed Values).
+//
+// Uses chained hashing with a separate buckets[] array and an append-only
+// entries[] array.  New entries are always appended at entries[count++],
+// so iteration over entries[0..count-1] yields insertion order.  Each
+// bucket holds the index of the first entry in its chain; entries are
+// linked via their `next` field (-1 = end of chain, -2 = removed/hole).
+//
+// On resize, entries are copied in index order and holes are compacted,
+// preserving insertion order.  On remove, the entry is unlinked from its
+// bucket chain and marked as a hole (next = -2); no neighbor rehashing
+// is needed (unlike open-addressing).
+//
+// Memory management is via the GC (gc_allocate for both arrays).
+// See also: CS_Dictionary.h, which uses the same algorithm for the
+// host-side C++ Dictionary template (with std::vector storage instead).
+
 #include "value_map.h"
 #include "value.h"
 #include "value_string.h"
@@ -17,8 +34,17 @@
 #error "value_map.c (Layer 2A - runtime) cannot depend on B-side layers (2B, 3B)"
 #endif
 
-// Default load factor threshold (resize when > 75% full)
-#define LOAD_FACTOR_THRESHOLD 0.75
+// Helper: initialize a freshly-allocated map's storage arrays.
+// Called after both entries and buckets have been gc_allocate'd.
+static void init_storage(ValueMap* map) {
+    for (int i = 0; i < map->capacity; i++) {
+        map->buckets[i] = -1;
+        map->entries[i].key = val_null;
+        map->entries[i].value = val_null;
+        map->entries[i].hash = 0;
+        map->entries[i].next = MAP_ENTRY_END;
+    }
+}
 
 // Map creation and management
 Value make_map(int initial_capacity) {
@@ -29,32 +55,26 @@ Value make_map(int initial_capacity) {
     // Allocate the ValueMap structure
     ValueMap* map = (ValueMap*)gc_allocate(sizeof(ValueMap));
     map->count = 0;
+    map->freeCount = 0;
     map->capacity = initial_capacity;
-    map->varmap_data = NULL; // Regular map, no VarMap data
+    map->varmap_data = NULL;
     map->frozen = false;
 
-    // Allocate the entries array separately
-    // (create and protect the Value immediately so subsequent allocations don't collect it)
+    // Create and protect the Value immediately so subsequent allocations don't collect it
     Value map_val = MAP_TAG | ((uintptr_t)map & 0xFFFFFFFFFFFFULL);
     GC_PROTECT(&map_val);
 
-    // Allocate the entries array separately (may trigger GC)
+    // Allocate storage arrays (may trigger GC)
+    map->buckets = (int*)gc_allocate(initial_capacity * sizeof(int));
     map->entries = (MapEntry*)gc_allocate(initial_capacity * sizeof(MapEntry));
-
-    // Initialize all entries as unoccupied
-    for (int i = 0; i < initial_capacity; i++) {
-        map->entries[i].occupied = false;
-        map->entries[i].key = val_null;
-        map->entries[i].value = val_null;
-        map->entries[i].hash = 0;
-    }
+    init_storage(map);
 
     GC_POP_SCOPE();
     return map_val;
 }
 
 Value make_empty_map(void) {
-    return make_map(8);  // Default capacity
+    return make_map(8);
 }
 
 // Map access
@@ -67,20 +87,20 @@ int map_count(Value map_val) {
     ValueMap* map = as_map(map_val);
     if (!map) return 0;
 
+    int active = map->count - map->freeCount;
+
     // VarMap - include assigned register count
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        int reg_count = 0;
         for (int i = 0; i < vdata->reg_map_count; i++) {
             int reg_index = vdata->reg_map_indices[i];
             if (!is_null(vdata->names[reg_index])) {
-                reg_count++;
+                active++;
             }
         }
-        return map->count + reg_count;
     }
 
-    return map->count;
+    return active;
 }
 
 int map_capacity(Value map_val) {
@@ -88,31 +108,17 @@ int map_capacity(Value map_val) {
     return map ? map->capacity : 0;
 }
 
-// Find entry by key using linear probing
+// Find entry by key using bucket chains.
+// Returns the index of the matching entry, or -1 if not found.
 static int find_entry(ValueMap* map, Value key, uint32_t hash) {
     if (!map || map->capacity == 0) return -1;
 
-    int index = hash % map->capacity;
-    int original_index = index;
-
-    do {
-        MapEntry* entry = &map->entries[index];
-
-        if (!entry->occupied) {
-            // Found empty slot
-            return index;
+    int bucket = hash % map->capacity;
+    for (int i = map->buckets[bucket]; i >= 0; i = map->entries[i].next) {
+        if (map->entries[i].hash == hash && value_equal(map->entries[i].key, key)) {
+            return i;
         }
-
-        if (entry->hash == hash && value_equal(entry->key, key)) {
-            // Found matching key
-            return index;
-        }
-
-        // Linear probing
-        index = (index + 1) % map->capacity;
-    } while (index != original_index);
-
-    // Table is full
+    }
     return -1;
 }
 
@@ -124,26 +130,22 @@ Value map_get(Value map_val, Value key) {
     // VarMap check - zero overhead for regular maps
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        // Check register mappings first
         for (int i = 0; i < vdata->reg_map_count; i++) {
             if (value_equal(vdata->reg_map_keys[i], key)) {
                 int reg_index = vdata->reg_map_indices[i];
                 if (!is_null(vdata->names[reg_index])) {
                     return vdata->registers[reg_index];
                 }
-                return val_null; // Unassigned register
+                return val_null;
             }
         }
-        // Fall through to regular map lookup
     }
 
     uint32_t hash = value_hash(key);
     int index = find_entry(map, key, hash);
-
-    if (index >= 0 && map->entries[index].occupied) {
+    if (index >= 0) {
         return map->entries[index].value;
     }
-
     return val_null;
 }
 
@@ -154,10 +156,9 @@ bool map_try_get(Value map_val, Value key, Value* out_value) {
         return false;
     }
 
-    // VarMap check - zero overhead for regular maps
+    // VarMap check
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        // Check register mappings first
         for (int i = 0; i < vdata->reg_map_count; i++) {
             if (value_equal(vdata->reg_map_keys[i], key)) {
                 int reg_index = vdata->reg_map_indices[i];
@@ -165,18 +166,15 @@ bool map_try_get(Value map_val, Value key, Value* out_value) {
                     if (out_value) *out_value = vdata->registers[reg_index];
                     return true;
                 }
-                // Unassigned register means key doesn't exist
                 if (out_value) *out_value = val_null;
                 return false;
             }
         }
-        // Fall through to regular map lookup
     }
 
     uint32_t hash = value_hash(key);
     int index = find_entry(map, key, hash);
-
-    if (index >= 0 && map->entries[index].occupied) {
+    if (index >= 0) {
         if (out_value) *out_value = map->entries[index].value;
         return true;
     }
@@ -195,7 +193,6 @@ bool map_lookup(Value map_val, Value key, Value* out_value) {
         if (map_try_get(current, key, out_value)) {
             return true;
         }
-        // Walk up __isa chain
         Value isa;
         if (!map_try_get(current, val_isa_key, &isa)) {
             if (out_value) *out_value = val_null;
@@ -215,17 +212,68 @@ bool map_lookup_with_origin(Value map_val, Value key, Value* out_value, Value* o
     for (int depth = 0; depth < 256; depth++) {
         if (!is_map(current)) return false;
         if (map_try_get(current, key, out_value)) {
-            // super = the __isa of the map where we found it
             if (map_try_get(current, val_isa_key, &isa)) {
                 if (out_super) *out_super = isa;
             }
             return true;
         }
-        // Walk up __isa chain
         if (!map_try_get(current, val_isa_key, &isa)) return false;
         current = isa;
     }
     return false;
+}
+
+// Internal set that bypasses VarMap and frozen checks.
+static bool base_map_set(Value map_val, Value key, Value value);
+
+// Resize the map: double capacity, rehash in index order (preserves insertion order).
+static void map_resize(Value map_val) {
+    GC_PUSH_SCOPE();
+    GC_PROTECT(&map_val);
+
+    ValueMap* map = as_map(map_val);
+    int old_count = map->count;
+    int new_capacity = map->capacity * 2;
+    if (new_capacity < 8) new_capacity = 8;
+
+    MapEntry* old_entries = map->entries;
+
+    // Allocate new arrays (may trigger GC, so protect map_val)
+    int* new_buckets = (int*)gc_allocate(new_capacity * sizeof(int));
+    map = as_map(map_val);  // re-fetch after potential GC
+    MapEntry* new_entries = (MapEntry*)gc_allocate(new_capacity * sizeof(MapEntry));
+    map = as_map(map_val);  // re-fetch after potential GC
+    old_entries = map->entries;  // re-fetch in case map was relocated
+
+    // Initialize new arrays
+    for (int i = 0; i < new_capacity; i++) {
+        new_buckets[i] = -1;
+        new_entries[i].key = val_null;
+        new_entries[i].value = val_null;
+        new_entries[i].hash = 0;
+        new_entries[i].next = MAP_ENTRY_END;
+    }
+
+    // Copy entries in index order, compacting holes
+    int new_index = 0;
+    for (int i = 0; i < old_count; i++) {
+        if (old_entries[i].next == MAP_ENTRY_REMOVED) continue;
+        int bucket = old_entries[i].hash % new_capacity;
+        new_entries[new_index].key = old_entries[i].key;
+        new_entries[new_index].value = old_entries[i].value;
+        new_entries[new_index].hash = old_entries[i].hash;
+        new_entries[new_index].next = new_buckets[bucket];
+        new_buckets[bucket] = new_index;
+        new_index++;
+    }
+
+    map->entries = new_entries;
+    map->buckets = new_buckets;
+    map->capacity = new_capacity;
+    map->count = new_index;
+    map->freeCount = 0;
+
+    GC_POP_SCOPE();
 }
 
 static bool base_map_set(Value map_val, Value key, Value value) {
@@ -237,42 +285,36 @@ static bool base_map_set(Value map_val, Value key, Value value) {
         return false;
     }
 
-    // Protect parameters from GC during potential allocation
     GC_PROTECT(&map_val);
     GC_PROTECT(&key);
     GC_PROTECT(&value);
 
-    // Check if we need to expand before adding
-    if (map_needs_expansion(map_val)) {
-        if (!map_expand_capacity(map_val)) {
-            GC_POP_SCOPE();
-            return false; // Expansion failed
-        }
-        // Re-get map pointer as it may have been relocated
-        map = as_map(map_val);
-    }
-
     uint32_t hash = value_hash(key);
+
+    // Check if key already exists
     int index = find_entry(map, key, hash);
-
-    if (index < 0) {
-        // Table is full - this shouldn't happen if we expand properly
+    if (index >= 0) {
+        map->entries[index].value = value;
         GC_POP_SCOPE();
-        return false;
+        return true;
     }
 
-    MapEntry* entry = &map->entries[index];
-
-    if (!entry->occupied) {
-        // New entry
-        entry->key = key;
-        entry->hash = hash;
-        entry->occupied = true;
-        map->count++;
+    // Need to add new entry - resize if high-water mark is at 3/4 capacity
+    if (map->count * 4 >= map->capacity * 3) {
+        map_resize(map_val);
+        map = as_map(map_val);  // re-fetch after resize
     }
 
-    // Set or update value
-    entry->value = value;
+    // Append new entry at entries[count]
+    int new_index = map->count;
+    int bucket = hash % map->capacity;
+    map->entries[new_index].key = key;
+    map->entries[new_index].value = value;
+    map->entries[new_index].hash = hash;
+    map->entries[new_index].next = map->buckets[bucket];
+    map->buckets[bucket] = new_index;
+    map->count++;
+
     GC_POP_SCOPE();
     return true;
 }
@@ -285,17 +327,14 @@ bool map_set(Value map_val, Value key, Value value) {
     // VarMap check - handle register assignment
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        // Check if key maps to a register
         for (int i = 0; i < vdata->reg_map_count; i++) {
             if (value_equal(vdata->reg_map_keys[i], key)) {
                 int reg_index = vdata->reg_map_indices[i];
-                // Store in register and mark as assigned
                 vdata->registers[reg_index] = value;
                 vdata->names[reg_index] = key;
                 return true;
             }
         }
-        // Fall through to regular map storage
     }
 
 	return base_map_set(map_val, key, value);
@@ -309,45 +348,37 @@ bool map_remove(Value map_val, Value key) {
     // VarMap check - handle register clearing
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        // Check if key maps to a register
         for (int i = 0; i < vdata->reg_map_count; i++) {
             if (value_equal(vdata->reg_map_keys[i], key)) {
                 int reg_index = vdata->reg_map_indices[i];
-                // Clear assignment by setting name to null
                 vdata->names[reg_index] = val_null;
                 return true;
             }
         }
-        // Fall through to regular map removal
     }
 
     uint32_t hash = value_hash(key);
-    int index = find_entry(map, key, hash);
+    int bucket = hash % map->capacity;
 
-    if (index >= 0 && map->entries[index].occupied) {
-        MapEntry* entry = &map->entries[index];
-        entry->occupied = false;
-        entry->key = val_null;
-        entry->value = val_null;
-        entry->hash = 0;
-        map->count--;
-
-        // Rehash entries that might have been displaced by linear probing
-        int rehash_index = (index + 1) % map->capacity;
-        while (rehash_index != index && map->entries[rehash_index].occupied) {
-            MapEntry temp = map->entries[rehash_index];
-            map->entries[rehash_index].occupied = false;
-            map->count--;
-
-            // Re-insert the displaced entry
-            map_set(map_val, temp.key, temp.value);
-
-            rehash_index = (rehash_index + 1) % map->capacity;
+    // Walk the chain, tracking the previous entry
+    int prev = -1;
+    for (int i = map->buckets[bucket]; i >= 0; prev = i, i = map->entries[i].next) {
+        if (map->entries[i].hash == hash && value_equal(map->entries[i].key, key)) {
+            // Unlink from bucket chain
+            if (prev < 0) {
+                map->buckets[bucket] = map->entries[i].next;
+            } else {
+                map->entries[prev].next = map->entries[i].next;
+            }
+            // Mark as removed
+            map->entries[i].next = MAP_ENTRY_REMOVED;
+            map->entries[i].key = val_null;
+            map->entries[i].value = val_null;
+            map->entries[i].hash = 0;
+            map->freeCount++;
+            return true;
         }
-
-        return true;
     }
-
     return false;
 }
 
@@ -355,24 +386,19 @@ bool map_has_key(Value map_val, Value key) {
     ValueMap* map = as_map(map_val);
     if (!map) return false;
 
-    // VarMap check - check register assignment
+    // VarMap check
     if (map->varmap_data != NULL) {
         VarMapData* vdata = map->varmap_data;
-        // Check if key maps to a register
         for (int i = 0; i < vdata->reg_map_count; i++) {
             if (value_equal(vdata->reg_map_keys[i], key)) {
                 int reg_index = vdata->reg_map_indices[i];
-                // Key exists if register is assigned
                 return !is_null(vdata->names[reg_index]);
             }
         }
-        // Fall through to regular map check
     }
 
     uint32_t hash = value_hash(key);
-    int index = find_entry(map, key, hash);
-
-    return index >= 0 && map->entries[index].occupied;
+    return find_entry(map, key, hash) >= 0;
 }
 
 // Map utilities
@@ -382,12 +408,14 @@ void map_clear(Value map_val) {
     if (map->frozen) { vm_raise_runtime_error("Attempt to modify a frozen map"); return; }
 
     for (int i = 0; i < map->capacity; i++) {
-        map->entries[i].occupied = false;
+        map->buckets[i] = -1;
         map->entries[i].key = val_null;
         map->entries[i].value = val_null;
         map->entries[i].hash = 0;
+        map->entries[i].next = MAP_ENTRY_END;
     }
     map->count = 0;
+    map->freeCount = 0;
 }
 
 Value map_copy(Value map_val) {
@@ -396,8 +424,9 @@ Value map_copy(Value map_val) {
 
     Value new_map = make_map(src_map->capacity);
 
-    for (int i = 0; i < src_map->capacity; i++) {
-        if (src_map->entries[i].occupied) {
+    // Iterate in index order to preserve insertion order
+    for (int i = 0; i < src_map->count; i++) {
+        if (src_map->entries[i].next != MAP_ENTRY_REMOVED) {
             map_set(new_map, src_map->entries[i].key, src_map->entries[i].value);
         }
     }
@@ -410,28 +439,27 @@ Value map_concat(Value a, Value b) {
     GC_PROTECT(&a);
     GC_PROTECT(&b);
 
-    ValueMap* mapA = as_map(a);
-    ValueMap* mapB = as_map(b);
-    int countA = mapA ? mapA->count : 0;
-    int countB = mapB ? mapB->count : 0;
+    int countA = map_count(a);
+    int countB = map_count(b);
 
     Value result = make_map(countA + countB > 0 ? countA + countB : 4);
+    GC_PROTECT(&result);
 
-    // Copy entries from a
-    mapA = as_map(a);  // re-fetch after allocation
+    // Copy entries from a in insertion order
+    ValueMap* mapA = as_map(a);
     if (mapA) {
-        for (int i = 0; i < mapA->capacity; i++) {
-            if (mapA->entries[i].occupied) {
+        for (int i = 0; i < mapA->count; i++) {
+            if (mapA->entries[i].next != MAP_ENTRY_REMOVED) {
                 map_set(result, mapA->entries[i].key, mapA->entries[i].value);
             }
         }
     }
 
     // Copy entries from b (overriding any matching keys from a)
-    mapB = as_map(b);  // re-fetch after map_set calls
+    ValueMap* mapB = as_map(b);
     if (mapB) {
-        for (int i = 0; i < mapB->capacity; i++) {
-            if (mapB->entries[i].occupied) {
+        for (int i = 0; i < mapB->count; i++) {
+            if (mapB->entries[i].next != MAP_ENTRY_REMOVED) {
                 map_set(result, mapB->entries[i].key, mapB->entries[i].value);
             }
         }
@@ -442,10 +470,6 @@ Value map_concat(Value a, Value b) {
 }
 
 // Return the Nth key-value pair from a map as a {"key":k, "value":v} mini-map.
-// TODO: Counting from the beginning every time is O(n) per call, making full
-// iteration O(n^2) for large maps. We may want to optimize this later, e.g.
-// by caching an iterator or using an ordered backing store.  Or, maybe this
-// should take n by reference, and update it with the next index to check.
 Value map_nth_entry(Value map_val, int n) {
     ValueMap* map = as_map(map_val);
     if (!map) return val_null;
@@ -453,22 +477,21 @@ Value map_nth_entry(Value map_val, int n) {
     GC_PUSH_SCOPE();
     GC_PROTECT(&map_val);
 
-    // Walk occupied entries to find the Nth one
-    int count = 0;
+    // Walk entries in index order, skipping holes, to find the Nth active entry
+    int active = 0;
     Value key = val_null;
     Value val = val_null;
-    for (int i = 0; i < map->capacity; i++) {
-        if (map->entries[i].occupied) {
-            if (count == n) {
+    for (int i = 0; i < map->count; i++) {
+        if (map->entries[i].next != MAP_ENTRY_REMOVED) {
+            if (active == n) {
                 key = map->entries[i].key;
                 val = map->entries[i].value;
                 break;
             }
-            count++;
+            active++;
         }
     }
 
-    // Build a {"key": k, "value": v} mini-map
     GC_PROTECT(&key);
     GC_PROTECT(&val);
     Value result = make_map(4);
@@ -497,10 +520,10 @@ int map_iter_next(Value map_val, int iter) {
         iter = -1;
     }
 
-    // Phase 2: Regular hash entries - scan for next occupied slot
+    // Phase 2: Regular entries in index order, skipping holes
     int start = iter + 1;
-    for (int i = start; i < map->capacity; i++) {
-        if (map->entries[i].occupied) {
+    for (int i = start; i < map->count; i++) {
+        if (map->entries[i].next != MAP_ENTRY_REMOVED) {
             return i;
         }
     }
@@ -520,8 +543,8 @@ Value map_iter_entry(Value map_val, int iter) {
         int reg_index = vdata->reg_map_indices[regMapIdx];
         key = vdata->reg_map_keys[regMapIdx];
         val = vdata->registers[reg_index];
-    } else if (iter >= 0 && iter < map->capacity && map->entries[iter].occupied) {
-        // Regular hash entry
+    } else if (iter >= 0 && iter < map->count && map->entries[iter].next != MAP_ENTRY_REMOVED) {
+        // Regular entry
         key = map->entries[iter].key;
         val = map->entries[iter].value;
     } else {
@@ -542,66 +565,13 @@ Value map_iter_entry(Value map_val, int iter) {
 bool map_needs_expansion(Value map_val) {
     ValueMap* map = as_map(map_val);
     if (!map) return false;
-
-    double load_factor = (double)map->count / (double)map->capacity;
-    return load_factor > LOAD_FACTOR_THRESHOLD;
+    // Resize when high-water mark exceeds 3/4 of capacity
+    return map->count * 4 >= map->capacity * 3;
 }
 
 // Expand map capacity in-place (preserves the Value/MemRef)
 bool map_expand_capacity(Value map_val) {
-    GC_PUSH_SCOPE();
-    GC_PROTECT(&map_val);
-
-    ValueMap* map = as_map(map_val);
-    if (!map) {
-        GC_POP_SCOPE();
-        return false;
-    }
-
-    int old_capacity = map->capacity;
-    int new_capacity = old_capacity * 2;
-
-    // Save old entries
-    MapEntry* old_entries = map->entries;
-
-    // Allocate new entries array (may trigger GC)
-    MapEntry* new_entries = (MapEntry*)gc_allocate(new_capacity * sizeof(MapEntry));
-    if (!new_entries) {
-        GC_POP_SCOPE();
-        return false;
-    }
-
-    // Initialize new entries
-    for (int i = 0; i < new_capacity; i++) {
-        new_entries[i].occupied = false;
-        new_entries[i].key = val_null;
-        new_entries[i].value = val_null;
-        new_entries[i].hash = 0;
-    }
-
-    // Update map structure
-    map->entries = new_entries;
-    map->capacity = new_capacity;
-    map->count = 0; // Will be rebuilt as we re-insert
-
-    // Re-insert all entries from old array
-    for (int i = 0; i < old_capacity; i++) {
-        if (old_entries[i].occupied) {
-            // Use internal insertion logic to avoid recursion
-            uint32_t hash = old_entries[i].hash;
-            int index = find_entry(map, old_entries[i].key, hash);
-            if (index >= 0) {
-                map->entries[index].key = old_entries[i].key;
-                map->entries[index].value = old_entries[i].value;
-                map->entries[index].hash = hash;
-                map->entries[index].occupied = true;
-                map->count++;
-            }
-        }
-    }
-
-    // Note: old_entries will be garbage collected since it's no longer referenced
-    GC_POP_SCOPE();
+    map_resize(map_val);
     return true;
 }
 
@@ -613,9 +583,8 @@ Value map_with_expanded_capacity(Value map_val) {
     int new_capacity = old_map->capacity * 2;
     Value new_map = make_map(new_capacity);
 
-    // Copy all entries to the new map
-    for (int i = 0; i < old_map->capacity; i++) {
-        if (old_map->entries[i].occupied) {
+    for (int i = 0; i < old_map->count; i++) {
+        if (old_map->entries[i].next != MAP_ENTRY_REMOVED) {
             map_set(new_map, old_map->entries[i].key, old_map->entries[i].value);
         }
     }
@@ -628,7 +597,7 @@ MapIterator map_iterator(Value map_val) {
     MapIterator iter;
     iter.map = as_map(map_val);
     iter.index = -1;
-    iter.varmap_reg_index = -1; // Start with register mappings for VarMaps
+    iter.varmap_reg_index = -1;
     return iter;
 }
 
@@ -639,12 +608,10 @@ bool map_iterator_next(MapIterator* iter, Value* out_key, Value* out_value) {
     if (iter->map->varmap_data != NULL && iter->varmap_reg_index < iter->map->varmap_data->reg_map_count) {
         VarMapData* vdata = iter->map->varmap_data;
 
-        // Find next assigned register variable
         iter->varmap_reg_index++;
         while (iter->varmap_reg_index < vdata->reg_map_count) {
             int reg_index = vdata->reg_map_indices[iter->varmap_reg_index];
             if (!is_null(vdata->names[reg_index])) {
-                // Found assigned register variable
                 if (out_key) *out_key = vdata->reg_map_keys[iter->varmap_reg_index];
                 if (out_value) *out_value = vdata->registers[reg_index];
                 return true;
@@ -652,14 +619,13 @@ bool map_iterator_next(MapIterator* iter, Value* out_key, Value* out_value) {
             iter->varmap_reg_index++;
         }
 
-        // Finished with register mappings, continue to regular entries
-        iter->index = -1; // Reset for regular entry iteration
+        iter->index = -1;
     }
 
-    // Find next occupied regular entry
+    // Walk entries in index order, skipping holes
     iter->index++;
-    while (iter->index < iter->map->capacity) {
-        if (iter->map->entries[iter->index].occupied) {
+    while (iter->index < iter->map->count) {
+        if (iter->map->entries[iter->index].next != MAP_ENTRY_REMOVED) {
             if (out_key) *out_key = iter->map->entries[iter->index].key;
             if (out_value) *out_value = iter->map->entries[iter->index].value;
             return true;
@@ -675,25 +641,19 @@ uint32_t map_hash(Value map_val) {
     ValueMap* map = as_map(map_val);
     if (!map) return 0;
 
-    // Hash based on all key-value pairs
-    // Use FNV-1a constants for consistency
     const uint32_t FNV_PRIME = 0x01000193;
-    uint32_t hash = 0x811c9dc5; // FNV-1a offset basis
+    uint32_t hash = 0x811c9dc5;
 
-    for (int i = 0; i < map->capacity; i++) {
-        if (map->entries[i].occupied) {
-            // Combine key and value hashes
+    for (int i = 0; i < map->count; i++) {
+        if (map->entries[i].next != MAP_ENTRY_REMOVED) {
             uint32_t key_hash = value_hash(map->entries[i].key);
             uint32_t value_hash_val = value_hash(map->entries[i].value);
-
-            // XOR key and value hashes, then combine with running hash
             uint32_t pair_hash = key_hash ^ value_hash_val;
             hash ^= pair_hash;
             hash *= FNV_PRIME;
         }
     }
 
-    // Ensure hash is never 0 (reserved for "not computed")
     return hash == 0 ? 1 : hash;
 }
 
@@ -702,9 +662,8 @@ Value map_to_string(Value map_val) {
     ValueMap* map = as_map(map_val);
     if (!map) return make_string("{}");
 
-    if (map->count == 0 && map->varmap_data == NULL) return make_string("{}");
+    if (map->count - map->freeCount == 0 && map->varmap_data == NULL) return make_string("{}");
 
-    // Build string: {"key1": "value1", "key2": "value2"}
     Value result = make_string("{");
 
     MapIterator iter = map_iterator(map_val);
@@ -720,11 +679,9 @@ Value map_to_string(Value map_val) {
         }
         first = false;
 
-        // Get string representation of key and value
         Value key_str = value_repr(key);
         Value value_str = value_repr(value);
 
-        // Add "key": "value"
         result = string_concat(result, key_str);
         Value colon = make_string(": ");
         result = string_concat(result, colon);
@@ -743,9 +700,12 @@ Value make_varmap(Value* registers, Value* names, int firstIndex, int count) {
     ValueMap* map = (ValueMap*)gc_allocate(sizeof(ValueMap));
     Value result = MAP_TAG | ((uintptr_t)map & 0xFFFFFFFFFFFFULL);
     map->count = 0;
+    map->freeCount = 0;
     map->capacity = 8;
     map->frozen = false;
+    map->buckets = (int*)gc_allocate(8 * sizeof(int));
     map->entries = (MapEntry*)gc_allocate(8 * sizeof(MapEntry));
+    init_storage(map);
 
     // Allocate and initialize VarMapData
     VarMapData* vdata = (VarMapData*)gc_allocate(sizeof(VarMapData));
@@ -758,14 +718,6 @@ Value make_varmap(Value* registers, Value* names, int firstIndex, int count) {
 
     map->varmap_data = vdata;
 
-    // Initialize map entries
-    for (int i = 0; i < 8; i++) {
-        map->entries[i].occupied = false;
-        map->entries[i].key = val_null;
-        map->entries[i].value = val_null;
-        map->entries[i].hash = 0;
-    }
-    
     for (int i = firstIndex; i < firstIndex + count; i++) {
     	if (!is_null(names[i])) varmap_map_to_register(result, names[i], i);
     }
@@ -795,7 +747,7 @@ static void map_debug_dump(Value map_val) {
 		printf("\n");
 		return;
 	}
-	printf("Map "); debug_print_value(map_val); printf(" has %d entries\n", map->count);
+	printf("Map "); debug_print_value(map_val); printf(" has %d entries\n", map->count - map->freeCount);
 	VarMapData* vdata = map->varmap_data;
 	if (vdata) {
 		printf("...and varmap data with %d registers\n", vdata->reg_map_count);
@@ -815,7 +767,6 @@ void varmap_gather(Value map_val) {
         Value var_name = vdata->reg_map_keys[i];
         int reg_index = vdata->reg_map_indices[i];
 
-        // If register is assigned, copy to regular map storage
         if (!is_null(vdata->names[reg_index])) {
             Value value = vdata->registers[reg_index];
             base_map_set(map_val, var_name, value);

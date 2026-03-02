@@ -35,8 +35,11 @@ typedef struct MapEntry {
     Value key;
     Value value;
     uint32_t hash;      // Cached hash of the key
-    bool occupied;      // Whether this slot is occupied
+    int next;           // Next entry in bucket chain (-1 = end, -2 = removed)
 } MapEntry;
+
+#define MAP_ENTRY_END     -1   // End of bucket chain
+#define MAP_ENTRY_REMOVED -2   // Slot was removed (hole)
 
 // VarMap-specific data (only allocated when needed)
 typedef struct VarMapData {
@@ -49,9 +52,11 @@ typedef struct VarMapData {
 } VarMapData;
 
 typedef struct ValueMap {
-    int count;          // Number of key-value pairs
-    int capacity;       // Number of slots in the hash table
-    MapEntry* entries;  // Pointer to separately-allocated entries array
+    int count;          // High-water mark: next free index in entries[]
+    int freeCount;      // Number of removed entries (holes)
+    int capacity;       // Allocated size of entries[] and buckets[]
+    int* buckets;       // Bucket array: buckets[hash % capacity] -> first entry index, or -1
+    MapEntry* entries;  // Entries array (append-only, preserves insertion order)
     VarMapData* varmap_data; // NULL for regular maps, non-NULL for VarMaps
     bool frozen;        // If true, mutations are disallowed
 } ValueMap;

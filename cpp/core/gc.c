@@ -300,6 +300,14 @@ void gc_mark_map(ValueMap* map) {
 
     map_obj->marked = true;
 
+    // Mark the buckets array (if it exists)
+    if (map->buckets) {
+        GCObject* buckets_obj = (GCObject*)((char*)map->buckets - sizeof(GCObject));
+        if (!buckets_obj->marked) {
+            buckets_obj->marked = true;
+        }
+    }
+
     // Mark the entries array (if it exists)
     if (map->entries) {
         GCObject* entries_obj = (GCObject*)((char*)map->entries - sizeof(GCObject));
@@ -307,9 +315,9 @@ void gc_mark_map(ValueMap* map) {
             entries_obj->marked = true;
         }
 
-        // Mark all keys and values in the map
-        for (int i = 0; i < map->capacity; i++) {
-            if (map->entries[i].occupied) {
+        // Mark all keys and values in active entries
+        for (int i = 0; i < map->count; i++) {
+            if (map->entries[i].next != MAP_ENTRY_REMOVED) {
                 gc_mark_value(map->entries[i].key);
                 gc_mark_value(map->entries[i].value);
             }

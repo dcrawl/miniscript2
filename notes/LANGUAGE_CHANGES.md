@@ -18,7 +18,15 @@ See [LANGUAGE_CHANGES.md](LANGUAGE_CHANGES.md).
 
 `function`...`end function` will comprise an _expression_, not a statement.  This just cleans up various odd corners of the syntax.  The effect of this expression is still to create a funcRef, with code that is compiled (just once) for whatever's between the keywords, and `outer` (if needed) assigned to the locals of the function evaluating this expression.
 
+## Map Iteration Order
+
+MiniScript documentation has always said that the order of data in a map is undefined.  In practice, though, the C# version of MiniScript always returned keys in insertion order, because that is how the underlying Dictionary class works.
+
+In MiniScript 2, we will commit to this behavior: **maps return keys in insertion order**, and this is true in both the C# and the C++ versions.
+
 ## Function Notes
+
+_This feature is not officially settled on yet._
 
 Similar to Python doc strings, we may associate a string with a function definition by having the first statement of the function body evaluate to a string constant.  This constant could be accessible via the funcRef, e.g. as `someFunc.note`, and should be displayed by a REPL when the input expression evaluates to a funcRef.
 

@@ -155,9 +155,9 @@ bool value_equal(Value a, Value b) {
         ValueMap* mapA = as_map(a);
         ValueMap* mapB = as_map(b);
         if (!mapA || !mapB) return false;
-        if (mapA->count != mapB->count) return false;
-        for (int i = 0; i < mapA->capacity; i++) {
-            if (!mapA->entries[i].occupied) continue;
+        if (map_count(a) != map_count(b)) return false;
+        for (int i = 0; i < mapA->count; i++) {
+            if (mapA->entries[i].next == MAP_ENTRY_REMOVED) continue;
             Value val;
             if (!map_try_get(b, mapA->entries[i].key, &val)) return false;
             if (!value_equal(mapA->entries[i].value, val)) return false;
@@ -432,8 +432,8 @@ void freeze_value(Value v) {
         ValueMap* map = as_map(v);
         if (!map || map->frozen) return;
         map->frozen = true;
-        for (int i = 0; i < map->capacity; i++) {
-            if (map->entries[i].occupied) {
+        for (int i = 0; i < map->count; i++) {
+            if (map->entries[i].next != MAP_ENTRY_REMOVED) {
                 freeze_value(map->entries[i].key);
                 freeze_value(map->entries[i].value);
             }
@@ -459,9 +459,9 @@ Value frozen_copy(Value v) {
         if (!map || map->frozen) return v;
         Value new_map = make_map(map->capacity);
         ValueMap* dst = as_map(new_map);
-        // Copy map contents, then freeze
-        for (int i = 0; i < map->capacity; i++) {
-            if (map->entries[i].occupied) {
+        // Copy map contents in insertion order, then freeze
+        for (int i = 0; i < map->count; i++) {
+            if (map->entries[i].next != MAP_ENTRY_REMOVED) {
                 map_set(new_map, frozen_copy(map->entries[i].key), frozen_copy(map->entries[i].value));
             }
         }
