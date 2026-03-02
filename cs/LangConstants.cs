@@ -76,6 +76,7 @@ public enum TokenType : Int32 {
 	ISA,
 	SELF,
 	SUPER,
+	LOCALS,
 	END,
 	EOL,
 	COMMENT,

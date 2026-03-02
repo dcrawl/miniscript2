@@ -1105,6 +1105,11 @@ Int32 CodeGeneratorStorage::Visit(SuperNode node) {
 		Interp("r{} = super", resultReg));
 	return resultReg;
 }
+Int32 CodeGeneratorStorage::Visit(LocalsNode node) {
+	Int32 resultReg = GetTargetOrAlloc();
+	_emitter.EmitA(Opcode::LOCALS_rA, resultReg, Interp("r{} = locals", resultReg));
+	return resultReg;
+}
 Int32 CodeGeneratorStorage::EmitMethodCall(Int32 receiverReg,String methodKey,List<ASTNode> arguments,bool preserveSelf) {
 	CodeGenerator _this(std::static_pointer_cast<CodeGeneratorStorage>(shared_from_this()));
 	Int32 explicitTarget = _targetReg;

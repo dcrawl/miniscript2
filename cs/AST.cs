@@ -60,6 +60,7 @@ public interface IASTVisitor {
 	Int32 Visit(IndexedAssignmentNode node);
 	Int32 Visit(SelfNode node);
 	Int32 Visit(SuperNode node);
+	Int32 Visit(LocalsNode node);
 	Int32 Visit(ComparisonChainNode node);
 }
 
@@ -833,6 +834,20 @@ public class SuperNode : ASTNode {
 	public SuperNode() {}
 	public override String ToStr() {
 		return "super";
+	}
+	public override ASTNode Simplify() {
+		return this;
+	}
+	public override Int32 Accept(IASTVisitor visitor) {
+		return visitor.Visit(this);
+	}
+}
+
+// Locals keyword node — returns a VarMap of local variables
+public class LocalsNode : ASTNode {
+	public LocalsNode() {}
+	public override String ToStr() {
+		return "locals";
 	}
 	public override ASTNode Simplify() {
 		return this;

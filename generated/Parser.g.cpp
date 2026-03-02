@@ -31,6 +31,7 @@ void ParserStorage::RegisterParselets() {
 	RegisterPrefix(TokenType::NEW,  UnaryOpParselet::New(Op::NEW, Precedence::UNARY_MINUS));
 	RegisterPrefix(TokenType::SELF,  SelfParselet::New());
 	RegisterPrefix(TokenType::SUPER,  SuperParselet::New());
+	RegisterPrefix(TokenType::LOCALS,  LocalsParselet::New());
 
 	// Binary operators
 	RegisterInfix(TokenType::PLUS,  BinaryOpParselet::New(Op::PLUS, Precedence::SUM));
@@ -170,6 +171,7 @@ Boolean ParserStorage::CanStartExpression(TokenType type) {
 		|| type == TokenType::NEW
 		|| type == TokenType::SELF
 		|| type == TokenType::SUPER
+		|| type == TokenType::LOCALS
 		|| type == TokenType::FUNCTION;
 }
 ASTNode ParserStorage::ParseExpression(Precedence minPrecedence) {

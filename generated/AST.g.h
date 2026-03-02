@@ -34,6 +34,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
+struct LocalsParselet;
+class LocalsParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -114,6 +116,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
+struct LocalsNode;
+class LocalsNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -170,6 +174,7 @@ class IASTVisitor {
 	virtual Int32 Visit(IndexedAssignmentNode node) = 0;
 	virtual Int32 Visit(SelfNode node) = 0;
 	virtual Int32 Visit(SuperNode node) = 0;
+	virtual Int32 Visit(LocalsNode node) = 0;
 	virtual Int32 Visit(ComparisonChainNode node) = 0;
 }; // end of interface IASTVisitor
 
@@ -551,6 +556,14 @@ class SuperNodeStorage : public ASTNodeStorage {
 	public: ASTNode Simplify();
 	public: Int32 Accept(IASTVisitor& visitor);
 }; // end of class SuperNodeStorage
+
+class LocalsNodeStorage : public ASTNodeStorage {
+	friend struct LocalsNode;
+	public: LocalsNodeStorage() {}
+	public: String ToStr();
+	public: ASTNode Simplify();
+	public: Int32 Accept(IASTVisitor& visitor);
+}; // end of class LocalsNodeStorage
 
 class ReturnNodeStorage : public ASTNodeStorage {
 	friend struct ReturnNode;
@@ -1162,6 +1175,22 @@ struct SuperNode : public ASTNode {
 	public: Int32 Accept(IASTVisitor& visitor) { return get()->Accept(visitor); }
 }; // end of struct SuperNode
 
+// Locals keyword node — returns a VarMap of local variables
+struct LocalsNode : public ASTNode {
+	friend class LocalsNodeStorage;
+	LocalsNode(std::shared_ptr<LocalsNodeStorage> stor);
+	LocalsNode() : ASTNode() {}
+	LocalsNode(std::nullptr_t) : ASTNode(nullptr) {}
+	private: LocalsNodeStorage* get() const;
+
+	public: static LocalsNode New() {
+		return LocalsNode(std::make_shared<LocalsNodeStorage>());
+	}
+	public: String ToStr() { return get()->ToStr(); }
+	public: ASTNode Simplify() { return get()->Simplify(); }
+	public: Int32 Accept(IASTVisitor& visitor) { return get()->Accept(visitor); }
+}; // end of struct LocalsNode
+
 // Return statement node (e.g., return x + 1)
 struct ReturnNode : public ASTNode {
 	friend class ReturnNodeStorage;
@@ -1353,6 +1382,9 @@ inline SelfNodeStorage* SelfNode::get() const { return static_cast<SelfNodeStora
 
 inline SuperNode::SuperNode(std::shared_ptr<SuperNodeStorage> stor) : ASTNode(stor) {}
 inline SuperNodeStorage* SuperNode::get() const { return static_cast<SuperNodeStorage*>(storage.get()); }
+
+inline LocalsNode::LocalsNode(std::shared_ptr<LocalsNodeStorage> stor) : ASTNode(stor) {}
+inline LocalsNodeStorage* LocalsNode::get() const { return static_cast<LocalsNodeStorage*>(storage.get()); }
 
 inline ReturnNode::ReturnNode(std::shared_ptr<ReturnNodeStorage> stor) : ASTNode(stor) {}
 inline ReturnNodeStorage* ReturnNode::get() const { return static_cast<ReturnNodeStorage*>(storage.get()); }

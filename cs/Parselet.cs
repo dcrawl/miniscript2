@@ -61,6 +61,14 @@ public class SuperParselet : PrefixParselet {
 	}
 }
 
+// LocalsParselet: handles the 'locals' keyword.
+public class LocalsParselet : PrefixParselet {
+	public LocalsParselet() {}
+	public override ASTNode Parse(IParser parser, Token token) {
+		return new LocalsNode();
+	}
+}
+
 // StringParselet: handles string literals.
 public class StringParselet : PrefixParselet {
 	public StringParselet() {}

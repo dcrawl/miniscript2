@@ -17,6 +17,10 @@ ASTNode SuperParseletStorage::Parse(IParser& parser,Token token) {
 	return  SuperNode::New();
 }
 
+ASTNode LocalsParseletStorage::Parse(IParser& parser,Token token) {
+	return  LocalsNode::New();
+}
+
 ASTNode StringParseletStorage::Parse(IParser& parser,Token token) {
 	return  StringNode::New(token.Text);
 }

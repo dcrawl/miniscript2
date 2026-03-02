@@ -603,6 +603,18 @@ Int32 SuperNodeStorage::Accept(IASTVisitor& visitor) {
 	return visitor.Visit(_this);
 }
 
+String LocalsNodeStorage::ToStr() {
+	return "locals";
+}
+ASTNode LocalsNodeStorage::Simplify() {
+	LocalsNode _this(std::static_pointer_cast<LocalsNodeStorage>(shared_from_this()));
+	return _this;
+}
+Int32 LocalsNodeStorage::Accept(IASTVisitor& visitor) {
+	LocalsNode _this(std::static_pointer_cast<LocalsNodeStorage>(shared_from_this()));
+	return visitor.Visit(_this);
+}
+
 ReturnNodeStorage::ReturnNodeStorage(ASTNode value) {
 	Value = value;
 }

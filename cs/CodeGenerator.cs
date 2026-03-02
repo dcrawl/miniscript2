@@ -1163,6 +1163,12 @@ public class CodeGenerator : IASTVisitor {
 		return resultReg;
 	}
 
+	public Int32 Visit(LocalsNode node) {
+		Int32 resultReg = GetTargetOrAlloc();
+		_emitter.EmitA(Opcode.LOCALS_rA, resultReg, $"r{resultReg} = locals");
+		return resultReg;
+	}
+
 	// Emit a method call: METHFIND + optional SETSELF + ARGBLK + ARGs + CALL
 	// receiverReg: register holding the receiver object
 	// methodKey: string name of the method

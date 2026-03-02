@@ -122,6 +122,8 @@ Token Lexer::NextToken() {
 			tok = Token(TokenType::SELF, text, startLine, startColumn);
 		} else if (text == "super") {
 			tok = Token(TokenType::SUPER, text, startLine, startColumn);
+		} else if (text == "locals") {
+			tok = Token(TokenType::LOCALS, text, startLine, startColumn);
 		} else if (text == "end") {
 			tok = Token(TokenType::END, text, startLine, startColumn);
 		} else {

@@ -38,6 +38,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
+struct LocalsParselet;
+class LocalsParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -118,6 +120,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
+struct LocalsNode;
+class LocalsNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -254,6 +258,8 @@ class CodeGeneratorStorage : public std::enable_shared_from_this<CodeGeneratorSt
 	public: Int32 Visit(SelfNode node);
 
 	public: Int32 Visit(SuperNode node);
+
+	public: Int32 Visit(LocalsNode node);
 
 	// Emit a method call: METHFIND + optional SETSELF + ARGBLK + ARGs + CALL
 	// receiverReg: register holding the receiver object
@@ -418,6 +424,8 @@ struct CodeGenerator : public IASTVisitor {
 
 	public: inline Int32 Visit(SuperNode node);
 
+	public: inline Int32 Visit(LocalsNode node);
+
 	// Emit a method call: METHFIND + optional SETSELF + ARGBLK + ARGs + CALL
 	// receiverReg: register holding the receiver object
 	// methodKey: string name of the method
@@ -494,6 +502,7 @@ inline Int32 CodeGenerator::GetSelfReg() { return get()->GetSelfReg(); }
 inline Int32 CodeGenerator::GetSuperReg() { return get()->GetSuperReg(); }
 inline Int32 CodeGenerator::Visit(SelfNode node) { return get()->Visit(node); }
 inline Int32 CodeGenerator::Visit(SuperNode node) { return get()->Visit(node); }
+inline Int32 CodeGenerator::Visit(LocalsNode node) { return get()->Visit(node); }
 inline Int32 CodeGenerator::EmitMethodCall(Int32 receiverReg,String methodKey,List<ASTNode> arguments,bool preserveSelf) { return get()->EmitMethodCall(receiverReg, methodKey, arguments, preserveSelf); }
 inline Int32 CodeGenerator::Visit(ReturnNode node) { return get()->Visit(node); }
 

@@ -38,6 +38,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
+struct LocalsParselet;
+class LocalsParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -118,6 +120,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
+struct LocalsNode;
+class LocalsNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 
@@ -220,6 +224,12 @@ class SuperParseletStorage : public PrefixParseletStorage {
 	public: SuperParseletStorage() {}
 	public: ASTNode Parse(IParser& parser, Token token);
 }; // end of class SuperParseletStorage
+
+class LocalsParseletStorage : public PrefixParseletStorage {
+	friend struct LocalsParselet;
+	public: LocalsParseletStorage() {}
+	public: ASTNode Parse(IParser& parser, Token token);
+}; // end of class LocalsParseletStorage
 
 class StringParseletStorage : public PrefixParseletStorage {
 	friend struct StringParselet;
@@ -347,6 +357,20 @@ struct SuperParselet : public PrefixParselet {
 	}
 	public: ASTNode Parse(IParser& parser, Token token) { return get()->Parse(parser, token); }
 }; // end of struct SuperParselet
+
+// LocalsParselet: handles the 'locals' keyword.
+struct LocalsParselet : public PrefixParselet {
+	friend class LocalsParseletStorage;
+	LocalsParselet(std::shared_ptr<LocalsParseletStorage> stor);
+	LocalsParselet() : PrefixParselet() {}
+	LocalsParselet(std::nullptr_t) : PrefixParselet(nullptr) {}
+	private: LocalsParseletStorage* get() const;
+
+	public: static LocalsParselet New() {
+		return LocalsParselet(std::make_shared<LocalsParseletStorage>());
+	}
+	public: ASTNode Parse(IParser& parser, Token token) { return get()->Parse(parser, token); }
+}; // end of struct LocalsParselet
 
 // StringParselet: handles string literals.
 struct StringParselet : public PrefixParselet {
@@ -553,6 +577,9 @@ inline SelfParseletStorage* SelfParselet::get() const { return static_cast<SelfP
 
 inline SuperParselet::SuperParselet(std::shared_ptr<SuperParseletStorage> stor) : PrefixParselet(stor) {}
 inline SuperParseletStorage* SuperParselet::get() const { return static_cast<SuperParseletStorage*>(storage.get()); }
+
+inline LocalsParselet::LocalsParselet(std::shared_ptr<LocalsParseletStorage> stor) : PrefixParselet(stor) {}
+inline LocalsParseletStorage* LocalsParselet::get() const { return static_cast<LocalsParseletStorage*>(storage.get()); }
 
 inline StringParselet::StringParselet(std::shared_ptr<StringParseletStorage> stor) : PrefixParselet(stor) {}
 inline StringParseletStorage* StringParselet::get() const { return static_cast<StringParseletStorage*>(storage.get()); }

@@ -42,6 +42,8 @@ struct SelfParselet;
 class SelfParseletStorage;
 struct SuperParselet;
 class SuperParseletStorage;
+struct LocalsParselet;
+class LocalsParseletStorage;
 struct StringParselet;
 class StringParseletStorage;
 struct IdentifierParselet;
@@ -122,6 +124,8 @@ struct SelfNode;
 class SelfNodeStorage;
 struct SuperNode;
 class SuperNodeStorage;
+struct LocalsNode;
+class LocalsNodeStorage;
 struct ReturnNode;
 class ReturnNodeStorage;
 

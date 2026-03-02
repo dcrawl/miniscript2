@@ -190,6 +190,8 @@ public struct Lexer {
 				tok = new Token(TokenType.SELF, text, startLine, startColumn);
 			} else if (text == "super") {
 				tok = new Token(TokenType.SUPER, text, startLine, startColumn);
+			} else if (text == "locals") {
+				tok = new Token(TokenType.LOCALS, text, startLine, startColumn);
 			} else if (text == "end") {
 				tok = new Token(TokenType.END, text, startLine, startColumn);
 			} else {
