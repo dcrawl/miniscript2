@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using static System.Runtime.CompilerServices.MethodImplOptions;
 using static MiniScript.ValueHelpers;
 // H: #include "value.h"
 // H: #include "StringUtils.g.h"
+// CPP: #include "CallContext.g.h"
 // CPP: #include "gc.h"
 
 namespace MiniScript {
 
 // Native callback for intrinsic functions.
-// H: typedef Value (*NativeCallbackDelegate)(List<Value>, Int32, Int32);
+// H: struct CallContext;  // forward declaration; defined in VM.g.h
+// H: typedef Value (*NativeCallbackDelegate)(CallContext);
 // H: inline bool IsNull(NativeCallbackDelegate f) { return f == nullptr; }
-public delegate Value NativeCallbackDelegate(List<Value> stack, Int32 baseIndex, Int32 argCount); // CPP:
+public delegate Value NativeCallbackDelegate(CallContext context); // CPP:
 
 // Function definition: code, constants, and how many registers it needs
 public class FuncDef {

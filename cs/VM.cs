@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 // CPP: #include "IOHelper.g.h"
 // CPP: #include "Disassembler.g.h"
 // CPP: #include "StringUtils.g.h"
+// CPP: #include "CallContext.g.h"
 // CPP: #include "dispatch_macros.h"
 // CPP: #include "vm_error.h"
 
@@ -394,7 +395,7 @@ public class VM {
 				pendingSelf = val_null;
 				hasPendingContext = false;
 			}
-			stack[baseIndex + resultReg] = callee.NativeCallback(stack, calleeBase, selfParam);
+			stack[baseIndex + resultReg] = callee.NativeCallback(new CallContext(this, stack, calleeBase, selfParam));
 			return -1;
 		}
 
@@ -1281,7 +1282,7 @@ public class VM {
 
 					// Native intrinsic: invoke callback directly, no frame push
 					if (callee.NativeCallback != null) {
-						localStack[resultReg] = callee.NativeCallback(stack, calleeBase, argCount + selfParam);
+						localStack[resultReg] = callee.NativeCallback(new CallContext(this, stack, calleeBase, argCount + selfParam));
 						pc = nextPC;
 						break;
 					}
@@ -1405,7 +1406,7 @@ public class VM {
 
 					// Native intrinsic: invoke callback directly, no frame push
 					if (callee.NativeCallback != null) {
-						localStack[a] = callee.NativeCallback(stack, calleeBase, selfParam);
+						localStack[a] = callee.NativeCallback(new CallContext(this, stack, calleeBase, selfParam));
 						break;
 					}
 

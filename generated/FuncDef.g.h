@@ -7,7 +7,8 @@
 #include "StringUtils.g.h"
 
 namespace MiniScript {
-typedef Value (*NativeCallbackDelegate)(List<Value>, Int32, Int32);
+struct CallContext;  // forward declaration; defined in VM.g.h
+typedef Value (*NativeCallbackDelegate)(CallContext);
 inline bool IsNull(NativeCallbackDelegate f) { return f == nullptr; }
 
 // FORWARD DECLARATIONS

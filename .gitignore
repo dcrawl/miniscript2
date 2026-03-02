@@ -82,3 +82,7 @@ TestProject*/
 
 # Internal Stuff
 InternalNotes
+
+# Benchmarks (symbolic link to miniscript-benchmarks/cmdline)
+benchmarks
+

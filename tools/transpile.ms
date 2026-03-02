@@ -1433,11 +1433,13 @@ Transpiler.updateStateMETHOD = function
 		end if
 	end if
 	// start of a lambda definition
-	if self.match("≤var≥.≤member≥ = (List<Value> ≤p1≥, Int32 ≤p2≥, Int32 ≤p3≥) => {") then
+	if self.match("≤var≥.≤member≥ = (CallContext ≤ctx≥) => {") then
 		// Special case of a NativeCallbackDelegate, which returns Value
 		self.enterState State.LAMBDA
 		self.curClass.methodLines.push self.fill(
-		  "	≤var≥.set_≤member≥([](List<Value> ≤p1≥, Int32 ≤p2≥, Int32 ≤p3≥) -> Value {")
+		  "	≤var≥.set_≤member≥([](CallContext ≤ctx≥) -> Value {")
+		ctxInfo = VariableInfo.Make(self.m.ctx, "CallContext", Scope.LOCAL)
+		if self.localVars.indexOf(ctxInfo) == null then self.localVars.push ctxInfo 
 		return
 	else if self.match("≤var≥.≤member≥ = (≤params≥) => {") then
 		// More general case: no way to know what it returns.  We'll assume nothing

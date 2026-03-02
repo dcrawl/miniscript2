@@ -9,6 +9,7 @@
 #include "IOHelper.g.h"
 #include "StringUtils.g.h"
 #include "VM.g.h"
+#include "CallContext.g.h"
 #include "CS_Math.h"
 #include "CS_value_util.h"
 #include <random>
@@ -122,9 +123,8 @@ void CoreIntrinsics::Init() {
 	// print(s="")
 	f = Intrinsic::Create("print");
 	f.AddParam("s", make_string(""));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		String output = StringUtils::Format("{0}", stk[bi + 1]);
-		VM vm = VM::ActiveVM();
+	f.set_Code([](CallContext ctx) -> Value {
+		String output = StringUtils::Format("{0}", ctx.GetArg(0));
 		if (VMStorage::sPrintCallback) {
 			VMStorage::sPrintCallback(output);
 		} else {
@@ -136,10 +136,10 @@ void CoreIntrinsics::Init() {
 	// input(prompt=null)
 	f = Intrinsic::Create("input");
 	f.AddParam("prompt");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		String prompt =  String::New("");
-		if (!is_null(stk[bi + 1])) {
-			prompt = StringUtils::Format("{0}", stk[bi + 1]);
+		if (!is_null(ctx.GetArg(0))) {
+			prompt = StringUtils::Format("{0}", ctx.GetArg(0));
 		}
 		String result = IOHelper::Input(prompt);
 		return make_string(result);
@@ -148,9 +148,9 @@ void CoreIntrinsics::Init() {
 	// val(self=0)
 	f = Intrinsic::Create("val");
 	f.AddParam("self", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value v = stk[bi + 1]; GC_PROTECT(&v);
+		Value v = ctx.GetArg(0); GC_PROTECT(&v);
 		if (is_number(v))  {
 			GC_POP_SCOPE();
 			return v;
@@ -166,9 +166,9 @@ void CoreIntrinsics::Init() {
 	// str(x="")
 	f = Intrinsic::Create("str");
 	f.AddParam("x", make_string(""));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value v = stk[bi + 1]; GC_PROTECT(&v);
+		Value v = ctx.GetArg(0); GC_PROTECT(&v);
 		if (is_null(v))  {
 			GC_POP_SCOPE();
 			return make_string("");
@@ -180,38 +180,38 @@ void CoreIntrinsics::Init() {
 	// upper(self)
 	f = Intrinsic::Create("upper");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return string_upper(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		return string_upper(ctx.GetArg(0));
 	});
 
 	// lower(self)
 	f = Intrinsic::Create("lower");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return string_lower(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		return string_lower(ctx.GetArg(0));
 	});
 
 	// char(codePoint=65)
 	f = Intrinsic::Create("char");
 	f.AddParam("codePoint", make_int(65));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		int codePoint = (int)numeric_val(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		int codePoint = (int)numeric_val(ctx.GetArg(0));
 		return string_from_code_point(codePoint);
 	});
 
 	// code(self)
 	f = Intrinsic::Create("code");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_int(string_code_point(stk[bi + 1]));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_int(string_code_point(ctx.GetArg(0)));
 	});
 
 	// len(x)
 	f = Intrinsic::Create("len");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value container = stk[bi + 1]; GC_PROTECT(&container);
+		Value container = ctx.GetArg(0); GC_PROTECT(&container);
 		Value result = val_null; GC_PROTECT(&result);
 		if (is_list(container)) {
 			result = make_int(list_count(container));
@@ -228,14 +228,14 @@ void CoreIntrinsics::Init() {
 	f = Intrinsic::Create("remove");
 	f.AddParam("self");
 	f.AddParam("index");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value container = stk[bi + 1]; GC_PROTECT(&container);
+		Value container = ctx.GetArg(0); GC_PROTECT(&container);
 		int result = 0;
 		if (is_list(container)) {
-			result = list_remove(container, as_int(stk[bi + 2])) ? 1 : 0;
+			result = list_remove(container, as_int(ctx.GetArg(1))) ? 1 : 0;
 		} else if (is_map(container)) {
-			result = map_remove(container, stk[bi + 2]) ? 1 : 0;
+			result = map_remove(container, ctx.GetArg(1)) ? 1 : 0;
 		} else {
 			IOHelper::Print("ERROR: `remove` must be called on list or map");
 		}
@@ -246,53 +246,53 @@ void CoreIntrinsics::Init() {
 	// freeze(x)
 	f = Intrinsic::Create("freeze");
 	f.AddParam("x");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		freeze_value(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		freeze_value(ctx.GetArg(0));
 		return val_null;
 	});
 
 	// isFrozen(x)
 	f = Intrinsic::Create("isFrozen");
 	f.AddParam("x");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_int(is_frozen(stk[bi + 1]));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_int(is_frozen(ctx.GetArg(0)));
 	});
 
 	// frozenCopy(x)
 	f = Intrinsic::Create("frozenCopy");
 	f.AddParam("x");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return frozen_copy(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		return frozen_copy(ctx.GetArg(0));
 	});
 
 	// abs(x=0)
 	f = Intrinsic::Create("abs");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Abs(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Abs(numeric_val(ctx.GetArg(0))));
 	});
 
 	// acos(x=0)
 	f = Intrinsic::Create("acos");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Acos(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Acos(numeric_val(ctx.GetArg(0))));
 	});
 
 	// asin(x=0)
 	f = Intrinsic::Create("asin");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Asin(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Asin(numeric_val(ctx.GetArg(0))));
 	});
 
 	// atan(y=0, x=1)
 	f = Intrinsic::Create("atan");
 	f.AddParam("y", make_int(0));
 	f.AddParam("x", make_int(1));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		double y = numeric_val(stk[bi + 1]);
-		double x = numeric_val(stk[bi + 2]);
+	f.set_Code([](CallContext ctx) -> Value {
+		double y = numeric_val(ctx.GetArg(0));
+		double x = numeric_val(ctx.GetArg(1));
 		if (x == 1.0) return make_double(Math::Atan(y));
 		return make_double(Math::Atan2(y, x));
 	});
@@ -300,31 +300,31 @@ void CoreIntrinsics::Init() {
 	// ceil(x=0)
 	f = Intrinsic::Create("ceil");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Ceiling(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Ceiling(numeric_val(ctx.GetArg(0))));
 	});
 
 	// cos(radians=0)
 	f = Intrinsic::Create("cos");
 	f.AddParam("radians", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Cos(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Cos(numeric_val(ctx.GetArg(0))));
 	});
 
 	// floor(x=0)
 	f = Intrinsic::Create("floor");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Floor(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Floor(numeric_val(ctx.GetArg(0))));
 	});
 
 	// log(x=0, base=10)
 	f = Intrinsic::Create("log");
 	f.AddParam("x", make_int(0));
 	f.AddParam("base", make_int(10));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		double x = numeric_val(stk[bi + 1]);
-		double b = numeric_val(stk[bi + 2]);
+	f.set_Code([](CallContext ctx) -> Value {
+		double x = numeric_val(ctx.GetArg(0));
+		double b = numeric_val(ctx.GetArg(1));
 		double result;
 		if (Math::Abs(b - 2.718282) < 0.000001) result = Math::Log(x);
 		else result = Math::Log(x) / Math::Log(b);
@@ -333,7 +333,7 @@ void CoreIntrinsics::Init() {
 
 	// pi
 	f = Intrinsic::Create("pi");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return make_double(Math::PI);
 	});
 
@@ -341,9 +341,9 @@ void CoreIntrinsics::Init() {
 	f = Intrinsic::Create("round");
 	f.AddParam("x", make_int(0));
 	f.AddParam("decimalPlaces", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		double num = numeric_val(stk[bi + 1]);
-		int decimalPlaces = (int)numeric_val(stk[bi + 2]);
+	f.set_Code([](CallContext ctx) -> Value {
+		double num = numeric_val(ctx.GetArg(0));
+		int decimalPlaces = (int)numeric_val(ctx.GetArg(1));
 		if (decimalPlaces >= 0) {
 			if (decimalPlaces > 15) decimalPlaces = 15;
 			num = Math::Round(num, decimalPlaces);
@@ -359,46 +359,46 @@ void CoreIntrinsics::Init() {
 	// rnd(seed)
 	f = Intrinsic::Create("rnd");
 	f.AddParam("seed");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		int seed = is_null(stk[bi + 1]) ? 0 : (int)numeric_val(stk[bi + 1]);
+	f.set_Code([](CallContext ctx) -> Value {
+		int seed = is_null(ctx.GetArg(0)) ? 0 : (int)numeric_val(ctx.GetArg(0));
 		return make_double(GetNextRandom(seed));
 	});
 
 	// sign(x=0)
 	f = Intrinsic::Create("sign");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_int(Math::Sign(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_int(Math::Sign(numeric_val(ctx.GetArg(0))));
 	});
 
 	// sin(radians=0)
 	f = Intrinsic::Create("sin");
 	f.AddParam("radians", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Sin(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Sin(numeric_val(ctx.GetArg(0))));
 	});
 
 	// sqrt(x=0)
 	f = Intrinsic::Create("sqrt");
 	f.AddParam("x", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Sqrt(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Sqrt(numeric_val(ctx.GetArg(0))));
 	});
 
 	// tan(radians=0)
 	f = Intrinsic::Create("tan");
 	f.AddParam("radians", make_int(0));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		return make_double(Math::Tan(numeric_val(stk[bi + 1])));
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(Math::Tan(numeric_val(ctx.GetArg(0))));
 	});
 	// push(self, value)
 	f = Intrinsic::Create("push");
 	f.AddParam("self");
 	f.AddParam("value");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		Value value = stk[bi + 2]; GC_PROTECT(&value);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		Value value = ctx.GetArg(1); GC_PROTECT(&value);
 		if (is_list(self)) {
 			list_push(self, value);
 			GC_POP_SCOPE();
@@ -415,9 +415,9 @@ void CoreIntrinsics::Init() {
 	// pop(self)
 	f = Intrinsic::Create("pop");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value result = val_null; GC_PROTECT(&result);
 		if (is_list(self)) {
 			result = list_pop(self);
@@ -439,9 +439,9 @@ void CoreIntrinsics::Init() {
 	// pull(self)
 	f = Intrinsic::Create("pull");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value result = val_null; GC_PROTECT(&result);
 		if (is_list(self)) {
 			result = list_pull(self);
@@ -465,11 +465,11 @@ void CoreIntrinsics::Init() {
 	f.AddParam("self");
 	f.AddParam("index");
 	f.AddParam("value");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		int index = (int)numeric_val(stk[bi + 2]);
-		Value value = stk[bi + 3]; GC_PROTECT(&value);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		int index = (int)numeric_val(ctx.GetArg(1));
+		Value value = ctx.GetArg(2); GC_PROTECT(&value);
 		if (is_list(self)) {
 			list_insert(self, index, value);
 			GC_POP_SCOPE();
@@ -487,11 +487,11 @@ void CoreIntrinsics::Init() {
 	f.AddParam("self");
 	f.AddParam("value");
 	f.AddParam("after");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		Value value = stk[bi + 2]; GC_PROTECT(&value);
-		Value after = stk[bi + 3]; GC_PROTECT(&after);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		Value value = ctx.GetArg(1); GC_PROTECT(&value);
+		Value after = ctx.GetArg(2); GC_PROTECT(&after);
 		Value result = val_null; GC_PROTECT(&result);
 		Value iterKey, iterVal; GC_PROTECT(&iterKey); GC_PROTECT(&iterVal);
 		if (is_list(self)) {
@@ -540,11 +540,11 @@ void CoreIntrinsics::Init() {
 	f.AddParam("self");
 	f.AddParam("byKey");
 	f.AddParam("ascending", make_int(1));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		Value byKey = stk[bi + 2]; GC_PROTECT(&byKey);
-		bool ascending = is_truthy(stk[bi + 3]);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		Value byKey = ctx.GetArg(1); GC_PROTECT(&byKey);
+		bool ascending = is_truthy(ctx.GetArg(2));
 		if (!is_list(self))  {
 			GC_POP_SCOPE();
 			return self;
@@ -565,13 +565,13 @@ void CoreIntrinsics::Init() {
 	// shuffle(self)
 	f = Intrinsic::Create("shuffle");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value temp; GC_PROTECT(&temp);
 		Value iterKey, iterVal; GC_PROTECT(&iterKey); GC_PROTECT(&iterVal);
 		if (is_list(self)) {
-			if (is_frozen(self)) { VM::ActiveVM().RaiseRuntimeError("Attempt to modify a frozen list");  {
+			if (is_frozen(self)) { ctx.vm.RaiseRuntimeError("Attempt to modify a frozen list");  {
 				GC_POP_SCOPE();
 				return val_null; }
 			}
@@ -583,7 +583,7 @@ void CoreIntrinsics::Init() {
 				list_set(self, j, temp);
 			}
 		} else if (is_map(self)) {
-			if (is_frozen(self)) { VM::ActiveVM().RaiseRuntimeError("Attempt to modify a frozen map");  {
+			if (is_frozen(self)) { ctx.vm.RaiseRuntimeError("Attempt to modify a frozen map");  {
 				GC_POP_SCOPE();
 				return val_null; }
 			}
@@ -615,14 +615,14 @@ void CoreIntrinsics::Init() {
 	f = Intrinsic::Create("join");
 	f.AddParam("self");
 	f.AddParam("delimiter", make_string(" "));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		if (!is_list(self))  {
 			GC_POP_SCOPE();
 			return self;
 		}
-		Value delim = stk[bi + 2]; GC_PROTECT(&delim);
+		Value delim = ctx.GetArg(1); GC_PROTECT(&delim);
 		String delimStr = is_null(delim) ? " " : to_String(delim);
 		int count = list_count(self);
 		List<String> parts =  List<String>::New(count);
@@ -638,15 +638,15 @@ void CoreIntrinsics::Init() {
 	f.AddParam("self");
 	f.AddParam("delimiter", make_string(" "));
 	f.AddParam("maxCount", make_int(-1));
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		if (!is_string(self))  {
 			GC_POP_SCOPE();
 			return val_null;
 		}
-		Value delim = stk[bi + 2]; GC_PROTECT(&delim);
-		int maxCount = (int)numeric_val(stk[bi + 3]);
+		Value delim = ctx.GetArg(1); GC_PROTECT(&delim);
+		int maxCount = (int)numeric_val(ctx.GetArg(2));
 		GC_POP_SCOPE();
 		return string_split_max(self, delim, maxCount);
 	});
@@ -657,13 +657,14 @@ void CoreIntrinsics::Init() {
 	f.AddParam("oldval");
 	f.AddParam("newval");
 	f.AddParam("maxCount");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		Value oldVal = stk[bi + 2]; GC_PROTECT(&oldVal);
-		Value newVal = stk[bi + 3]; GC_PROTECT(&newVal);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		Value oldVal = ctx.GetArg(1); GC_PROTECT(&oldVal);
+		Value newVal = ctx.GetArg(2); GC_PROTECT(&newVal);
+		Value maxCountVal = ctx.GetArg(3); GC_PROTECT(&maxCountVal);
 		Value iterKey, iterVal; GC_PROTECT(&iterKey); GC_PROTECT(&iterVal);
-		int maxCount = is_null(stk[bi + 4]) ? -1 : (int)numeric_val(stk[bi + 4]);
+		int maxCount = is_null(maxCountVal) ? -1 : (int)numeric_val(maxCountVal);
 		if (is_list(self)) {
 			int count = list_count(self);
 			int found = 0;
@@ -702,9 +703,9 @@ void CoreIntrinsics::Init() {
 	// sum(self)
 	f = Intrinsic::Create("sum");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value iterVal; GC_PROTECT(&iterVal);
 		double total = 0;
 		if (is_list(self)) {
@@ -734,18 +735,18 @@ void CoreIntrinsics::Init() {
 	f.AddParam("seq");
 	f.AddParam("from", make_int(0));
 	f.AddParam("to");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value seq = stk[bi + 1]; GC_PROTECT(&seq);
-		int fromIdx = (int)numeric_val(stk[bi + 2]);
+		Value seq = ctx.GetArg(0); GC_PROTECT(&seq);
+		int fromIdx = (int)numeric_val(ctx.GetArg(1));
 		if (is_list(seq)) {
 			int count = list_count(seq);
-			int toIdx = is_null(stk[bi + 3]) ? count : (int)numeric_val(stk[bi + 3]);
+			int toIdx = is_null(ctx.GetArg(2)) ? count : (int)numeric_val(ctx.GetArg(2));
 			GC_POP_SCOPE();
 			return list_slice(seq, fromIdx, toIdx);
 		} else if (is_string(seq)) {
 			int slen = string_length(seq);
-			int toIdx = is_null(stk[bi + 3]) ? slen : (int)numeric_val(stk[bi + 3]);
+			int toIdx = is_null(ctx.GetArg(2)) ? slen : (int)numeric_val(ctx.GetArg(2));
 			GC_POP_SCOPE();
 			return string_slice(seq, fromIdx, toIdx);
 		}
@@ -756,9 +757,9 @@ void CoreIntrinsics::Init() {
 	// indexes(self)
 	f = Intrinsic::Create("indexes");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value result = val_null; GC_PROTECT(&result);
 		Value iterKey; GC_PROTECT(&iterKey);
 		if (is_list(self)) {
@@ -792,10 +793,10 @@ void CoreIntrinsics::Init() {
 	f = Intrinsic::Create("hasIndex");
 	f.AddParam("self");
 	f.AddParam("index");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
-		Value index = stk[bi + 2]; GC_PROTECT(&index);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
+		Value index = ctx.GetArg(1); GC_PROTECT(&index);
 		if (is_list(self)) {
 			if (!is_number(index))  {
 				GC_POP_SCOPE();
@@ -825,9 +826,9 @@ void CoreIntrinsics::Init() {
 	// values(self)
 	f = Intrinsic::Create("values");
 	f.AddParam("self");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		GC_PUSH_SCOPE();
-		Value self = stk[bi + 1]; GC_PROTECT(&self);
+		Value self = ctx.GetArg(0); GC_PROTECT(&self);
 		Value result = self; GC_PROTECT(&result);
 		Value iterVal; GC_PROTECT(&iterVal);
 		if (is_map(self)) {
@@ -852,14 +853,14 @@ void CoreIntrinsics::Init() {
 	f.AddParam("from", make_int(0));
 	f.AddParam("to", make_int(0));
 	f.AddParam("step");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
-		double fromVal = numeric_val(stk[bi + 1]);
-		double toVal = numeric_val(stk[bi + 2]);
+	f.set_Code([](CallContext ctx) -> Value {
+		double fromVal = numeric_val(ctx.GetArg(0));
+		double toVal = numeric_val(ctx.GetArg(1));
 		double step;
-		if (is_null(stk[bi + 3]) || !is_number(stk[bi + 3])) {
+		if (is_null(ctx.GetArg(2)) || !is_number(ctx.GetArg(2))) {
 			step = (toVal >= fromVal) ? 1 : -1;
 		} else {
-			step = numeric_val(stk[bi + 3]);
+			step = numeric_val(ctx.GetArg(2));
 		}
 		if (step == 0) {
 			IOHelper::Print("ERROR: range() step must not be 0");
@@ -894,7 +895,7 @@ void CoreIntrinsics::Init() {
 	//    to check whether a variable refers to a list.  You can also
 	//    assign new methods here to make them available on all lists.
 	f = Intrinsic::Create("list");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return ListType();
 	});
 
@@ -904,7 +905,7 @@ void CoreIntrinsics::Init() {
 	//    to check whether a variable refers to a string.  You can also
 	//    assign new methods here to make them available on all strings.
 	f = Intrinsic::Create("string");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return StringType();
 	});
 
@@ -914,7 +915,7 @@ void CoreIntrinsics::Init() {
 	//    to check whether a variable refers to a map.  You can also
 	//    assign new methods here to make them available on all maps.
 	f = Intrinsic::Create("map");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return MapType();
 	});
 
@@ -923,7 +924,7 @@ void CoreIntrinsics::Init() {
 	//    MiniScript's core type system.  This can be used with `isa`
 	//    to check whether a variable contains a number.
 	f = Intrinsic::Create("number");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return NumberType();
 	});
 
@@ -933,7 +934,7 @@ void CoreIntrinsics::Init() {
 	//    to check whether a variable refers to a function.
 	//    (Remember to use @ to avoid invoking the function!)
 	f = Intrinsic::Create("funcRef");
-	f.set_Code([](List<Value> stk, Int32 bi, Int32 ac) -> Value {
+	f.set_Code([](CallContext ctx) -> Value {
 		return FunctionType();
 	});
 

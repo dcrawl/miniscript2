@@ -11,6 +11,7 @@
 #include "IOHelper.g.h"
 #include "Disassembler.g.h"
 #include "StringUtils.g.h"
+#include "CallContext.g.h"
 #include "dispatch_macros.h"
 #include "vm_error.h"
 
@@ -272,6 +273,7 @@ void VMStorage::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,F
 	// Step 6 is handled by the caller (pushing CallInfo, switching frame, etc.)
 }
 Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 returnPC,Int32 baseIndex,Int32 currentFuncIndex,FuncDef curFunc) {
+	VM _this(std::static_pointer_cast<VMStorage>(shared_from_this()));
 	Int32 funcIndex = funcref_index(funcRefVal);
 	if (funcIndex < 0 || funcIndex >= functions.Count()) {
 		RaiseRuntimeError("Auto-invoke: Invalid function index");
@@ -296,7 +298,7 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 			pendingSelf = val_null;
 			hasPendingContext = Boolean(false);
 		}
-		stack[baseIndex + resultReg] = callee.NativeCallback()(stack, calleeBase, selfParam);
+		stack[baseIndex + resultReg] = callee.NativeCallback()(CallContext(_this, stack, calleeBase, selfParam));
 		GC_POP_SCOPE();
 		return -1;
 	}
@@ -346,6 +348,7 @@ Value VMStorage::Run(UInt32 maxCycles) {
 	return runResult;
 }
 Value VMStorage::RunInner(UInt32 maxCycles) {
+	VM _this(std::static_pointer_cast<VMStorage>(shared_from_this()));
 	// Copy instance variables to locals for performance
 	Int32 pc = PC;
 	Int32 baseIndex = BaseIndex;
@@ -1193,7 +1196,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 
 				// Native intrinsic: invoke callback directly, no frame push
 				if (!IsNull(callee.NativeCallback())) {
-					localStack[resultReg] = callee.NativeCallback()(stack, calleeBase, argCount + selfParam);
+					localStack[resultReg] = callee.NativeCallback()(CallContext(_this, stack, calleeBase, argCount + selfParam));
 					pc = nextPC;
 					VM_NEXT();
 				}
@@ -1323,7 +1326,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 
 				// Native intrinsic: invoke callback directly, no frame push
 				if (!IsNull(callee.NativeCallback())) {
-					localStack[a] = callee.NativeCallback()(stack, calleeBase, selfParam);
+					localStack[a] = callee.NativeCallback()(CallContext(_this, stack, calleeBase, selfParam));
 					VM_NEXT();
 				}
 

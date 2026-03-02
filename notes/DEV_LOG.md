@@ -480,4 +480,20 @@ But we forgot to mark the new type maps as roots in the GC system, so while it's
 In addition to the type maps, we also have to mark everything in the _intrinsics dictionary.  GC systems are super annoying this way: if you miss any roots, you will eventually free something you didn't mean to, and cause failures later on.  So far our test suite has proven to be a pretty good way to trigger these failures, but we should think about doing something more systematic, like triggering aggressive GC and garbage-overwrite on a regular basis.
 
 
+## Mar 02, 2026
+
+We have almost the full language implemented at this point, and I'd like to spend a little time soon on benchmarking & optimization.  I expect that as the code base matures, we will alternate between phases of optimization, and phases of beautification (which will include gradually making the APIs match MS1 as closely as possible, and/or providing adapters for older code).  Right now we will also need to mix in completeness/correctness updates, but those should be done fairly soon.
+
+I just had a look at our miniscript-benchmarks repo, and there are a couple of things preventing those scripts from running in MS2 right now:
+
+1. `locals` and `globabls` are not yet implemented.
+2. The `time` intrinsic is not yet implemented.
+
+So let's tackle those today.  (At some point we'll need to also tackle `wait`, which implies reentrant intrinsics, but probably not today.)
+
+But our intrinsics currently don't have access to the VM, which is needed for all three of these new ones.  So I'm refactoring the NativeCallback interface to take a context object (more like MS1) rather than the (List<Value> stack, Int32 baseIndex, Int32 argCount) parameters it takes now.
+
+Though actually, now that I think about it, we probably need to keep `locals` and `globals` as keywords, and deal with them at the compiler level rather than make them standard intrinsics.  But the refactoring above will still be needed for `time` (and no doubt others to come).
+
+
 
