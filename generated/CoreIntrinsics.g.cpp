@@ -938,6 +938,14 @@ void CoreIntrinsics::Init() {
 		return FunctionType();
 	});
 
+	// time
+	//    Returns the number of seconds (double) elapsed since the VM
+	//    started running (i.e., since VM.Reset was called).
+	f = Intrinsic::Create("time");
+	f.set_Code([](CallContext ctx) -> Value {
+		return make_double(ctx.vm.ElapsedTime());
+	});
+
 }
 void CoreIntrinsics::InvalidateTypeMaps() {
 	_listType = val_null;

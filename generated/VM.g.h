@@ -164,7 +164,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: Value pendingSelf;
 	private: Value pendingSuper;
 	private: bool hasPendingContext;
-	private: thread_local static VM _activeVM;
+	private: std::chrono::steady_clock::time_point _startTime;
 
 	// Print callback: if set, print output goes here instead of IOHelper.Print
 	// H: public: std::function<void(const String&)> _printCallback;
@@ -178,6 +178,11 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	// Pending self/super for method calls, set by METHFIND/SETSELF,
 	// consumed by the next CALL instruction
+
+	// Wall-clock start time, set in Reset(), used by the "time" intrinsic.
+	
+	public: double ElapsedTime();
+	private: thread_local static VM _activeVM;
 
 	// Thread-local active VM: set during Run(), so value operations
 	// (like list_push) can report errors without passing ErrorPool around.
@@ -298,8 +303,6 @@ struct VM {
 	private: void set_pendingSuper(Value _v);
 	private: bool hasPendingContext();
 	private: void set_hasPendingContext(bool _v);
-	private: VM _activeVM();
-	private: void set__activeVM(VM _v);
 
 	// Print callback: if set, print output goes here instead of IOHelper.Print
 	// H: public: std::function<void(const String&)> _printCallback;
@@ -313,6 +316,12 @@ struct VM {
 
 	// Pending self/super for method calls, set by METHFIND/SETSELF,
 	// consumed by the next CALL instruction
+
+	// Wall-clock start time, set in Reset(), used by the "time" intrinsic.
+	
+	public: inline double ElapsedTime();
+	private: VM _activeVM();
+	private: void set__activeVM(VM _v);
 
 	// Thread-local active VM: set during Run(), so value operations
 	// (like list_push) can report errors without passing ErrorPool around.
@@ -425,6 +434,7 @@ inline Value VM::pendingSuper() { return get()->pendingSuper; }
 inline void VM::set_pendingSuper(Value _v) { get()->pendingSuper = _v; }
 inline bool VM::hasPendingContext() { return get()->hasPendingContext; }
 inline void VM::set_hasPendingContext(bool _v) { get()->hasPendingContext = _v; }
+inline double VM::ElapsedTime() { return get()->ElapsedTime(); }
 inline VM VM::_activeVM() { return get()->_activeVM; }
 inline void VM::set__activeVM(VM _v) { get()->_activeVM = _v; }
 inline Int32 VM::StackSize() { return get()->StackSize(); }

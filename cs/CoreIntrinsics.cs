@@ -887,6 +887,14 @@ public static class CoreIntrinsics {
 			return FunctionType();
 		};
 
+		// time
+		//    Returns the number of seconds (double) elapsed since the VM
+		//    started running (i.e., since VM.Reset was called).
+		f = Intrinsic.Create("time");
+		f.Code = (CallContext ctx) => {
+			return make_double(ctx.vm.ElapsedTime());
+		};
+
 
 	}
 

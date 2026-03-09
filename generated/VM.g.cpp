@@ -14,6 +14,7 @@
 #include "CallContext.g.h"
 #include "dispatch_macros.h"
 #include "vm_error.h"
+#include <chrono>
 
 namespace MiniScript {
 
@@ -47,6 +48,10 @@ Value CallInfo::GetLocalVarMap(List<Value> registers,List<Value> names,int baseI
 }
 
 	std::function<void(const String&)> VMStorage::sPrintCallback;
+double VMStorage::ElapsedTime() {
+	auto now = std::chrono::steady_clock::now();
+	return std::chrono::duration<double>(now - _startTime).count();
+}
 	thread_local VM VMStorage::_activeVM;
 VM VMStorage::ActiveVM() {
 	return _activeVM;
@@ -170,6 +175,8 @@ void VMStorage::Reset(List<FuncDef> allFunctions) {
 	hasPendingContext = Boolean(false);
 
 	EnsureFrame(BaseIndex, CurrentFunction.MaxRegs());
+
+	_startTime = std::chrono::steady_clock::now();
 
 	if (DebugMode) {
 		IOHelper::Print(StringUtils::Format("VM Reset: Executing {0} out of {1} functions", mainFunc.Name(), functions.Count()));
@@ -1594,25 +1601,35 @@ Value VMStorage::LookupVariable(Value varName) {
 	// Look up a variable in outer context (and eventually globals)
 	// Returns the value if found, or null if not found
 	GC_PUSH_SCOPE();
-	Value outerValue; GC_PROTECT(&outerValue);
+	Value result; GC_PROTECT(&result);
 	if (callStackTop > 0) {
 		CallInfo currentFrame = callStack[callStackTop - 1];  // Current frame, not next frame
 		if (!is_null(currentFrame.OuterVarMap)) {
-			if (map_try_get(currentFrame.OuterVarMap, varName, &outerValue)) {
+			if (map_try_get(currentFrame.OuterVarMap, varName, &result)) {
 				GC_POP_SCOPE();
-				return outerValue;
+				return result;
 			}
 		}
 	}
 
-	// ToDo: check globals!
+	// Check global variables via VarMap (registers at base 0 in the @main frame)
+	Value globalMap; GC_PROTECT(&globalMap);
+	if (callStackTop > 0) {
+		CallInfo gframe = callStack[0];
+		Int32 globalRegCount = functions[gframe.ReturnFuncIndex].MaxRegs();
+		globalMap = gframe.GetLocalVarMap(stack, names, 0, globalRegCount);
+		callStack[0] = gframe;  // write back (CallInfo is a struct)
+		if (map_try_get(globalMap, varName, &result)) {
+			GC_POP_SCOPE();
+			return result;
+		}
+	}
 
 	// Check intrinsics table
-	Value intrinsicRef; GC_PROTECT(&intrinsicRef);
 	String nameStr = as_cstring(varName);
-	if (_intrinsics.TryGetValue(nameStr, &intrinsicRef)) {
+	if (_intrinsics.TryGetValue(nameStr, &result)) {
 		GC_POP_SCOPE();
-		return intrinsicRef;
+		return result;
 	}
 
 	// self/super return null when not in a method context

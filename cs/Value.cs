@@ -220,12 +220,15 @@ public readonly struct Value {
 			double db = b.IsInt ? b.AsInt() : b.AsDouble();
 			return FromDouble(da + db);
 		}
-		// Handle string concatenation
+		// Handle string concatenation: any type + string or string + any type
+		// Null is treated as empty string in concatenation (string + null = string)
 		if (a.IsString) {
+			if (b.IsNull) return a;
 			if (b.IsString) return ValueHelpers.string_concat(a, b);
-			if (b.IsInt || b.IsDouble) return ValueHelpers.string_concat(a, ValueHelpers.make_string(b.ToString()));
-		} else if(b.IsString) {
-			if (a.IsInt || a.IsDouble) return ValueHelpers.string_concat(ValueHelpers.make_string(a.ToString()), b);
+			return ValueHelpers.string_concat(a, ValueHelpers.make_string(b.ToString()));
+		} else if (b.IsString) {
+			if (a.IsNull) return b;
+			return ValueHelpers.string_concat(ValueHelpers.make_string(a.ToString()), b);
 		}
 		// List concatenation
 		if (a.IsList && b.IsList) return ValueHelpers.list_concat(a, b);

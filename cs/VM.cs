@@ -18,6 +18,7 @@ using System.Runtime.InteropServices;
 // CPP: #include "CallContext.g.h"
 // CPP: #include "dispatch_macros.h"
 // CPP: #include "vm_error.h"
+// CPP: #include <chrono>
 
 using static MiniScript.ValueHelpers;
 
@@ -104,6 +105,19 @@ public class VM {
 	private Value pendingSelf;
 	private Value pendingSuper;
 	private bool hasPendingContext;
+
+	// Wall-clock start time, set in Reset(), used by the "time" intrinsic.
+	//*** BEGIN CS_ONLY ***
+	private System.Diagnostics.Stopwatch _stopwatch = new System.Diagnostics.Stopwatch();
+	//*** END CS_ONLY ***
+	/*** BEGIN H_ONLY ***
+	private: std::chrono::steady_clock::time_point _startTime;
+	*** END H_ONLY ***/
+	
+	public double ElapsedTime() {
+		// CPP: auto now = std::chrono::steady_clock::now();
+		return _stopwatch.Elapsed.TotalSeconds; // CPP: return std::chrono::duration<double>(now - _startTime).count();
+	}
 
 	// Thread-local active VM: set during Run(), so value operations
 	// (like list_push) can report errors without passing ErrorPool around.
@@ -248,6 +262,11 @@ public class VM {
 		hasPendingContext = false;
 
 		EnsureFrame(BaseIndex, CurrentFunction.MaxRegs);
+
+		//*** BEGIN CS_ONLY ***
+		_stopwatch.Restart();
+		//*** END CS_ONLY ***
+		// CPP: _startTime = std::chrono::steady_clock::now();
 
 		if (DebugMode) {
 			IOHelper.Print(StringUtils.Format("VM Reset: Executing {0} out of {1} functions", mainFunc.Name, functions.Count));
@@ -1683,23 +1702,32 @@ public class VM {
 	private Value LookupVariable(Value varName) {
 		// Look up a variable in outer context (and eventually globals)
 		// Returns the value if found, or null if not found
-		Value outerValue;
+		Value result;
 		if (callStackTop > 0) {
 			CallInfo currentFrame = callStack[callStackTop - 1];  // Current frame, not next frame
 			if (!is_null(currentFrame.OuterVarMap)) {
-				if (map_try_get(currentFrame.OuterVarMap, varName, out outerValue)) {
-					return outerValue;
+				if (map_try_get(currentFrame.OuterVarMap, varName, out result)) {
+					return result;
 				}
 			}
 		}
 
-		// ToDo: check globals!
+		// Check global variables via VarMap (registers at base 0 in the @main frame)
+		Value globalMap;
+		if (callStackTop > 0) {
+			CallInfo gframe = callStack[0];
+			Int32 globalRegCount = functions[gframe.ReturnFuncIndex].MaxRegs;
+			globalMap = gframe.GetLocalVarMap(stack, names, 0, globalRegCount);
+			callStack[0] = gframe;  // write back (CallInfo is a struct)
+			if (map_try_get(globalMap, varName, out result)) {
+				return result;
+			}
+		}
 
 		// Check intrinsics table
-		Value intrinsicRef;
 		String nameStr = as_cstring(varName);
-		if (_intrinsics.TryGetValue(nameStr, out intrinsicRef)) {
-			return intrinsicRef;
+		if (_intrinsics.TryGetValue(nameStr, out result)) {
+			return result;
 		}
 
 		// self/super return null when not in a method context

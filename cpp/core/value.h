@@ -255,12 +255,15 @@ static inline Value value_add(Value a, Value b) {
         return make_double(da + db);
     }
     
-    // Handle string concatenation
+    // Handle string concatenation: any type + string or string + any type
+    // Null is treated as empty string in concatenation
     if (is_string(a)) {
+        if (is_null(b)) return a;
         if (is_string(b)) return string_concat(a, b);
-        if (is_int(b) || is_double(b)) return string_concat(a, to_string(b));
-	} else if (is_string(b)) {
-        if (is_int(a) || is_double(a)) return string_concat(to_string(a), b);
+        return string_concat(a, to_string(b));
+    } else if (is_string(b)) {
+        if (is_null(a)) return b;
+        return string_concat(to_string(a), b);
     }
     
     // Handle list concatenation
