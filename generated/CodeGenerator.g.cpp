@@ -867,6 +867,13 @@ Int32 CodeGeneratorStorage::Visit(ForNode node) {
 	Int32 indexReg = AllocReg();
 	_emitter.EmitAB(Opcode::LOAD_rA_iBC, indexReg, -1, "for loop index = -1");
 
+	// Register listReg and indexReg as internal variables so that
+	// ResetTempRegisters (called before each body statement) won't free them.
+	String idxName = "__" + node.Variable() + "_idx";
+	String listName = "__" + node.Variable() + "_list";
+	_variableRegs[idxName] = indexReg;
+	_variableRegs[listName] = listReg;
+
 	// Get or create register for loop variable
 	Int32 varReg;
 	if (_variableRegs.TryGetValue(node.Variable(), &varReg)) {
@@ -902,7 +909,9 @@ Int32 CodeGeneratorStorage::Visit(ForNode node) {
 	_loopExitLabels.RemoveAt(_loopExitLabels.Count() - 1);
 	_loopContinueLabels.RemoveAt(_loopContinueLabels.Count() - 1);
 
-	// Free temporary registers (but keep variable register)
+	// Remove internal variable names and free the registers
+	_variableRegs.Remove(idxName);
+	_variableRegs.Remove(listName);
 	FreeReg(indexReg);
 	FreeReg(listReg);
 

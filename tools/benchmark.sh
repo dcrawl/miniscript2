@@ -19,7 +19,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             echo "Usage: $0 [-lang=LANGUAGES]"
-            echo "  -lang=LANGUAGES  Run specific languages (msa,cs,cpp-switch,cpp-goto,ms1,python,lua) or 'all' (default)"
+            echo "  -lang=LANGUAGES  Run specific languages (cs,cpp-switch,cpp-goto,msa,ms1,python,lua) or 'all' (default)"
+            echo "  Each MS2 language (cs, cpp-switch, cpp-goto) runs both .msa (asm) and .ms (source) benchmarks"
             echo "  Examples:"
             echo "    $0 -lang=msa"
             echo "    $0 -lang=msa,lua"
@@ -93,27 +94,21 @@ BENCHMARKS=(
 # Function to run a single benchmark and return timing
 run_benchmark() {
     local benchmark_file="$1"
-    local benchmark_name="$2" 
+    local benchmark_name="$2"
     local expected_result="$3"
     local build_type="$4"
     local executable="$5"
-    
+    local file_ext="$6"
+
+    local benchmark_path="tools/benchmarks/$benchmark_file.$file_ext"
+
     # Run benchmark and capture timing and result
-    if [[ "$build_type" == "C#" ]]; then
-        TIME_OUTPUT=$(time (dotnet "$executable" "tools/benchmarks/$benchmark_file.msa" 2>/dev/null) 2>&1)
-        RESULT=$(dotnet "$executable" "tools/benchmarks/$benchmark_file.msa" 2>/dev/null | grep "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
-    elif [[ "$build_type" == "MiniScript 1.0" ]]; then
-        TIME_OUTPUT=$(time ("$executable" "tools/benchmarks/$benchmark_file.ms" 2>/dev/null) 2>&1)
-        RESULT=$("$executable" "tools/benchmarks/$benchmark_file.ms" 2>/dev/null | grep "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
-    elif [[ "$build_type" == "Python" ]]; then
-        TIME_OUTPUT=$(time ("$executable" "tools/benchmarks/$benchmark_file.py" 2>/dev/null) 2>&1)
-        RESULT=$("$executable" "tools/benchmarks/$benchmark_file.py" 2>/dev/null | grep "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
-    elif [[ "$build_type" == "Lua" ]]; then
-        TIME_OUTPUT=$(time ("$executable" "tools/benchmarks/$benchmark_file.lua" 2>/dev/null) 2>&1)
-        RESULT=$("$executable" "tools/benchmarks/$benchmark_file.lua" 2>/dev/null | grep "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
+    if [[ "$build_type" == "dotnet" ]]; then
+        TIME_OUTPUT=$(time (dotnet "$executable" "$benchmark_path" 2>/dev/null) 2>&1)
+        RESULT=$(dotnet "$executable" "$benchmark_path" 2>/dev/null | grep -m1 "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
     else
-        TIME_OUTPUT=$(time ("$executable" "tools/benchmarks/$benchmark_file.msa" 2>/dev/null) 2>&1)
-        RESULT=$("$executable" "tools/benchmarks/$benchmark_file.msa" 2>/dev/null | grep "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
+        TIME_OUTPUT=$(time ("$executable" "$benchmark_path" 2>/dev/null) 2>&1)
+        RESULT=$("$executable" "$benchmark_path" 2>/dev/null | grep -m1 "Result in r0:" -A1 | tail -1 | sed 's/\x1b\[[0-9;]*m//g')
     fi
     
     # Extract timing information (handle both formats: "real 0m3.072s" or "3.072 total")
@@ -144,11 +139,14 @@ run_benchmark() {
     fi
 }
 
-# Arrays to store results
-declare -a CS_TIMES
-declare -a CPP_GOTO_TIMES
-declare -a CPP_SWITCH_TIMES
-declare -a MS_TIMES
+# Arrays to store results (asm = .msa, src = .ms)
+declare -a CS_ASM_TIMES
+declare -a CS_SRC_TIMES
+declare -a CPP_GOTO_ASM_TIMES
+declare -a CPP_GOTO_SRC_TIMES
+declare -a CPP_SWITCH_ASM_TIMES
+declare -a CPP_SWITCH_SRC_TIMES
+declare -a MS1_TIMES
 declare -a PY_TIMES
 declare -a LUA_TIMES
 
@@ -159,14 +157,23 @@ echo ""
 if should_run_language "cs"; then
     echo -e "${BOLD}Building C# version...${NC}"
     tools/build.sh cs > /dev/null
-    echo -e "${BOLD}Running C# benchmarks...${NC}"
+    echo -e "${BOLD}Running C# benchmarks (asm)...${NC}"
     for i in "${!BENCHMARKS[@]}"; do
         benchmark_def="${BENCHMARKS[i]}"
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        cs_time=$(run_benchmark "$file" "$name" "$expected" "C#" "build/cs/miniscript2.dll")
-        CS_TIMES+=("$cs_time")
+        cs_time=$(run_benchmark "$file" "$name" "$expected" "dotnet" "build/cs/miniscript2.dll" "msa")
+        CS_ASM_TIMES+=("$cs_time")
+    done
+    echo -e "${BOLD}Running C# benchmarks (source)...${NC}"
+    for i in "${!BENCHMARKS[@]}"; do
+        benchmark_def="${BENCHMARKS[i]}"
+        IFS=':' read -r file name expected <<< "$benchmark_def"
+
+        echo -e "${BLUE}  $name...${NC}"
+        cs_time=$(run_benchmark "$file" "$name" "$expected" "dotnet" "build/cs/miniscript2.dll" "ms")
+        CS_SRC_TIMES+=("$cs_time")
     done
     echo ""
 fi
@@ -179,14 +186,23 @@ if should_run_language "cpp-switch"; then
         echo -e "${RED}C++ (switch-based) build failed!${NC}"
         exit 1
     fi
-    echo -e "${BOLD}Running C++ (switch-based) benchmarks...${NC}"
+    echo -e "${BOLD}Running C++ switch benchmarks (asm)...${NC}"
     for i in "${!BENCHMARKS[@]}"; do
         benchmark_def="${BENCHMARKS[i]}"
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        cpp_switch_time=$(run_benchmark "$file" "$name" "$expected" "C++ (switch-based)" "build/cpp/miniscript2")
-        CPP_SWITCH_TIMES+=("$cpp_switch_time")
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "build/cpp/miniscript2" "msa")
+        CPP_SWITCH_ASM_TIMES+=("$t")
+    done
+    echo -e "${BOLD}Running C++ switch benchmarks (source)...${NC}"
+    for i in "${!BENCHMARKS[@]}"; do
+        benchmark_def="${BENCHMARKS[i]}"
+        IFS=':' read -r file name expected <<< "$benchmark_def"
+
+        echo -e "${BLUE}  $name...${NC}"
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "build/cpp/miniscript2" "ms")
+        CPP_SWITCH_SRC_TIMES+=("$t")
     done
     echo ""
 fi
@@ -199,28 +215,37 @@ if should_run_language "cpp-goto" || should_run_language "msa"; then
         echo -e "${RED}C++ (computed-goto) build failed!${NC}"
         exit 1
     fi
-    echo -e "${BOLD}Running C++ (computed-goto) benchmarks...${NC}"
+    echo -e "${BOLD}Running C++ goto benchmarks (asm)...${NC}"
     for i in "${!BENCHMARKS[@]}"; do
         benchmark_def="${BENCHMARKS[i]}"
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        cpp_goto_time=$(run_benchmark "$file" "$name" "$expected" "C++ (computed-goto)" "build/cpp/miniscript2")
-        CPP_GOTO_TIMES+=("$cpp_goto_time")
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "build/cpp/miniscript2" "msa")
+        CPP_GOTO_ASM_TIMES+=("$t")
+    done
+    echo -e "${BOLD}Running C++ goto benchmarks (source)...${NC}"
+    for i in "${!BENCHMARKS[@]}"; do
+        benchmark_def="${BENCHMARKS[i]}"
+        IFS=':' read -r file name expected <<< "$benchmark_def"
+
+        echo -e "${BLUE}  $name...${NC}"
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "build/cpp/miniscript2" "ms")
+        CPP_GOTO_SRC_TIMES+=("$t")
     done
     echo ""
 fi
 
-# Run all MiniScript benchmarks
+# Run all MiniScript 1.0 benchmarks
 if should_run_language "ms1"; then
-    echo -e "${BOLD}Running MiniScript benchmarks...${NC}"
+    echo -e "${BOLD}Running MiniScript 1.0 benchmarks...${NC}"
     for i in "${!BENCHMARKS[@]}"; do
         benchmark_def="${BENCHMARKS[i]}"
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        ms1_time=$(run_benchmark "$file" "$name" "$expected" "MiniScript 1.0" "miniscript")
-        MS1_TIMES+=("$ms1_time")
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "miniscript" "ms")
+        MS1_TIMES+=("$t")
     done
     echo ""
 fi
@@ -233,8 +258,8 @@ if should_run_language "python"; then
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        py_time=$(run_benchmark "$file" "$name" "$expected" "Python" "python")
-        PY_TIMES+=("$py_time")
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "python" "py")
+        PY_TIMES+=("$t")
     done
     echo ""
 fi
@@ -247,8 +272,8 @@ if should_run_language "lua"; then
         IFS=':' read -r file name expected <<< "$benchmark_def"
 
         echo -e "${BLUE}  $name...${NC}"
-        lua_time=$(run_benchmark "$file" "$name" "$expected" "Lua" "lua")
-        LUA_TIMES+=("$lua_time")
+        t=$(run_benchmark "$file" "$name" "$expected" "direct" "lua" "lua")
+        LUA_TIMES+=("$t")
     done
     echo ""
 fi
@@ -257,45 +282,39 @@ fi
 echo -e "${BOLD}=== Performance Summary ===${NC}"
 echo ""
 
-# Build dynamic table header
+# Helper to add a column to the table layout
+add_col() {
+    local header="$1"
+    local width="$2"
+    table_header+="| $(printf "%-${width}s" "$header") "
+    table_separator+="|$(printf '%0.s-' $(seq 1 $((width + 2))))"
+    format_string+="| %-${width}s "
+}
+
 table_header="| Benchmark               "
 table_separator="|-------------------------"
 format_string="| %-23s "
 
 if should_run_language "cs"; then
-    table_header+="| C#        "
-    table_separator+="|-----------"
-    format_string+="| %-9s "
+    add_col "C# asm" 8
+    add_col "C# src" 8
 fi
-
 if should_run_language "cpp-switch"; then
-    table_header+="| C++ (switch) "
-    table_separator+="|--------------"
-    format_string+="| %-12s "
+    add_col "sw asm" 8
+    add_col "sw src" 8
 fi
-
 if should_run_language "cpp-goto" || should_run_language "msa"; then
-    table_header+="| C++ (goto) "
-    table_separator+="|------------"
-    format_string+="| %-10s "
+    add_col "goto asm" 8
+    add_col "goto src" 8
 fi
-
 if should_run_language "ms1"; then
-    table_header+="|  MS 1.0  "
-    table_separator+="|----------"
-    format_string+="| %-8s "
+    add_col "MS 1.0" 8
 fi
-
 if should_run_language "python"; then
-    table_header+="|  Python  "
-    table_separator+="|----------"
-    format_string+="| %-8s "
+    add_col "Python" 8
 fi
-
 if should_run_language "lua"; then
-    table_header+="|   Lua    "
-    table_separator+="|----------"
-    format_string+="| %-8s "
+    add_col "Lua" 8
 fi
 
 table_header+="|"
@@ -308,30 +327,26 @@ echo "$table_separator"
 # Build dynamic table rows
 for i in "${!BENCHMARKS[@]}"; do
     IFS=':' read -r file name expected <<< "${BENCHMARKS[i]}"
-
-    # Build arguments array for printf
     printf_args=("$name")
 
     if should_run_language "cs"; then
-        printf_args+=("${CS_TIMES[i]}s")
+        printf_args+=("${CS_ASM_TIMES[i]}s")
+        printf_args+=("${CS_SRC_TIMES[i]}s")
     fi
-
     if should_run_language "cpp-switch"; then
-        printf_args+=("${CPP_SWITCH_TIMES[i]}s")
+        printf_args+=("${CPP_SWITCH_ASM_TIMES[i]}s")
+        printf_args+=("${CPP_SWITCH_SRC_TIMES[i]}s")
     fi
-
     if should_run_language "cpp-goto" || should_run_language "msa"; then
-        printf_args+=("${CPP_GOTO_TIMES[i]}s")
+        printf_args+=("${CPP_GOTO_ASM_TIMES[i]}s")
+        printf_args+=("${CPP_GOTO_SRC_TIMES[i]}s")
     fi
-
     if should_run_language "ms1"; then
         printf_args+=("${MS1_TIMES[i]}s")
     fi
-
     if should_run_language "python"; then
         printf_args+=("${PY_TIMES[i]}s")
     fi
-
     if should_run_language "lua"; then
         printf_args+=("${LUA_TIMES[i]}s")
     fi

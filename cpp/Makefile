@@ -13,8 +13,15 @@ else
     GOTO_FLAG = 
 endif
 
-CXXFLAGS = -std=gnu++11 -Wall -Wextra -O3 -DNDEBUG -Icore -I$(GENDIR) $(GOTO_FLAG) -MMD -MP
-CFLAGS = -std=c99 -Wall -Wextra -O3 -DNDEBUG -Icore $(GOTO_FLAG) -MMD -MP
+# Handle build mode (release or debug)
+ifeq ($(BUILD_MODE),debug)
+    OPT_FLAGS = -O0 -g
+else
+    OPT_FLAGS = -O3 -DNDEBUG
+endif
+
+CXXFLAGS = -std=gnu++11 -Wall -Wextra $(OPT_FLAGS) -Icore -I$(GENDIR) $(GOTO_FLAG) -MMD -MP
+CFLAGS = -std=c99 -Wall -Wextra $(OPT_FLAGS) -Icore $(GOTO_FLAG) -MMD -MP
 
 # AddressSanitizer flags for debugging
 ASAN_CXXFLAGS = -std=gnu++11 -Wall -Wextra -O0 -g -fsanitize=address -Icore -I$(GENDIR) $(GOTO_FLAG) -MMD -MP

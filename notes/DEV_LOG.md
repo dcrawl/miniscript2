@@ -498,3 +498,47 @@ Though actually, now that I think about it, we probably need to keep `locals` an
 While implementing `locals`, I've found myself once again annoyed by the undefined order of key iteration in maps (e.g. when converting a map to a string for a test case!).  Going to tweak the CS_Dictionary implementation so that it can iterate over keys in insertion order rather than essentially random order.  Fixing that by rewriting value_map to use a chaining algorithm, like CS_Dictionary.h (which also had a couple of bugs that broke ordering, now fixed).  
 
 Added implementations of `outer` and `globals` now too.
+
+
+## Mar 09, 2026
+
+I found a couple of small issues in testing this morning: global variables were not being implicitly looked up, and string concatenation with lists and maps did not work.  Those are fixed.  Also, I needed to implement the `time` intrinsic.
+
+But with all that in place, I can start running benchmarks!  `tools/build.sh cpp` already builds with optimizations on.  So:
+
+(base) √ miniscript2 % miniscript benchmarks/fib-recursive.ms                                              rfib(30) time: 13.088
+(base) √ miniscript2 % build/cs/miniscript2 benchmarks/fib-recursive.ms                                    rfib(30) time: 3.41
+(base) √ miniscript2 % build/cpp/miniscript2 benchmarks/fib-recursive.ms                                   rfib(30) time: 0.833
+
+Woo!
+
+I had Claude make an option to do debug builds (asserts on, optimizations off) when we want them.  Usage summary:                                            
+  - tools/build.sh cpp — release build (unchanged, -O3 -DNDEBUG)
+  - tools/build.sh cpp debug — debug build (-O0 -g, asserts enabled)
+  - tools/build.sh cpp debug on — debug build with computed-goto forced on
+  - Options can appear in any order after cpp
+
+I just have to remember to do a `tools/build.sh clean` when switching between debug and release builds.
+
+I'm brushing off the benchmark.sh script, which compares equivalent programs in three versions of MS2, as well as MS1, Python, and Lua.  But the MS2 ones are using hand-written assembly.  We need to update that to use the same .ms files that MS1 uses (perhaps keeping the hand-written assembly in there for comparison).
+
+But, using the .msa files for MS2, here's where we sit today:
+
+| Benchmark           | C#        | C++ (switch) | C++ (goto) |  MS 1.0  |  Python  |   Lua |
+|---------------------|-----------|--------------|------------|----------|----------|-------|
+| Iterative Factorial | 3.382s    | .419s        | .333s      | 42.285s  | 2.370s   | .643s |
+| Iterative Fibonacci | 3.862s    | .412s        | .356s      | 69.745s  | 2.258s   | .764s |
+| Recursive Fibonacci | 3.941s    | 1.636s       | 1.717s     | 55.675s  | 1.421s   | .425s |
+
+OK, and after fixing an issue with nested loops, I was able to get results including MS2 using source (src) files:
+
+| Benchmark          |C# asm| C# src|sw asm|sw src|goto asm|goto src| MS 1.0|Python| Lua |
+|--------------------|------|-------|------|------|--------|--------|-------|------|-----|
+| Iterative Factorial|3.529s| 8.187s| .326s| .670s|  .296s |  .687s |37.194s|2.245s|.610s|
+| Iterative Fibonacci|3.775s| 9.065s| .326s|1.056s|  .314s | 1.007s |67.744s|1.947s|.695s|
+| Recursive Fibonacci|3.994s|12.931s|1.452s|3.314s| 1.488s | 3.444s |56.744s|1.381s|.352s|
+
+So, we're doing well overall.  Note that the "Iterative Fibonacci" and "Recursive Fibonacci" aren't doing the same work -- so it's not actually the case that Python and Lua are faster at recursion than iteration.  Not by a long shot.  However, it does seem that we still suffer more from recursion than they do.
+
+A major goal for MS2 was to bring our call overhead down.  Comparing to MiniScript 1, we have succeeded at that; but compared to Pythan and Lua, it seems we could still be doing better.
+
