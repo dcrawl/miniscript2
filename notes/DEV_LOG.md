@@ -566,3 +566,10 @@ Then moved recalculation of local_stack into only the places where it changes (i
 
 And with a further optimization (functionsRaw vector storing FuncDefStorage*'s), the time comes down to 1.14s!
 
+Revised benchmark times, after these optimizations:
+
+| Benchmark         |C# asm| C# src|sw asm|sw src|goto asm|goto src|MS 1.0  |Python| Lua |
+|-------------------|------|-------|------|------|--------|--------|--------|------|-----|
+|Iterative Factorial|3.071s| 7.082s| .309s| .673s| .274s  |  .548s |36.860s |2.174s|.734s|
+|Iterative Fibonacci|3.573s| 7.862s| .311s|1.001s| .259s  |  .867s |65.820s |2.289s|.705s|
+|Recursive Fibonacci|3.660s|11.590s| .491s|1.532s| .409s  | 1.344s |58.154s |1.313s|.394s|
