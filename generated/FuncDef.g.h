@@ -168,6 +168,7 @@ struct FuncDef {
 	FuncDef(std::nullptr_t) : storage(nullptr) {}
 	friend bool IsNull(const FuncDef& inst) { return inst.storage == nullptr; }
 	private: FuncDefStorage* get() const;
+	public: FuncDefStorage* get_storage() const { return storage.get(); }
 
 	public: String Name();
 	public: void set_Name(String _v);

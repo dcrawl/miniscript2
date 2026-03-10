@@ -468,10 +468,10 @@ public class VM {
 		Int32 baseIndex = BaseIndex;
 		Int32 currentFuncIndex = _currentFuncIndex;
 
-		FuncDef curFunc = CurrentFunction;
-		Int32 codeCount = curFunc.Code.Count;
-		var curCode = curFunc.Code; // CPP: UInt32* curCode = &curFunc.Code()[0];
-		var curConstants = curFunc.Constants; // CPP: Value* curConstants = &curFunc.Constants()[0];
+		FuncDef curFunc = CurrentFunction; // CPP: FuncDefStorage* curFuncRaw = CurrentFunction.get_storage();
+		Int32 codeCount = curFunc.Code.Count; // CPP: Int32 codeCount = curFuncRaw->Code.Count();
+		var curCode = curFunc.Code; // CPP: UInt32* curCode = &curFuncRaw->Code[0];
+		var curConstants = curFunc.Constants; // CPP: Value* curConstants = &curFuncRaw->Constants[0];
 
 		UInt32 cyclesLeft = maxCycles;
 		if (maxCycles == 0) cyclesLeft--;  // wraps to MAX_UINT32
@@ -515,7 +515,7 @@ public class VM {
 				PC = pc;
 				BaseIndex = baseIndex;
 				_currentFuncIndex = currentFuncIndex;
-				CurrentFunction = curFunc;
+				CurrentFunction = functions[currentFuncIndex];
 				return val_null;
 			}
 			cyclesLeft--;
@@ -527,7 +527,7 @@ public class VM {
 				PC = pc;
 				BaseIndex = baseIndex;
 				_currentFuncIndex = currentFuncIndex;
-				CurrentFunction = curFunc;
+				CurrentFunction = functions[currentFuncIndex];
 				return val_null;
 			}
 
@@ -539,7 +539,7 @@ public class VM {
 			if (DebugMode) {
 				// Debug output disabled for C++ transpilation
 				IOHelper.Print(StringUtils.Format("{0} {1}: {2}     r0:{3}, r1:{4}, r2:{5}",
-					curFunc.Name,
+					curFunc.Name, // CPP: curFuncRaw->Name,
 					StringUtils.ZeroPad(pc-1, 4),
 					Disassembler.ToString(instruction),
 					localStack[0], localStack[1], localStack[2]));
@@ -625,16 +625,16 @@ public class VM {
 						localStack[a] = val;
 					} else {
 						// Value is a funcref — auto-invoke with zero args
-						Int32 calleeIdx = AutoInvokeFuncRef(val, a, pc, baseIndex, currentFuncIndex, curFunc);
+						Int32 calleeIdx = AutoInvokeFuncRef(val, a, pc, baseIndex, currentFuncIndex, functions[currentFuncIndex]);
 						if (calleeIdx >= 0) {
 							// Frame was pushed — switch to callee
-							baseIndex += curFunc.MaxRegs;
+							baseIndex += curFunc.MaxRegs; // CPP: baseIndex += curFuncRaw->MaxRegs;
 							pc = 0;
 							currentFuncIndex = calleeIdx;
-							curFunc = functions[calleeIdx];
-							codeCount = curFunc.Code.Count;
-							curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-							curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
+							curFunc = functions[calleeIdx];	// CPP: curFuncRaw = functions[currentFuncIndex].get_storage();
+							codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+							curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+							curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 						}
 					}
 					break;
@@ -647,7 +647,8 @@ public class VM {
 
 					// Create function reference with our locals as the closure context
 					CallInfo frame = callStack[callStackTop];
-					locals = frame.GetLocalVarMap(stack, names, baseIndex, curFunc.MaxRegs);
+					locals = frame.GetLocalVarMap(stack, names, baseIndex, 
+					  curFunc.MaxRegs); // CPP: curFuncRaw->MaxRegs);
 					callStack[callStackTop] = frame;  // write back (CallInfo is a struct)
 					localStack[a] = make_funcref(funcIndex, locals);
 					break;
@@ -851,7 +852,8 @@ public class VM {
 					Byte a = BytecodeUtil.Au(instruction);
 
 					CallInfo frame = callStack[callStackTop];
-					localStack[a] = frame.GetLocalVarMap(stack, names, baseIndex, curFunc.MaxRegs);
+					localStack[a] = frame.GetLocalVarMap(stack, names, baseIndex, 
+					  curFunc.MaxRegs); // CPP: curFuncRaw->MaxRegs);
 					callStack[callStackTop] = frame;  // write back (CallInfo is a struct)
 					names[baseIndex+a] = val_null;
 					break;
@@ -865,7 +867,12 @@ public class VM {
 					} else {
 						// No enclosing scope or at global scope: outer == globals
 						CallInfo gframe = callStack[0];
-						Int32 regCount = (callStackTop == 0) ? curFunc.MaxRegs : functions[gframe.ReturnFuncIndex].MaxRegs;
+						Int32 regCount;  // TODO: is the following right?  Why not just functions[0].MaxRegs?
+						if (callStackTop == 0) {
+							regCount = curFunc.MaxRegs; // CPP: regCount = curFuncRaw->MaxRegs;
+						} else {
+							regCount = functions[gframe.ReturnFuncIndex].MaxRegs;
+						}
 						localStack[a] = gframe.GetLocalVarMap(stack, names, 0, regCount);
 						callStack[0] = gframe;
 					}
@@ -877,7 +884,12 @@ public class VM {
 					// Return VarMap for global variables
 					Byte a = BytecodeUtil.Au(instruction);
 					CallInfo gframe = callStack[0];
-					Int32 regCount = (callStackTop == 0) ? curFunc.MaxRegs : functions[gframe.ReturnFuncIndex].MaxRegs;
+					Int32 regCount;  // TODO: is the following right?  Why not just functions[0].MaxRegs?
+					if (callStackTop == 0) {
+						regCount = curFunc.MaxRegs; // CPP: regCount = curFuncRaw->MaxRegs;
+					} else {
+						regCount = functions[gframe.ReturnFuncIndex].MaxRegs;
+					}
 					localStack[a] = gframe.GetLocalVarMap(stack, names, 0, regCount);
 					callStack[0] = gframe;  // write back (CallInfo is a struct)
 					names[baseIndex+a] = val_null;
@@ -1295,7 +1307,8 @@ public class VM {
 					// Check for self-injection: if pending context and first param is "self",
 					// inject pendingSelf as the first argument
 					Int32 selfParam = SelfParamOffset(callee);
-					Int32 nextPC = ProcessArguments(argCount, selfParam, pc, baseIndex, calleeBase, callee, curFunc.Code);
+					Int32 nextPC = ProcessArguments(argCount, selfParam, pc, baseIndex, calleeBase, callee, 
+					  curFunc.Code); // CPP: curFuncRaw->Code);
 					if (nextPC < 0) return val_null; // Error already raised
 					if (selfParam > 0) {
 						stack[calleeBase + 1] = pendingSelf;
@@ -1326,12 +1339,12 @@ public class VM {
 					callStackTop++;
 
 					baseIndex = calleeBase;
+					currentFuncIndex = funcIndex2; // Switch to callee function
 					pc = 0; // Start at beginning of callee code
-					curFunc = callee; // Switch to callee function
-					codeCount = curFunc.Code.Count;
-					curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-					curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
-					currentFuncIndex = funcIndex2;
+					curFunc = callee; // CPP: curFuncRaw = functions[currentFuncIndex].get_storage();
+					codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+					curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+					curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 					EnsureFrame(baseIndex, callee.MaxRegs);
 					break;
 				}
@@ -1377,11 +1390,11 @@ public class VM {
 					baseIndex += a;
 					// Note: ApplyPendingContext skipped for CALLF (only needed for method dispatch via CALL)
 					pc = 0; // Start at beginning of callee code
-					curFunc = callee; // Switch to callee function
-					codeCount = curFunc.Code.Count;
-					curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-					curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
-					currentFuncIndex = funcIndex; // Switch to callee function index
+					currentFuncIndex = funcIndex; // Switch to callee function
+					curFunc = callee; // CPP: curFuncRaw = functions[currentFuncIndex].get_storage();
+					codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+					curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+					curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 
 					EnsureFrame(baseIndex, callee.MaxRegs);
 					break;
@@ -1447,11 +1460,11 @@ public class VM {
 					// Set up call frame starting at baseIndex + b
 					baseIndex = calleeBase;
 					pc = 0; // Start at beginning of callee code
-					curFunc = callee; // Switch to callee function
-					codeCount = curFunc.Code.Count;
-					curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-					curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
-					currentFuncIndex = funcIndex; // Switch to callee function index
+					currentFuncIndex = funcIndex; // Switch to callee function
+					curFunc = callee; // CPP: curFuncRaw = functions[currentFuncIndex].get_storage();
+					codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+					curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+					curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 					EnsureFrame(baseIndex, callee.MaxRegs);
 					break;
 				}
@@ -1597,16 +1610,16 @@ public class VM {
 					}
 
 					// Auto-invoke the funcref with zero args
-					Int32 calleeIdx = AutoInvokeFuncRef(val, a, pc, baseIndex, currentFuncIndex, curFunc);
+					Int32 calleeIdx = AutoInvokeFuncRef(val, a, pc, baseIndex, currentFuncIndex, functions[currentFuncIndex]);
 					if (calleeIdx >= 0) {
 						// Frame was pushed — switch to callee
-						baseIndex += curFunc.MaxRegs;
+						baseIndex += curFunc.MaxRegs; // CPP: baseIndex += curFuncRaw->MaxRegs;
 						pc = 0;
 						currentFuncIndex = calleeIdx;
-						curFunc = functions[calleeIdx];
-						codeCount = curFunc.Code.Count;
-						curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-						curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
+						curFunc = functions[calleeIdx]; // CPP: curFuncRaw = functions[calleeIdx].get_storage();
+						codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+						curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+						curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 					}
 					break; // CPP: VM_NEXT();
 				}
@@ -1619,7 +1632,7 @@ public class VM {
 						PC = pc;
 						BaseIndex = baseIndex;
 						_currentFuncIndex = currentFuncIndex;
-						CurrentFunction = curFunc;
+						CurrentFunction = functions[currentFuncIndex];
 						IsRunning = false;
 						return result;
 					}
@@ -1636,11 +1649,11 @@ public class VM {
 					CallInfo callInfo = callStack[callStackTop];
 					pc = callInfo.ReturnPC;
 					baseIndex = callInfo.ReturnBase;
-					currentFuncIndex = callInfo.ReturnFuncIndex; // Restore the caller's function index
-					curFunc = functions[currentFuncIndex]; // Restore the caller's function
-					codeCount = curFunc.Code.Count;
-					curCode = curFunc.Code; // CPP: curCode = &curFunc.Code()[0];
-					curConstants = curFunc.Constants; // CPP: curConstants = &curFunc.Constants()[0];
+					currentFuncIndex = callInfo.ReturnFuncIndex; // Restore the caller's function
+					curFunc = functions[currentFuncIndex]; // CPP: curFuncRaw = functions[currentFuncIndex].get_storage();
+					codeCount = curFunc.Code.Count; // CPP: codeCount = curFuncRaw->Code.Count();
+					curCode = curFunc.Code; // CPP: curCode = &curFuncRaw->Code[0];
+					curConstants = curFunc.Constants; // CPP: curConstants = &curFuncRaw->Constants[0];
 					
 					if (callInfo.CopyResultToReg >= 0) {
 						stack[baseIndex + callInfo.CopyResultToReg] = result;
@@ -1679,7 +1692,7 @@ public class VM {
 					PC = pc;
 					BaseIndex = baseIndex;
 					_currentFuncIndex = currentFuncIndex;
-					CurrentFunction = curFunc;
+					CurrentFunction = functions[currentFuncIndex];
 					return val_null;
 			}
 //*** END CS_ONLY ***
@@ -1690,7 +1703,7 @@ public class VM {
 		PC = pc;
 		BaseIndex = baseIndex;
 		_currentFuncIndex = currentFuncIndex;
-		CurrentFunction = curFunc;
+		CurrentFunction = functions[currentFuncIndex];
 		return val_null;
 	}
 
