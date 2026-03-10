@@ -542,3 +542,6 @@ So, we're doing well overall.  Note that the "Iterative Fibonacci" and "Recursiv
 
 A major goal for MS2 was to bring our call overhead down.  Comparing to MiniScript 1, we have succeeded at that; but compared to Pythan and Lua, it seems we could still be doing better.
 
+We spent most of the day trying a major refactoring, eliminating the CallInfo stack and moving that data (as four Values) into the regular value stack.  But this produced very minor benefits at best, and actually made the goto-src case slightly slower.  So I've reverted it.  We're going to keep some minor optimizations, but I think the next step is probably to get this running with the Apple Profiler and see where the time is going.
+
+

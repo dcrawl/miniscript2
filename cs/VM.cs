@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using static System.Runtime.CompilerServices.MethodImplOptions;
 // H: #include "value.h"
 // H: #include "FuncDef.g.h"
 // H: #include "ErrorPool.g.h"
@@ -1374,7 +1375,7 @@ public class VM {
 
 					// Switch to callee frame: base slides to argument window
 					baseIndex += a;
-					ApplyPendingContext(baseIndex, callee);
+					// Note: ApplyPendingContext skipped for CALLF (only needed for method dispatch via CALL)
 					pc = 0; // Start at beginning of callee code
 					curFunc = callee; // Switch to callee function
 					codeCount = curFunc.Code.Count;
@@ -1385,7 +1386,7 @@ public class VM {
 					EnsureFrame(baseIndex, callee.MaxRegs);
 					break;
 				}
-				
+
 				case Opcode.CALLFN_iA_kBC: {
 					// DEPRECATED: no longer emitted by the compiler.
 					// Intrinsics are now callable FuncRefs resolved via LOADV + CALL.
@@ -1693,6 +1694,7 @@ public class VM {
 		return val_null;
 	}
 
+	[MethodImpl(AggressiveInlining)]
 	private void EnsureFrame(Int32 baseIndex, UInt16 neededRegs) {
 		if (baseIndex + neededRegs > stack.Count) {
 			RaiseRuntimeError("Stack Overflow");

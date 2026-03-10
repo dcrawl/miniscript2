@@ -127,16 +127,16 @@ class ReturnNodeStorage;
 
 // Call stack frame (return info)
 struct CallInfo {
-	public: Int32 ReturnPC; // where to continue in caller (PC index)
-	public: Int32 ReturnBase; // caller's base pointer (stack index)
-	public: Int32 ReturnFuncIndex; // caller's function index in functions list
-	public: Int32 CopyResultToReg; // register number to copy result to, or -1
+	public: Int16 ReturnPC; // where to continue in caller (PC index)
+	public: Int16 ReturnBase; // caller's base pointer (stack index)
+	public: Int16 ReturnFuncIndex; // caller's function index in functions list
+	public: Int16 CopyResultToReg; // register number to copy result to, or -1
 	public: Value LocalVarMap; // VarMap representing locals, if any
 	public: Value OuterVarMap; // VarMap representing outer variables (closure context)
 
-	public: CallInfo(Int32 returnPC, Int32 returnBase, Int32 returnFuncIndex, Int32 copyToReg=-1);
+	public: CallInfo(Int16 returnPC, Int16 returnBase, Int16 returnFuncIndex, Int16 copyToReg=-1);
 
-	public: CallInfo(Int32 returnPC, Int32 returnBase, Int32 returnFuncIndex, Int32 copyToReg, Value outerVars);
+	public: CallInfo(Int16 returnPC, Int16 returnBase, Int16 returnFuncIndex, Int16 copyToReg, Value outerVars);
 
 	public: Value GetLocalVarMap(List<Value> registers, List<Value> names, int baseIdx, int regCount);
 }; // end of struct CallInfo
@@ -243,7 +243,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	//   - User function: pushes CallInfo and sets up callee frame, returns the callee function index.
 	//     Caller must switch its local execution state (pc, baseIndex, curFunc, etc.).
 	// On error, calls RaiseRuntimeError and returns -1.
-	private: Int32 AutoInvokeFuncRef(Value funcRefVal, Int32 resultReg, Int32 returnPC, Int32 baseIndex, Int32 currentFuncIndex, FuncDef curFunc);
+	private: Int32 AutoInvokeFuncRef(Value funcRefVal, Int32 resultReg, Int16 returnPC, Int16 baseIndex, Int16 currentFuncIndex, FuncDef curFunc);
 
 	public: Value Execute(FuncDef entry);
 
@@ -382,7 +382,7 @@ struct VM {
 	//   - User function: pushes CallInfo and sets up callee frame, returns the callee function index.
 	//     Caller must switch its local execution state (pc, baseIndex, curFunc, etc.).
 	// On error, calls RaiseRuntimeError and returns -1.
-	private: inline Int32 AutoInvokeFuncRef(Value funcRefVal, Int32 resultReg, Int32 returnPC, Int32 baseIndex, Int32 currentFuncIndex, FuncDef curFunc);
+	private: inline Int32 AutoInvokeFuncRef(Value funcRefVal, Int32 resultReg, Int16 returnPC, Int16 baseIndex, Int16 currentFuncIndex, FuncDef curFunc);
 
 	public: inline Value Execute(FuncDef entry);
 
@@ -453,12 +453,17 @@ inline Int32 VM::SelfParamOffset(FuncDef callee) { return get()->SelfParamOffset
 inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
 inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDef callee) { return get()->ApplyPendingContext(calleeBase, callee); }
 inline void VM::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,FuncDef callee) { return get()->SetupCallFrame(argCount, selfParam, calleeBase, callee); }
-inline Int32 VM::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 returnPC,Int32 baseIndex,Int32 currentFuncIndex,FuncDef curFunc) { return get()->AutoInvokeFuncRef(funcRefVal, resultReg, returnPC, baseIndex, currentFuncIndex, curFunc); }
+inline Int32 VM::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int16 returnPC,Int16 baseIndex,Int16 currentFuncIndex,FuncDef curFunc) { return get()->AutoInvokeFuncRef(funcRefVal, resultReg, returnPC, baseIndex, currentFuncIndex, curFunc); }
 inline Value VM::Execute(FuncDef entry) { return get()->Execute(entry); }
 inline Value VM::Execute(FuncDef entry,UInt32 maxCycles) { return get()->Execute(entry, maxCycles); }
 inline Value VM::Run(UInt32 maxCycles) { return get()->Run(maxCycles); }
 inline Value VM::RunInner(UInt32 maxCycles) { return get()->RunInner(maxCycles); }
 inline void VM::EnsureFrame(Int32 baseIndex,UInt16 neededRegs) { return get()->EnsureFrame(baseIndex, neededRegs); }
+inline void VMStorage::EnsureFrame(Int32 baseIndex,UInt16 neededRegs) {
+	if (baseIndex + neededRegs > stack.Count()) {
+		RaiseRuntimeError("Stack Overflow");
+	}
+}
 inline Value VM::LookupVariable(Value varName) { return get()->LookupVariable(varName); }
 
 } // end of namespace MiniScript
