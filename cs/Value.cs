@@ -65,6 +65,9 @@ public readonly struct Value {
 		return new(u);
 	}
 
+	// ToDo: remove this method, and others here, as they don't transpile and
+	// we are repeatedly tempted to use them in code that needs to transpile.
+	// All code should be instead using make_string (etc.).
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Value FromString(string s) {
 		if (s.Length <= 5 && IsAllAscii(s)) {

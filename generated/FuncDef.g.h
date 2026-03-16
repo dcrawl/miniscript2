@@ -7,8 +7,9 @@
 #include "StringUtils.g.h"
 
 namespace MiniScript {
-struct CallContext;  // forward declaration; defined in VM.g.h
-typedef Value (*NativeCallbackDelegate)(CallContext);
+struct Context;  // forward declaration; defined in VM.g.h
+struct IntrinsicResult;  // forward declaration
+typedef IntrinsicResult (*NativeCallbackDelegate)(Context, IntrinsicResult);
 inline bool IsNull(NativeCallbackDelegate f) { return f == nullptr; }
 
 // FORWARD DECLARATIONS
@@ -152,8 +153,6 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	// Conversion to bool: returns true if function has a name
 	public: operator bool() const;
 	
-	// Here is a comment at the end of the class.
-	// Dunno why, but I guess the author had some things to say.
 }; // end of class FuncDefStorage
 
 // Native callback for intrinsic functions.
@@ -168,7 +167,6 @@ struct FuncDef {
 	FuncDef(std::nullptr_t) : storage(nullptr) {}
 	friend bool IsNull(const FuncDef& inst) { return inst.storage == nullptr; }
 	private: FuncDefStorage* get() const;
-	public: FuncDefStorage* get_storage() const { return storage.get(); }
 
 	public: String Name();
 	public: void set_Name(String _v);
@@ -204,6 +202,7 @@ struct FuncDef {
 
 	// Conversion to bool: returns true if function has a name
 	public: operator bool() const { return (bool)(*get()); }
+	public: FuncDefStorage* get_storage() const { return storage.get(); }
 }; // end of struct FuncDef
 
 // INLINE METHODS

@@ -17,7 +17,7 @@ using static System.Runtime.CompilerServices.MethodImplOptions;
 // CPP: #include "IOHelper.g.h"
 // CPP: #include "Disassembler.g.h"
 // CPP: #include "StringUtils.g.h"
-// CPP: #include "CallContext.g.h"
+// CPP: #include "IntrinsicAPI.g.h"
 // CPP: #include "dispatch_macros.h"
 // CPP: #include "vm_error.h"
 // CPP: #include <chrono>
@@ -426,7 +426,7 @@ public class VM {
 				pendingSelf = val_null;
 				hasPendingContext = false;
 			}
-			stack[baseIndex + resultReg] = callee.NativeCallback(new CallContext(this, stack, calleeBase, selfParam));
+			stack[baseIndex + resultReg] = callee.NativeCallback(new Context(this, stack, calleeBase, selfParam), IntrinsicResult.Null).result;
 			return -1;
 		}
 
@@ -1334,7 +1334,7 @@ public class VM {
 
 					// Native intrinsic: invoke callback directly, no frame push
 					if (callee.NativeCallback != null) {
-						localStack[resultReg] = callee.NativeCallback(new CallContext(this, stack, calleeBase, argCount + selfParam));
+						localStack[resultReg] = callee.NativeCallback(new Context(this, stack, calleeBase, argCount + selfParam), IntrinsicResult.Null).result;
 						pc = nextPC;
 						break;
 					}
@@ -1466,7 +1466,7 @@ public class VM {
 
 					// Native intrinsic: invoke callback directly, no frame push
 					if (callee.NativeCallback != null) {
-						localStack[a] = callee.NativeCallback(new CallContext(this, stack, calleeBase, selfParam));
+						localStack[a] = callee.NativeCallback(new Context(this, stack, calleeBase, selfParam), IntrinsicResult.Null).result;
 						break;
 					}
 
@@ -1742,6 +1742,21 @@ public class VM {
 		if (baseIndex + neededRegs > stack.Count) {
 			RaiseRuntimeError("Stack Overflow");
 		}
+	}
+
+	public Value LookupParamByName(String varName) {
+		// Look up a parameter by name in the current frame.  This is provided
+		// mainly for compatibility with 1.x; modern code should find parameters
+		// by position, which is more efficient than searching by name.
+		// Returns the value if found, or null if not found.
+		FuncDef func = CurrentFunction;
+		Value nameVal = make_string(varName);
+		for (Int32 i = 0; i < func.ParamNames.Count; i++) {
+			if (value_equal(func.ParamNames[i], nameVal)) {
+				return stack[BaseIndex + 1 + i];
+			}
+		}
+		return val_null;
 	}
 
 	private Value LookupVariable(Value varName) {

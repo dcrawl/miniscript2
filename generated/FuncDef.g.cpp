@@ -2,7 +2,7 @@
 // Transpiled from: FuncDef.cs
 
 #include "FuncDef.g.h"
-#include "CallContext.g.h"
+#include "IntrinsicAPI.g.h"
 #include "gc.h"
 
 namespace MiniScript {

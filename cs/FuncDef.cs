@@ -5,16 +5,17 @@ using static System.Runtime.CompilerServices.MethodImplOptions;
 using static MiniScript.ValueHelpers;
 // H: #include "value.h"
 // H: #include "StringUtils.g.h"
-// CPP: #include "CallContext.g.h"
+// CPP: #include "IntrinsicAPI.g.h"
 // CPP: #include "gc.h"
 
 namespace MiniScript {
 
 // Native callback for intrinsic functions.
-// H: struct CallContext;  // forward declaration; defined in VM.g.h
-// H: typedef Value (*NativeCallbackDelegate)(CallContext);
+// H: struct Context;  // forward declaration; defined in VM.g.h
+// H: struct IntrinsicResult;  // forward declaration
+// H: typedef IntrinsicResult (*NativeCallbackDelegate)(Context, IntrinsicResult);
 // H: inline bool IsNull(NativeCallbackDelegate f) { return f == nullptr; }
-public delegate Value NativeCallbackDelegate(CallContext context); // CPP:
+public delegate IntrinsicResult NativeCallbackDelegate(Context context, IntrinsicResult partialResult); // CPP:
 
 // Function definition: code, constants, and how many registers it needs
 public class FuncDef {
@@ -63,8 +64,7 @@ public class FuncDef {
 		return funcDef != null && !String.IsNullOrEmpty(funcDef.Name); // CPP: return Name != "";
 	}
 	
-	// Here is a comment at the end of the class.
-	// Dunno why, but I guess the author had some things to say.
+	// H_WRAPPER: public: FuncDefStorage* get_storage() const { return storage.get(); }
 }
 
 }

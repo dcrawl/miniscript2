@@ -484,7 +484,7 @@ Transpiler.transformStatement = function(trimmedLine)
 	// non-identifier string.
 	tokens = roughTokenize(trimmedLine)
 	
-	deepDebug = trimmedLine.contains("callee")
+	deepDebug = false // trimmedLine.contains("IntrinsicResult")
 	ddprint = function(s); if deepDebug then print "====> " + s; end function
 	summarize = function(obj)
 		if obj == null then return "<null>"
@@ -579,6 +579,8 @@ Transpiler.transformStatement = function(trimmedLine)
 				// class, not one of our storage wrappers), then just remove `new`
 				if cl == null then
 					print "Unknown type " + tokens[i+2] + " found after `new`; assuming class/struct"
+				else
+					print "Removing `new` before known type " + summarize(cl)
 				end if
 				tokens[i] = ""
 				tokens[i+1] = ""
@@ -1070,9 +1072,7 @@ Transpiler.updateStateCLASS = function
 	if comment.startsWith("// CPP: ") then
 		self.curClass.defLines.push line.indentation + comment[8:]
 		return
-	end if
-	
-	if comment.startsWith("// H: ") then
+	else if comment.startsWith("// H: ") then
 		if self.curClass.type == ClassType.CLASS then
 			// This is a little tricky — which part of the header is this line meant for?
 			// So far we have only needed it in the storage class, so for now we'll assume:
@@ -1080,6 +1080,17 @@ Transpiler.updateStateCLASS = function
 		else
 			self.curClass.declLines.push line.indentation + comment[6:]
 		end if
+		return
+	else if comment.startsWith("// H_WRAPPER: ") then
+		if self.curClass.type == ClassType.CLASS then
+			// ...If we DO need to add a line to the wrapper code only, then
+			// use this H_WRAPPER tag.
+			self.curClass.wrapperLines.push line.indentation + comment[14:]
+		else
+			print "ERROR: H_WRAPPER comment when not in a class"
+			exit
+		end if
+		return
 	end if
 	
 	if line.full.startsWith("}") then
@@ -1120,6 +1131,7 @@ Transpiler.updateStateCLASS = function
 		// constant (or static readonly field, which in C++ is the same thing)
 		if self.match("≤scope:w≥ const ≤type:w≥ ≤name:w≥ = ≤value≥;") or
 		   self.match("≤scope:w≥ static readonly ≤type:w≥ ≤name:w≥ = ≤value≥;") then
+			self.m.value = self.transformStatement(self.m.value)
 			if self.curClass.type == ClassType.CLASS then
 				self.curClass.storageLines.push self.fill("	≤scope≥: static const ≤type≥ ≤name≥;")
 				self.curClass.defLines.push self.fill("const ≤type≥ ≤className≥Storage::≤name≥ = ≤value≥;")
@@ -1447,12 +1459,12 @@ Transpiler.updateStateMETHOD = function
 		end if
 	end if
 	// start of a lambda definition
-	if self.match("≤var≥.≤member≥ = (CallContext ≤ctx≥) => {") then
+	if self.match("≤var≥.≤member≥ = (Context ≤ctx≥, IntrinsicResult ≤part≥) => {") then
 		// Special case of a NativeCallbackDelegate, which returns Value
 		self.enterState State.LAMBDA
 		self.curClass.methodLines.push self.fill(
-		  "	≤var≥.set_≤member≥([](CallContext ≤ctx≥) -> Value {")
-		ctxInfo = VariableInfo.Make(self.m.ctx, "CallContext", Scope.LOCAL)
+		  "	≤var≥.set_≤member≥([](Context ≤ctx≥, IntrinsicResult ≤part≥) -> IntrinsicResult {")
+		ctxInfo = VariableInfo.Make(self.m.ctx, "Context", Scope.LOCAL)
 		if self.localVars.indexOf(ctxInfo) == null then self.localVars.push ctxInfo 
 		return
 	else if self.match("≤var≥.≤member≥ = (≤params≥) => {") then

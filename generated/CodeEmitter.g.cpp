@@ -25,7 +25,7 @@ FuncDef CodeEmitterBaseStorage::Finalize(String name) {
 BytecodeEmitterStorage::BytecodeEmitterStorage() {
 	PendingFunc =  FuncDef::New();
 	_labelAddresses =  Dictionary<Int32, Int32>::New();
-	_labelRefs =  List<LabelRef>::New();
+	_labelRefs =  List<LabelReference>::New();
 	_nextLabelId = 0;
 }
 void BytecodeEmitterStorage::Emit(Opcode op,String comment) {
@@ -58,7 +58,7 @@ void BytecodeEmitterStorage::PlaceLabel(Int32 labelId) {
 }
 void BytecodeEmitterStorage::EmitJump(Opcode op,Int32 labelId,String comment) {
 	// Emit placeholder instruction, record for later patching
-	LabelRef labelRef;
+	LabelReference labelRef;
 	labelRef.CodeIndex = PendingFunc.Code().Count();
 	labelRef.LabelId = labelId;
 	labelRef.Op = op;
@@ -69,7 +69,7 @@ void BytecodeEmitterStorage::EmitJump(Opcode op,Int32 labelId,String comment) {
 }
 void BytecodeEmitterStorage::EmitBranch(Opcode op,Int32 reg,Int32 labelId,String comment) {
 	// Emit placeholder instruction for conditional branch, record for later patching
-	LabelRef labelRef;
+	LabelReference labelRef;
 	labelRef.CodeIndex = PendingFunc.Code().Count();
 	labelRef.LabelId = labelId;
 	labelRef.Op = op;
@@ -82,7 +82,7 @@ FuncDef BytecodeEmitterStorage::Finalize(String name) {
 	// Patch all label references
 	List<UInt32> code = PendingFunc.Code();
 	for (Int32 i = 0; i < _labelRefs.Count(); i++) {
-		LabelRef labelRef = _labelRefs[i];
+		LabelReference labelRef = _labelRefs[i];
 		if (!_labelAddresses.ContainsKey(labelRef.LabelId)) {
 			// Error: undefined label
 			continue;

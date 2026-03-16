@@ -573,3 +573,17 @@ Revised benchmark times, after these optimizations:
 |Iterative Factorial|3.071s| 7.082s| .309s| .673s| .274s  |  .548s |36.860s |2.174s|.734s|
 |Iterative Fibonacci|3.573s| 7.862s| .311s|1.001s| .259s  |  .867s |65.820s |2.289s|.705s|
 |Recursive Fibonacci|3.660s|11.590s| .491s|1.532s| .409s  | 1.344s |58.154s |1.313s|.394s|
+
+
+## Mar 13, 2026
+
+Thinking about the next steps: the language is nearly complete, and the performance is quite good.  I'd like it to be better -- and there is plenty of room still for optimizations at the compiler level -- but I think it might be about time to swing back to code structure & beautification.
+
+Another thing on my mind: we don't yet have `yield` and `wait`, which are crucial intrinsics that demonstrate the reentrant nature of the interpreter.  Supporting those will require something very much like the PartialResult struct in MS1... and so this presents a good opportunity to start moving the API (for intrinsics, in particular) in the direction of MS1.
+
+Once yield and wait are working, a good next milestone would be converting command-line MiniScript, with all of its shell intrinsics, to MS2.  That will really show how onerous that transition is.
+
+## Mar 16, 2026
+
+I've refactored the intrinsic callback API to mimic that in MiniScript 1.  One difference: IntrinsicResult is now a struct, so the C# code can no longer compare it against `null`; instead it should check `done` just like the C++ code.  (Or I guess you could check whether it == IntrinsicResult::Null, which is what we will always pass in for a fresh call.)
+

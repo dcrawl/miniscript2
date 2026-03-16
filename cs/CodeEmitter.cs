@@ -53,7 +53,7 @@ public abstract class CodeEmitterBase {
 }
 
 // Tracks a pending label reference that needs patching
-public struct LabelRef {
+public struct LabelReference {
 	public Int32 CodeIndex;    // index in _code where the instruction is
 	public Int32 LabelId;      // label being referenced
 	public Opcode Op;          // opcode (for re-encoding)
@@ -65,13 +65,13 @@ public struct LabelRef {
 // Emits directly to bytecode (production use)
 public class BytecodeEmitter : CodeEmitterBase {
 	private Dictionary<Int32, Int32> _labelAddresses;  // labelId -> code address
-	private List<LabelRef> _labelRefs;                 // pending label references
+	private List<LabelReference> _labelRefs;                 // pending label references
 	private Int32 _nextLabelId;
 
 	public BytecodeEmitter() {
 		PendingFunc = new FuncDef();
 		_labelAddresses = new Dictionary<Int32, Int32>();
-		_labelRefs = new List<LabelRef>();
+		_labelRefs = new List<LabelReference>();
 		_nextLabelId = 0;
 	}
 
@@ -112,7 +112,7 @@ public class BytecodeEmitter : CodeEmitterBase {
 
 	public override void EmitJump(Opcode op, Int32 labelId, String comment) {
 		// Emit placeholder instruction, record for later patching
-		LabelRef labelRef;
+		LabelReference labelRef;
 		labelRef.CodeIndex = PendingFunc.Code.Count;
 		labelRef.LabelId = labelId;
 		labelRef.Op = op;
@@ -124,7 +124,7 @@ public class BytecodeEmitter : CodeEmitterBase {
 
 	public override void EmitBranch(Opcode op, Int32 reg, Int32 labelId, String comment) {
 		// Emit placeholder instruction for conditional branch, record for later patching
-		LabelRef labelRef;
+		LabelReference labelRef;
 		labelRef.CodeIndex = PendingFunc.Code.Count;
 		labelRef.LabelId = labelId;
 		labelRef.Op = op;
@@ -138,7 +138,7 @@ public class BytecodeEmitter : CodeEmitterBase {
 		// Patch all label references
 		List<UInt32> code = PendingFunc.Code;
 		for (Int32 i = 0; i < _labelRefs.Count; i++) {
-			LabelRef labelRef = _labelRefs[i];
+			LabelReference labelRef = _labelRefs[i];
 			if (!_labelAddresses.ContainsKey(labelRef.LabelId)) {
 				// Error: undefined label
 				continue;

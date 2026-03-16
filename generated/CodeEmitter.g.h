@@ -128,13 +128,13 @@ class ReturnNodeStorage;
 // DECLARATIONS
 
 // Tracks a pending label reference that needs patching
-struct LabelRef {
+struct LabelReference {
 	public: Int32 CodeIndex; // index in _code where the instruction is
 	public: Int32 LabelId; // label being referenced
 	public: Opcode Op; // opcode (for re-encoding)
 	public: Int32 A; // A operand (for re-encoding)
 	public: Boolean IsABC; // true for 24-bit offset (JUMP), false for 16-bit (BRFALSE/BRTRUE)
-}; // end of struct LabelRef
+}; // end of struct LabelReference
 
 // Abstract base class for emitting code (bytecode or assembly text)
 struct CodeEmitterBase {
@@ -216,7 +216,7 @@ class CodeEmitterBaseStorage : public std::enable_shared_from_this<CodeEmitterBa
 class BytecodeEmitterStorage : public CodeEmitterBaseStorage {
 	friend struct BytecodeEmitter;
 	private: Dictionary<Int32, Int32> _labelAddresses; // labelId -> code address
-	private: List<LabelRef> _labelRefs; // pending label references
+	private: List<LabelReference> _labelRefs; // pending label references
 	private: Int32 _nextLabelId;
 
 	public: BytecodeEmitterStorage();
@@ -285,8 +285,8 @@ struct BytecodeEmitter : public CodeEmitterBase {
 
 	private: Dictionary<Int32, Int32> _labelAddresses(); // labelId -> code address
 	private: void set__labelAddresses(Dictionary<Int32, Int32> _v); // labelId -> code address
-	private: List<LabelRef> _labelRefs(); // pending label references
-	private: void set__labelRefs(List<LabelRef> _v); // pending label references
+	private: List<LabelReference> _labelRefs(); // pending label references
+	private: void set__labelRefs(List<LabelReference> _v); // pending label references
 	private: Int32 _nextLabelId();
 	private: void set__nextLabelId(Int32 _v);
 
@@ -381,8 +381,8 @@ inline BytecodeEmitter::BytecodeEmitter(std::shared_ptr<BytecodeEmitterStorage> 
 inline BytecodeEmitterStorage* BytecodeEmitter::get() const { return static_cast<BytecodeEmitterStorage*>(storage.get()); }
 inline Dictionary<Int32, Int32> BytecodeEmitter::_labelAddresses() { return get()->_labelAddresses; } // labelId -> code address
 inline void BytecodeEmitter::set__labelAddresses(Dictionary<Int32, Int32> _v) { get()->_labelAddresses = _v; } // labelId -> code address
-inline List<LabelRef> BytecodeEmitter::_labelRefs() { return get()->_labelRefs; } // pending label references
-inline void BytecodeEmitter::set__labelRefs(List<LabelRef> _v) { get()->_labelRefs = _v; } // pending label references
+inline List<LabelReference> BytecodeEmitter::_labelRefs() { return get()->_labelRefs; } // pending label references
+inline void BytecodeEmitter::set__labelRefs(List<LabelReference> _v) { get()->_labelRefs = _v; } // pending label references
 inline Int32 BytecodeEmitter::_nextLabelId() { return get()->_nextLabelId; }
 inline void BytecodeEmitter::set__nextLabelId(Int32 _v) { get()->_nextLabelId = _v; }
 

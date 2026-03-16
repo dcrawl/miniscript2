@@ -11,7 +11,7 @@
 #include "IOHelper.g.h"
 #include "Disassembler.g.h"
 #include "StringUtils.g.h"
-#include "CallContext.g.h"
+#include "IntrinsicAPI.g.h"
 #include "dispatch_macros.h"
 #include "vm_error.h"
 #include <chrono>
@@ -309,7 +309,7 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 			pendingSelf = val_null;
 			hasPendingContext = Boolean(false);
 		}
-		stack[baseIndex + resultReg] = callee.NativeCallback(CallContext(_this, stack, calleeBase, selfParam));
+		stack[baseIndex + resultReg] = callee.NativeCallback(Context(_this, stack, calleeBase, selfParam), IntrinsicResult::Null).result;
 		GC_POP_SCOPE();
 		return -1;
 	}
@@ -1228,7 +1228,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 
 				// Native intrinsic: invoke callback directly, no frame push
 				if (!IsNull(callee.NativeCallback)) {
-					localStack[resultReg] = callee.NativeCallback(CallContext(_this, stack, calleeBase, argCount + selfParam));
+					localStack[resultReg] = callee.NativeCallback(Context(_this, stack, calleeBase, argCount + selfParam), IntrinsicResult::Null).result;
 					pc = nextPC;
 					VM_NEXT();
 				}
@@ -1366,7 +1366,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 
 				// Native intrinsic: invoke callback directly, no frame push
 				if (!IsNull(callee.NativeCallback)) {
-					localStack[a] = callee.NativeCallback(CallContext(_this, stack, calleeBase, selfParam));
+					localStack[a] = callee.NativeCallback(Context(_this, stack, calleeBase, selfParam), IntrinsicResult::Null).result;
 					VM_NEXT();
 				}
 
@@ -1625,6 +1625,23 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 	BaseIndex = baseIndex;
 	_currentFuncIndex = currentFuncIndex;
 	CurrentFunction = functions[currentFuncIndex];
+	GC_POP_SCOPE();
+	return val_null;
+}
+Value VMStorage::LookupParamByName(String varName) {
+	// Look up a parameter by name in the current frame.  This is provided
+	// mainly for compatibility with 1.x; modern code should find parameters
+	// by position, which is more efficient than searching by name.
+	// Returns the value if found, or null if not found.
+	FuncDef func = CurrentFunction;
+	GC_PUSH_SCOPE();
+	Value nameVal = make_string(varName); GC_PROTECT(&nameVal);
+	for (Int32 i = 0; i < func.ParamNames().Count(); i++) {
+		if (value_equal(func.ParamNames()[i], nameVal)) {
+			GC_POP_SCOPE();
+			return stack[BaseIndex + 1 + i];
+		}
+	}
 	GC_POP_SCOPE();
 	return val_null;
 }

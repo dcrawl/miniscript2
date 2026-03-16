@@ -170,12 +170,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: std::chrono::steady_clock::time_point _startTime;
 
 	// Print callback: if set, print output goes here instead of IOHelper.Print
-	// H: public: std::function<void(const String&)> _printCallback;
-	// H: public: void SetPrintCallback(std::function<void(const String&)> cb) { _printCallback = cb; }
-	// H: public: std::function<void(const String&)> GetPrintCallback() { return _printCallback; }
 
 	// Static callback for C++ (accessible from VM wrapper)
-	// H: public: static std::function<void(const String&)> sPrintCallback;
 
 	
 
@@ -211,9 +207,6 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: void CleanupVM();
 	static void MarkRoots(void* user_data);
 	public: ~VMStorage() { CleanupVM(); }
-
-	// H: static void MarkRoots(void* user_data);
-	// H: public: ~VMStorage() { CleanupVM(); }
 
 	public: void RegisterFunction(FuncDef funcDef);
 
@@ -259,6 +252,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: Value RunInner(UInt32 maxCycles);
 
 	private: void EnsureFrame(Int32 baseIndex, UInt16 neededRegs);
+
+	public: Value LookupParamByName(String varName);
 
 	private: Value LookupVariable(Value varName);
 }; // end of class VMStorage
@@ -310,12 +305,8 @@ struct VM {
 	private: void set_hasPendingContext(bool _v);
 
 	// Print callback: if set, print output goes here instead of IOHelper.Print
-	// H: public: std::function<void(const String&)> _printCallback;
-	// H: public: void SetPrintCallback(std::function<void(const String&)> cb) { _printCallback = cb; }
-	// H: public: std::function<void(const String&)> GetPrintCallback() { return _printCallback; }
 
 	// Static callback for C++ (accessible from VM wrapper)
-	// H: public: static std::function<void(const String&)> sPrintCallback;
 
 	
 
@@ -352,9 +343,6 @@ struct VM {
 	private: inline void InitVM(Int32 stackSlots, Int32 callSlots);
 	
 	private: inline void CleanupVM();
-
-	// H: static void MarkRoots(void* user_data);
-	// H: public: ~VMStorage() { CleanupVM(); }
 
 	public: inline void RegisterFunction(FuncDef funcDef);
 
@@ -400,6 +388,8 @@ struct VM {
 	private: inline Value RunInner(UInt32 maxCycles);
 
 	private: inline void EnsureFrame(Int32 baseIndex, UInt16 neededRegs);
+
+	public: inline Value LookupParamByName(String varName);
 
 	private: inline Value LookupVariable(Value varName);
 }; // end of struct VM
@@ -471,6 +461,7 @@ inline void VMStorage::EnsureFrame(Int32 baseIndex,UInt16 neededRegs) {
 		RaiseRuntimeError("Stack Overflow");
 	}
 }
+inline Value VM::LookupParamByName(String varName) { return get()->LookupParamByName(varName); }
 inline Value VM::LookupVariable(Value varName) { return get()->LookupVariable(varName); }
 
 } // end of namespace MiniScript
