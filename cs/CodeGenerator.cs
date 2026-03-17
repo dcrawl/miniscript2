@@ -7,6 +7,7 @@ using static MiniScript.ValueHelpers;
 // H: #include "AST.g.h"
 // H: #include "CodeEmitter.g.h"
 // H: #include "ErrorPool.g.h"
+// CPP: #include "StringUtils.g.h"
 // CPP: #include "CS_Math.h"
 // CPP: #include "gc.h"
 

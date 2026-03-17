@@ -6,13 +6,11 @@
 // String utilities: conversion between ints and Strings, etc.
 
 #include "CS_String.h"
-#include "IOHelper.g.h"
 #include "value.h"
 #include "value_string.h"
 #include "value_list.h"
 #include "value_map.h"
 #include <sstream>
-#include <cctype>
 
 namespace MiniScript {
 

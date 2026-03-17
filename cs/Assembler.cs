@@ -6,6 +6,7 @@ using System.Collections.Generic;
 // H: #include "FuncDef.g.h"
 // CPP: #include "StringUtils.g.h"
 // CPP: #include "CS_value_util.h"
+// CPP: #include "IOHelper.g.h"
 // CPP: #include <climits>
 // CPP: #include "gc.h"
 

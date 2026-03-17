@@ -5,13 +5,13 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using static System.Runtime.CompilerServices.MethodImplOptions;
 // H: #include "CS_String.h"
-// H: #include "IOHelper.g.h"
 // H: #include "value.h"
 // H: #include "value_string.h"
 // H: #include "value_list.h"
 // H: #include "value_map.h"
 // H: #include <sstream>
-// H: #include <cctype>
+// CPP: #include <cctype>
+// CPP: #include "IOHelper.g.h"
 
 namespace MiniScript {
 

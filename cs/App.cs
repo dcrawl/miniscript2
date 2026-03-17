@@ -18,6 +18,8 @@ using static MiniScript.ValueHelpers;
 // CPP: #include "Disassembler.g.h"
 // CPP: #include "Parser.g.h"
 // CPP: #include "CodeGenerator.g.h"
+// CPP: #include "StringUtils.g.h"
+// CPP: #include "IOHelper.g.h"
 // CPP: #include <thread>
 // CPP: #include <chrono>
 // CPP: using namespace MiniScript;

@@ -13,6 +13,8 @@
 #include "Disassembler.g.h"
 #include "Parser.g.h"
 #include "CodeGenerator.g.h"
+#include "StringUtils.g.h"
+#include "IOHelper.g.h"
 #include <thread>
 #include <chrono>
 using namespace MiniScript;

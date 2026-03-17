@@ -2,6 +2,8 @@
 // Transpiled from: StringUtils.cs
 
 #include "StringUtils.g.h"
+#include <cctype>
+#include "IOHelper.g.h"
 
 namespace MiniScript {
 

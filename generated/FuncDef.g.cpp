@@ -2,6 +2,7 @@
 // Transpiled from: FuncDef.cs
 
 #include "FuncDef.g.h"
+#include "StringUtils.g.h"
 #include "IntrinsicAPI.g.h"
 #include "gc.h"
 

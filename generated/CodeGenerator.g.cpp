@@ -2,6 +2,7 @@
 // Transpiled from: CodeGenerator.cs
 
 #include "CodeGenerator.g.h"
+#include "StringUtils.g.h"
 #include "CS_Math.h"
 #include "gc.h"
 

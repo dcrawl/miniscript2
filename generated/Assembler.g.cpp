@@ -4,6 +4,7 @@
 #include "Assembler.g.h"
 #include "StringUtils.g.h"
 #include "CS_value_util.h"
+#include "IOHelper.g.h"
 #include <climits>
 #include "gc.h"
 

@@ -4,7 +4,6 @@
 #pragma once
 #include "core_includes.h"
 #include "value.h"
-#include "StringUtils.g.h"
 
 namespace MiniScript {
 struct Context;  // forward declaration; defined in VM.g.h

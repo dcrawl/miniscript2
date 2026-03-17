@@ -612,41 +612,35 @@ Continuing trying to break dependency of Context on VM.  For the constructor, I'
 
 For the call in the VM code, I just put that parameter on its own line and used a // CPP: tag.  Easy enough.
 
-So now our dependency graph looks something like this:
+I also moved IOHelper.g.h out of the StringUtils header (and into the .cpp file), and similar for FuncDef.g.h.  So now our revised dependency graph looks something like this:
 
-  Dependency Graph (by level)                                                                                      
-                                                                                                                   
   Level 0 — Leaf headers (no generated-header deps):                                                               
     Bytecode.g.h                                                                                                   
     LangConstants.g.h                                                                                              
     ErrorPool.g.h                                                                                                  
     IOHelper.g.h                                                                                                   
     AST.g.h           (large, self-contained node hierarchy)                                                       
-    IntrinsicAPI.g.h  (i.e. Context struct)
-    IntrinsicResult.g.h                                                                                            
+    IntrinsicAPI.g.h  (i.e. Context and IntrinsicResult)
     UnitTests.g.h                                                                                                  
+    StringUtils.g.h
+    FuncDef.g.h
 
   Level 1:
-    StringUtils.g.h   → IOHelper.g.h (weak)
     Lexer.g.h         → LangConstants.g.h (strong), ErrorPool.g.h (strong)
-
-  Level 2:
-    FuncDef.g.h       → StringUtils.g.h (weak)
-
-  Level 3:
     CodeEmitter.g.h   → Bytecode.g.h (strong), FuncDef.g.h (strong)
     Intrinsic.g.h     → FuncDef.g.h (strong)
     Assembler.g.h     → Bytecode.g.h (strong), FuncDef.g.h (strong)
     Disassembler.g.h  → Bytecode.g.h (strong)
-
-  Level 4:
     VM.g.h            → FuncDef.g.h (strong), IntrinsicResult.g.h (strong), ErrorPool.g.h (strong)
+
+  Level 2:
     Parselet.g.h      → AST.g.h (strong), Lexer.g.h (strong), LangConstants.g.h (strong)
     CodeGenerator.g.h → AST.g.h (strong), CodeEmitter.g.h (strong), ErrorPool.g.h (strong)
     CoreIntrinsics.g.h→ Intrinsic.g.h (weak)
     App.g.h           → CodeEmitter.g.h (weak), ErrorPool.g.h (weak)
-
-  Level 5:
-    Parser.g.h        → Parselet.g.h (strong), Lexer.g.h (strong),
-                         LangConstants.g.h (strong), ErrorPool.g.h (strong)
     VMVis.g.h         → VM.g.h (strong)
+
+  Level 3:
+    Parser.g.h        → Parselet.g.h (strong), Lexer.g.h (strong),
+
+Much better than it looked yesterday (not shown).
