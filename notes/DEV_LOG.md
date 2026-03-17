@@ -646,4 +646,6 @@ I also moved IOHelper.g.h out of the StringUtils header (and into the .cpp file)
 
 Much better than it looked yesterday (not shown).  The remaining includes are considered "strong" by Claude, in that they're not broken without refactoring -- but I'm much more satisfied with the layering now.
 
+And finally for today, I moved that long list of forward declarations into its own forward_decs.g.h file.  This shortens all the other headers and makes them much neater.
+
 
