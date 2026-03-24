@@ -54,19 +54,43 @@ class AssemblerStorage : public std::enable_shared_from_this<AssemblerStorage> {
 	
 	public: UInt32 AddLine(String line, Int32 lineNumber);
 	
+	// Resolve a branch target (label name or numeric literal) into a relative
+	// offset, and range-check it against [minVal, maxVal].
+	private: Int32 ResolveBranchOffset(String target, Int32 minVal, Int32 maxVal, String rangeName);
+
+	// Assemble a three-way branch (BRLT/BRLE) where operand 1 or 2 can be
+	// register or immediate: rr, ir, ri variants.
+	private: UInt32 AssembleThreeWayBranch(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI, Byte offset);
+
+	// Assemble a branch where operand 1 is always a register and operand 2
+	// can be register or immediate: rr, ri variants (BREQ/BRNE).
+	private: UInt32 AssembleRegOrImmBranch(List<String> parts, Opcode opRR, Opcode opRI, Byte offset);
+
+	// Map mnemonic to opcode for simple rA_rB_rC arithmetic/logic ops.
+	private: static Opcode ArithmeticOpcode(String mnemonic);
+
+	// Assemble a three-way comparison (LT/LE) where operands 2 and 3 can each
+	// be register or immediate: rr, ir, ri variants.
+	// Operand 1 is always the destination register.
+	private: UInt32 AssembleThreeWayCompare(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI);
+
+	// Assemble a three-way conditional skip (IFLT/IFLE) where operands 1 and 2
+	// can each be register or immediate: rr, ir, ri variants.
+	// Note: encoding differs per variant (ABC, BC, AB).
+	private: UInt32 AssembleThreeWayIf(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI);
+
 	// Helper to parse register like "r5" -> 5
 	private: Byte ParseRegister(String reg);
 
-	// Helper to parse a Byte number (handles negative numbers)
+	// Core integer parser: parses digits, checks against [minVal, maxVal].
+	private: Int64 ParseIntRange(String num, Int64 minVal, Int64 maxVal, String rangeName);
+
 	private: Byte ParseByte(String num);
-	
-	// Helper to parse an Int16 number (handles negative numbers)
+
 	private: Int16 ParseInt16(String num);
 
-	// Helper to parse a 24-bit int number (handles negative numbers)
 	private: Int32 ParseInt24(String num);
 
-	// Helper to parse a 32-bit int number (handles negative numbers)
 	private: Int32 ParseInt32(String num);
 
 	// Helper to determine if a token is a label (ends with colon)
@@ -169,19 +193,43 @@ struct Assembler {
 	
 	public: inline UInt32 AddLine(String line, Int32 lineNumber);
 	
+	// Resolve a branch target (label name or numeric literal) into a relative
+	// offset, and range-check it against [minVal, maxVal].
+	private: inline Int32 ResolveBranchOffset(String target, Int32 minVal, Int32 maxVal, String rangeName);
+
+	// Assemble a three-way branch (BRLT/BRLE) where operand 1 or 2 can be
+	// register or immediate: rr, ir, ri variants.
+	private: inline UInt32 AssembleThreeWayBranch(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI, Byte offset);
+
+	// Assemble a branch where operand 1 is always a register and operand 2
+	// can be register or immediate: rr, ri variants (BREQ/BRNE).
+	private: inline UInt32 AssembleRegOrImmBranch(List<String> parts, Opcode opRR, Opcode opRI, Byte offset);
+
+	// Map mnemonic to opcode for simple rA_rB_rC arithmetic/logic ops.
+	private: static Opcode ArithmeticOpcode(String mnemonic) { return AssemblerStorage::ArithmeticOpcode(mnemonic); }
+
+	// Assemble a three-way comparison (LT/LE) where operands 2 and 3 can each
+	// be register or immediate: rr, ir, ri variants.
+	// Operand 1 is always the destination register.
+	private: inline UInt32 AssembleThreeWayCompare(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI);
+
+	// Assemble a three-way conditional skip (IFLT/IFLE) where operands 1 and 2
+	// can each be register or immediate: rr, ir, ri variants.
+	// Note: encoding differs per variant (ABC, BC, AB).
+	private: inline UInt32 AssembleThreeWayIf(List<String> parts, Opcode opRR, Opcode opIR, Opcode opRI);
+
 	// Helper to parse register like "r5" -> 5
 	private: inline Byte ParseRegister(String reg);
 
-	// Helper to parse a Byte number (handles negative numbers)
+	// Core integer parser: parses digits, checks against [minVal, maxVal].
+	private: inline Int64 ParseIntRange(String num, Int64 minVal, Int64 maxVal, String rangeName);
+
 	private: inline Byte ParseByte(String num);
-	
-	// Helper to parse an Int16 number (handles negative numbers)
+
 	private: inline Int16 ParseInt16(String num);
 
-	// Helper to parse a 24-bit int number (handles negative numbers)
 	private: inline Int32 ParseInt24(String num);
 
-	// Helper to parse a 32-bit int number (handles negative numbers)
 	private: inline Int32 ParseInt32(String num);
 
 	// Helper to determine if a token is a label (ends with colon)
@@ -252,7 +300,13 @@ inline void Assembler::ClearError() { return get()->ClearError(); }
 inline void Assembler::Error(String errMsg) { return get()->Error(errMsg); }
 inline UInt32 Assembler::AddLine(String line) { return get()->AddLine(line); }
 inline UInt32 Assembler::AddLine(String line,Int32 lineNumber) { return get()->AddLine(line, lineNumber); }
+inline Int32 Assembler::ResolveBranchOffset(String target,Int32 minVal,Int32 maxVal,String rangeName) { return get()->ResolveBranchOffset(target, minVal, maxVal, rangeName); }
+inline UInt32 Assembler::AssembleThreeWayBranch(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI,Byte offset) { return get()->AssembleThreeWayBranch(parts, opRR, opIR, opRI, offset); }
+inline UInt32 Assembler::AssembleRegOrImmBranch(List<String> parts,Opcode opRR,Opcode opRI,Byte offset) { return get()->AssembleRegOrImmBranch(parts, opRR, opRI, offset); }
+inline UInt32 Assembler::AssembleThreeWayCompare(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI) { return get()->AssembleThreeWayCompare(parts, opRR, opIR, opRI); }
+inline UInt32 Assembler::AssembleThreeWayIf(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI) { return get()->AssembleThreeWayIf(parts, opRR, opIR, opRI); }
 inline Byte Assembler::ParseRegister(String reg) { return get()->ParseRegister(reg); }
+inline Int64 Assembler::ParseIntRange(String num,Int64 minVal,Int64 maxVal,String rangeName) { return get()->ParseIntRange(num, minVal, maxVal, rangeName); }
 inline Byte Assembler::ParseByte(String num) { return get()->ParseByte(num); }
 inline Int16 Assembler::ParseInt16(String num) { return get()->ParseInt16(num); }
 inline Int32 Assembler::ParseInt24(String num) { return get()->ParseInt24(num); }

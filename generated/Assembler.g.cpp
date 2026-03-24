@@ -314,12 +314,15 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 		instruction = BytecodeUtil::INS_AB(Opcode::NAME_rA_kBC, dest, (Int16)constIdx);
 		Current.ReserveRegister(dest);
 
-	} else if (mnemonic == "ADD") {
-		if (parts.Count() != 4) {
-			Error("Syntax error: ADD requires exactly 3 operands");
+	} else if (mnemonic == "ADD" || mnemonic == "SUB" || mnemonic == "MULT"
+			|| mnemonic == "DIV" || mnemonic == "MOD" || mnemonic == "POW"
+			|| mnemonic == "AND" || mnemonic == "OR") {
+		// All simple rA_rB_rC arithmetic/logic ops
+		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
-			return 0;
+			return 0; }
 		}
+		Opcode op = ArithmeticOpcode(mnemonic);
 		Byte dest = ParseRegister(parts[1]);
 		Current.ReserveRegister(dest);
 		if (HasError)  {
@@ -336,84 +339,7 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 			GC_POP_SCOPE();
 			return 0;
 		}
-		instruction = BytecodeUtil::INS_ABC(Opcode::ADD_rA_rB_rC, dest, src1, src2);
-		
-	} else if (mnemonic == "SUB") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::SUB_rA_rB_rC, dest, src1, src2);
-		
-	} else if (mnemonic == "MULT") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::MULT_rA_rB_rC, dest, src1, src2);
-	
-	} else if (mnemonic == "DIV") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::DIV_rA_rB_rC, dest, src1, src2);
-
-	} else if (mnemonic == "MOD") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::MOD_rA_rB_rC, dest, src1, src2);
-
-	} else if (mnemonic == "POW") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::POW_rA_rB_rC, dest, src1, src2);
-
-	} else if (mnemonic == "AND") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::AND_rA_rB_rC, dest, src1, src2);
-
-	} else if (mnemonic == "OR") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		Byte dest = ParseRegister(parts[1]);
-		Current.ReserveRegister(dest);
-		Byte src1 = ParseRegister(parts[2]);
-		Byte src2 = ParseRegister(parts[3]);
-		instruction = BytecodeUtil::INS_ABC(Opcode::OR_rA_rB_rC, dest, src1, src2);
+		instruction = BytecodeUtil::INS_ABC(op, dest, src1, src2);
 
 	} else if (mnemonic == "NOT") {
 		if (parts.Count() != 3) { Error("Syntax error");  {
@@ -532,108 +458,41 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 		}
 		instruction = BytecodeUtil::INS(Opcode::JUMP_iABC) | (UInt32)(offset & 0xFFFFFF);
 
-	} else if (mnemonic == "LT") {
+	} else if (mnemonic == "LT" || mnemonic == "LE") {
+		// Three-way comparison: rr, ir, ri variants
 		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-		
-		if (parts[3][0] == 'r') {
-			if (parts[2][0] == 'r') {
-				// LT r5, r3, r2  -->  LT_rA_rB_rC
-				Byte reg1 = ParseRegister(parts[1]);
-				Current.ReserveRegister(reg1);
-				Byte reg2 = ParseRegister(parts[2]);
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::LT_rA_rB_rC, reg1, reg2, reg3);
-			}
-			else{
-				// LT r5, 15, r2  -->  LT_rA_iB_rC
-				Byte reg1 = ParseRegister(parts[1]);
-				Current.ReserveRegister(reg1);
-				Byte immediate = ParseByte(parts[2]);
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::LT_rA_iB_rC, reg1, immediate, reg3);
-			}
+		Opcode opRR, opIR, opRI;
+		if (mnemonic == "LT") {
+			opRR = Opcode::LT_rA_rB_rC; opIR = Opcode::LT_rA_iB_rC; opRI = Opcode::LT_rA_rB_iC;
 		} else {
-			// LT r5, r3, 15  -->  LT_rA_rB_iC
-			Byte reg1 = ParseRegister(parts[1]);
-			Current.ReserveRegister(reg1);
-			Byte reg2 = ParseRegister(parts[2]);
-			Byte immediate = ParseByte(parts[3]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::LT_rA_rB_iC, reg1, reg2, immediate);
+			opRR = Opcode::LE_rA_rB_rC; opIR = Opcode::LE_rA_iB_rC; opRI = Opcode::LE_rA_rB_iC;
 		}
+		instruction = AssembleThreeWayCompare(parts, opRR, opIR, opRI);
 
-	} else if (mnemonic == "LE") {
+	} else if (mnemonic == "EQ" || mnemonic == "NE") {
+		// Two-way comparison: rr, ri variants (operand 2 always register)
 		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-		
-		if (parts[3][0] == 'r') {
-			if (parts[2][0] == 'r') {
-				// LT r5, r3, r2  -->  LT_rA_rB_rC
-				Byte reg1 = ParseRegister(parts[1]);
-				Current.ReserveRegister(reg1);
-				Byte reg2 = ParseRegister(parts[2]);
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::LE_rA_rB_rC, reg1, reg2, reg3);
-			}
-			else{
-				// LT r5, 15, r2  -->  LT_rA_iB_rC
-				Byte reg1 = ParseRegister(parts[1]);
-				Current.ReserveRegister(reg1);
-				Byte immediate = ParseByte(parts[2]);
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::LE_rA_iB_rC, reg1, immediate, reg3);
-			}
+		Opcode opRR, opRI;
+		if (mnemonic == "EQ") {
+			opRR = Opcode::EQ_rA_rB_rC; opRI = Opcode::EQ_rA_rB_iC;
 		} else {
-			// LT r5, r3, 15  -->  LT_rA_rB_iC
-			Byte reg1 = ParseRegister(parts[1]);
-			Current.ReserveRegister(reg1);
-			Byte reg2 = ParseRegister(parts[2]);
-			Byte immediate = ParseByte(parts[3]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::LE_rA_rB_iC, reg1, reg2, immediate);
+			opRR = Opcode::NE_rA_rB_rC; opRI = Opcode::NE_rA_rB_iC;
 		}
-
-	} else if (mnemonic == "EQ") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-
 		Byte reg1 = ParseRegister(parts[1]);
 		Current.ReserveRegister(reg1);
 		Byte reg2 = ParseRegister(parts[2]);
-
 		if (parts[3][0] == 'r') {
-			// EQ r5, r3, r2  -->  EQ_rA_rB_rC
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::EQ_rA_rB_rC, reg1, reg2, reg3);
+			Byte reg3 = ParseRegister(parts[3]);
+			instruction = BytecodeUtil::INS_ABC(opRR, reg1, reg2, reg3);
 		} else {
-			// EQ r5, r3, 15  -->  EQ_rA_rB_iC
 			Byte immediate = ParseByte(parts[3]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::EQ_rA_rB_iC, reg1, reg2, immediate);
-		}
-
-	} else if (mnemonic == "NE") {
-		if (parts.Count() != 4) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-
-		Byte reg1 = ParseRegister(parts[1]);
-		Current.ReserveRegister(reg1);
-		Byte reg2 = ParseRegister(parts[2]);
-
-		if (parts[3][0] == 'r') {
-			// NE r5, r3, r2  -->  NE_rA_rB_rC
-				Byte reg3 = ParseRegister(parts[3]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::NE_rA_rB_rC, reg1, reg2, reg3);
-		} else {
-			// NE r5, r3, 15  -->  NE_rA_rB_iC
-			Byte immediate = ParseByte(parts[3]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::NE_rA_rB_iC, reg1, reg2, immediate);
+			instruction = BytecodeUtil::INS_ABC(opRI, reg1, reg2, immediate);
 		}
 	
 	} else if (mnemonic == "BRTRUE") {
@@ -641,31 +500,12 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-
 		Byte reg1 = ParseRegister(parts[1]);
-		String target = parts[2];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
-		} else {
-			// It's a number
-			offset = ParseInt32(target);
+		Int32 offset = ResolveBranchOffset(parts[2], Int16MinValue, Int16MaxValue, "Int16");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
 		}
-
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < Int16MinValue || offset > Int16MaxValue) {
-			Error("Range error (Cannot fit branch offset into Int16)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
-		}
-
 		instruction = BytecodeUtil::INS_AB(Opcode::BRTRUE_rA_iBC, reg1, (Int16)offset);
 
 	} else if (mnemonic == "BRFALSE") {
@@ -673,31 +513,12 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-
 		Byte reg1 = ParseRegister(parts[1]);
-		String target = parts[2];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
-		} else {
-			// It's a number
-			offset = ParseInt32(target);
+		Int32 offset = ResolveBranchOffset(parts[2], Int16MinValue, Int16MaxValue, "Int16");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
 		}
-
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < Int16MinValue || offset > Int16MaxValue) {
-			Error("Range error (Cannot fit branch offset into Int16)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
-		}
-
 		instruction = BytecodeUtil::INS_AB(Opcode::BRFALSE_rA_iBC, reg1, (Int16)offset);
 
 	} else if (mnemonic == "BRLT") {
@@ -705,261 +526,82 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-
-		String target = parts[3];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
-		} else {
-			// It's a number
-			offset = ParseInt32(target);
+		Int32 offset = ResolveBranchOffset(parts[3], SByteMinValue, SByteMaxValue, "SByte");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
 		}
+		instruction = AssembleThreeWayBranch(parts, Opcode::BRLT_rA_rB_iC, Opcode::BRLT_iA_rB_iC, Opcode::BRLT_rA_iB_iC, (Byte)offset);
 
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < SByteMinValue || offset > SByteMaxValue) {
-			Error("Range error (Cannot fit branch offset into SByte)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
-		}
-
-		if (parts[2][0] == 'r') {
-			if (parts[1][0] == 'r'){
-				// BRLT r5, r3, someOffset
-				Byte reg1 = ParseRegister(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::BRLT_rA_rB_iC, reg1, reg2, (Byte)offset);
-			} else {
-				// BRLT 5, r5, someOffset
-				Byte immediate = (Byte)ParseInt16(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::BRLT_iA_rB_iC, immediate, reg2, (Byte)offset);		
-			}
-		} else {
-			// BRLT r5, 5, someOffset
-			Byte reg1 = ParseRegister(parts[1]);
-			Byte immediate = (Byte)ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BRLT_rA_iB_iC, reg1, immediate, (Byte)offset);
-		}
 	} else if (mnemonic == "BRLE") {
 		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-
-		String target = parts[3];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
-		} else {
-			// It's a number
-			offset = ParseInt32(target);
+		Int32 offset = ResolveBranchOffset(parts[3], SByteMinValue, SByteMaxValue, "SByte");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
 		}
-
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < SByteMinValue || offset > SByteMaxValue) {
-			Error("Range error (Cannot fit branch offset into SByte)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
-		}
-
-		if (parts[2][0] == 'r') {
-			if (parts[1][0] == 'r'){
-				// BRLE r5, r3, someOffset
-				Byte reg1 = ParseRegister(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::BRLE_rA_rB_iC, reg1, reg2, (Byte)offset);
-			} else {
-				// BRLE 5, r5, someOffset
-				Byte immediate = (Byte)ParseInt16(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::BRLE_iA_rB_iC, immediate, reg2, (Byte)offset);		
-			}
-		} else {
-			// BRLE r5, 5, someOffset
-			Byte reg1 = ParseRegister(parts[1]);
-			Byte immediate = (Byte)ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BRLE_rA_iB_iC, reg1, immediate, (Byte)offset);
-		}			
+		instruction = AssembleThreeWayBranch(parts, Opcode::BRLE_rA_rB_iC, Opcode::BRLE_iA_rB_iC, Opcode::BRLE_rA_iB_iC, (Byte)offset);
 
 	} else if (mnemonic == "BREQ") {
 		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
 			return 0; }
 		}
-
-		String target = parts[3];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
-		} else {
-			// It's a number
-			offset = ParseInt32(target);
+		Int32 offset = ResolveBranchOffset(parts[3], SByteMinValue, SByteMaxValue, "SByte");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
 		}
-
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < SByteMinValue || offset > SByteMaxValue) {
-			Error("Range error (Cannot fit branch offset into SByte)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
-		}
-
-		Byte reg1 = ParseRegister(parts[1]);
-		if (parts[2][0] == 'r'){
-			// BREQ r5, r3, someOffset
-			Byte reg2 = ParseRegister(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BREQ_rA_rB_iC, reg1, reg2, (Byte)offset);
-		} else {
-			// BREQ r5, 5, someOffset
-			Byte immediate = (Byte)ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BREQ_rA_iB_iC, reg1, immediate, (Byte)offset);
-		}
+		instruction = AssembleRegOrImmBranch(parts, Opcode::BREQ_rA_rB_iC, Opcode::BREQ_rA_iB_iC, (Byte)offset);
 
 	} else if (mnemonic == "BRNE") {
 		if (parts.Count() != 4) { Error("Syntax error");  {
 			GC_POP_SCOPE();
 			return 0; }
 		}
+		Int32 offset = ResolveBranchOffset(parts[3], SByteMinValue, SByteMaxValue, "SByte");
+		if (HasError)  {
+			GC_POP_SCOPE();
+			return 0;
+		}
+		instruction = AssembleRegOrImmBranch(parts, Opcode::BRNE_rA_rB_iC, Opcode::BRNE_rA_iB_iC, (Byte)offset);
 
-		String target = parts[3];
-		Int32 offset;
-		
-		// Check if target is a label or a number
-		Int32 labelAddr = FindLabelAddress(target);
-		if (labelAddr >= 0) {
-			// It's a label - calculate relative offset from next instruction
-			offset = labelAddr - (Current.Code().Count() + 1);
+	} else if (mnemonic == "IFLT" || mnemonic == "IFLE") {
+		// Three-way conditional skip: rr, ir, ri variants
+		if (parts.Count() != 3) { Error("Syntax error");  {
+			GC_POP_SCOPE();
+			return 0; }
+		}
+		Opcode opRR, opIR, opRI;
+		if (mnemonic == "IFLT") {
+			opRR = Opcode::IFLT_rA_rB; opIR = Opcode::IFLT_iAB_rC; opRI = Opcode::IFLT_rA_iBC;
 		} else {
-			// It's a number
-			offset = ParseInt32(target);
+			opRR = Opcode::IFLE_rA_rB; opIR = Opcode::IFLE_iAB_rC; opRI = Opcode::IFLE_rA_iBC;
 		}
+		instruction = AssembleThreeWayIf(parts, opRR, opIR, opRI);
 
-		// ToDo: handle other cases similar to this, where we parse the number
-		// as a bigger Int32 but then check the range, so that we can display
-		// a better error message.
-		if (offset < SByteMinValue || offset > SByteMaxValue) {
-			Error("Range error (Cannot fit branch offset into SByte)");  {
-				GC_POP_SCOPE();
-				return 0;
-			}
+	} else if (mnemonic == "IFEQ" || mnemonic == "IFNE") {
+		// Two-way conditional skip: rr, ri variants
+		if (parts.Count() != 3) { Error("Syntax error");  {
+			GC_POP_SCOPE();
+			return 0; }
 		}
-
+		Opcode opRR, opRI;
+		if (mnemonic == "IFEQ") {
+			opRR = Opcode::IFEQ_rA_rB; opRI = Opcode::IFEQ_rA_iBC;
+		} else {
+			opRR = Opcode::IFNE_rA_rB; opRI = Opcode::IFNE_rA_iBC;
+		}
 		Byte reg1 = ParseRegister(parts[1]);
 		if (parts[2][0] == 'r') {
-			// BRNE r5, r3, someOffset
 			Byte reg2 = ParseRegister(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BRNE_rA_rB_iC, reg1, reg2, (Byte)offset);
+			instruction = BytecodeUtil::INS_ABC(opRR, reg1, reg2, 0);
 		} else {
-			// BRNE r5, 5, someOffset
-			Byte immediate = (Byte)ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_ABC(Opcode::BRNE_rA_iB_iC, reg1, immediate, (Byte)offset);
-		}
-
-	} else if (mnemonic == "IFLT") {
-		if (parts.Count() != 3) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		
-		if (parts[2][0] == 'r') {
-			if (parts[1][0] == 'r') {
-				// IFLT r5, r3  -->  IFLT_rA_rB
-				Byte reg1 = ParseRegister(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::IFLT_rA_rB, reg1, reg2, 0);
-			}
-			else{
-				// IFLT 1337, r3  -->  IFLT_iAB_rc
-				Int16 immediate = ParseInt16(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_BC(Opcode::IFLT_iAB_rC, immediate, reg2);
-			}
-		} else {
-			// IFLT r5, 42  -->  IFLT_rA_iBC
-			Byte reg1 = ParseRegister(parts[1]);
 			Int16 immediate = ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_AB(Opcode::IFLT_rA_iBC, reg1, immediate);
-		}
-	
-	} else if (mnemonic == "IFLE") {
-		if (parts.Count() != 3) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-		
-		if (parts[2][0] == 'r') {
-			if (parts[1][0] == 'r') {
-				// IFLE r5, r3  -->  IFLE_rA_rB
-				Byte reg1 = ParseRegister(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::IFLE_rA_rB, reg1, reg2, 0);
-			} else {
-				// IFLE 1337, r3  -->  IFLE_iAB_rc
-				Int16 immediate = ParseInt16(parts[1]);
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_BC(Opcode::IFLE_iAB_rC, immediate, reg2);
-			}
-		} else {
-			// IFLE r5, 42  -->  IFLE_rA_iBC
-			Byte reg1 = ParseRegister(parts[1]);
-			Int16 immediate = ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_AB(Opcode::IFLE_rA_iBC, reg1, immediate);
-		}
-
-	} else if (mnemonic == "IFEQ") {
-		if (parts.Count() != 3) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-
-		Byte reg1 = ParseRegister(parts[1]);
-
-		if (parts[2][0] == 'r') {
-			// IFEQ r5, r3  -->  IFEQ_rA_rB
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::IFEQ_rA_rB, reg1, reg2, 0);
-		} else {
-			// IFEQ r5, 42  -->  IFEQ_rA_iBC
-			Int16 immediate = ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_AB(Opcode::IFEQ_rA_iBC, reg1, immediate);
-		}
-
-	} else if (mnemonic == "IFNE") {
-		if (parts.Count() != 3) { Error("Syntax error");  {
-			GC_POP_SCOPE();
-			return 0; }
-		}
-
-		Byte reg1 = ParseRegister(parts[1]);
-
-		if (parts[2][0] == 'r') {
-			// IFNE r5, r3  -->  IFNE_rA_rB
-				Byte reg2 = ParseRegister(parts[2]);
-				instruction = BytecodeUtil::INS_ABC(Opcode::IFNE_rA_rB, reg1, reg2, 0);
-		} else {
-			// IFNE r5, 42  -->  IFNE_rA_iBC
-			Int16 immediate = ParseInt16(parts[2]);
-			instruction = BytecodeUtil::INS_AB(Opcode::IFNE_rA_iBC, reg1, immediate);
+			instruction = BytecodeUtil::INS_AB(opRI, reg1, immediate);
 		}
 
 	} else if (mnemonic == "NEXT") {
@@ -1118,6 +760,93 @@ UInt32 AssemblerStorage::AddLine(String line,Int32 lineNumber) {
 	GC_POP_SCOPE();
 	return instruction;
 }
+Int32 AssemblerStorage::ResolveBranchOffset(String target,Int32 minVal,Int32 maxVal,String rangeName) {
+	Int32 offset;
+	Int32 labelAddr = FindLabelAddress(target);
+	if (labelAddr >= 0) {
+		offset = labelAddr - (Current.Code().Count() + 1);
+	} else {
+		offset = ParseInt32(target);
+	}
+	if (offset < minVal || offset > maxVal) {
+		Error(StringUtils::Format("Range error (Cannot fit branch offset into {0})", rangeName));
+	}
+	return offset;
+}
+UInt32 AssemblerStorage::AssembleThreeWayBranch(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI,Byte offset) {
+	if (parts[2][0] == 'r') {
+		if (parts[1][0] == 'r') {
+			Byte reg1 = ParseRegister(parts[1]);
+			Byte reg2 = ParseRegister(parts[2]);
+			return BytecodeUtil::INS_ABC(opRR, reg1, reg2, offset);
+		} else {
+			Byte immediate = (Byte)ParseInt16(parts[1]);
+			Byte reg2 = ParseRegister(parts[2]);
+			return BytecodeUtil::INS_ABC(opIR, immediate, reg2, offset);
+		}
+	} else {
+		Byte reg1 = ParseRegister(parts[1]);
+		Byte immediate = (Byte)ParseInt16(parts[2]);
+		return BytecodeUtil::INS_ABC(opRI, reg1, immediate, offset);
+	}
+}
+UInt32 AssemblerStorage::AssembleRegOrImmBranch(List<String> parts,Opcode opRR,Opcode opRI,Byte offset) {
+	Byte reg1 = ParseRegister(parts[1]);
+	if (parts[2][0] == 'r') {
+		Byte reg2 = ParseRegister(parts[2]);
+		return BytecodeUtil::INS_ABC(opRR, reg1, reg2, offset);
+	} else {
+		Byte immediate = (Byte)ParseInt16(parts[2]);
+		return BytecodeUtil::INS_ABC(opRI, reg1, immediate, offset);
+	}
+}
+Opcode AssemblerStorage::ArithmeticOpcode(String mnemonic) {
+	if (mnemonic == "ADD") return Opcode::ADD_rA_rB_rC;
+	if (mnemonic == "SUB") return Opcode::SUB_rA_rB_rC;
+	if (mnemonic == "MULT") return Opcode::MULT_rA_rB_rC;
+	if (mnemonic == "DIV") return Opcode::DIV_rA_rB_rC;
+	if (mnemonic == "MOD") return Opcode::MOD_rA_rB_rC;
+	if (mnemonic == "POW") return Opcode::POW_rA_rB_rC;
+	if (mnemonic == "AND") return Opcode::AND_rA_rB_rC;
+	if (mnemonic == "OR") return Opcode::OR_rA_rB_rC;
+	return Opcode::NOOP;
+}
+UInt32 AssemblerStorage::AssembleThreeWayCompare(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI) {
+	Byte reg1 = ParseRegister(parts[1]);
+	Current.ReserveRegister(reg1);
+	if (parts[3][0] == 'r') {
+		if (parts[2][0] == 'r') {
+			Byte reg2 = ParseRegister(parts[2]);
+			Byte reg3 = ParseRegister(parts[3]);
+			return BytecodeUtil::INS_ABC(opRR, reg1, reg2, reg3);
+		} else {
+			Byte immediate = ParseByte(parts[2]);
+			Byte reg3 = ParseRegister(parts[3]);
+			return BytecodeUtil::INS_ABC(opIR, reg1, immediate, reg3);
+		}
+	} else {
+		Byte reg2 = ParseRegister(parts[2]);
+		Byte immediate = ParseByte(parts[3]);
+		return BytecodeUtil::INS_ABC(opRI, reg1, reg2, immediate);
+	}
+}
+UInt32 AssemblerStorage::AssembleThreeWayIf(List<String> parts,Opcode opRR,Opcode opIR,Opcode opRI) {
+	if (parts[2][0] == 'r') {
+		if (parts[1][0] == 'r') {
+			Byte reg1 = ParseRegister(parts[1]);
+			Byte reg2 = ParseRegister(parts[2]);
+			return BytecodeUtil::INS_ABC(opRR, reg1, reg2, 0);
+		} else {
+			Int16 immediate = ParseInt16(parts[1]);
+			Byte reg2 = ParseRegister(parts[2]);
+			return BytecodeUtil::INS_BC(opIR, immediate, reg2);
+		}
+	} else {
+		Byte reg1 = ParseRegister(parts[1]);
+		Int16 immediate = ParseInt16(parts[2]);
+		return BytecodeUtil::INS_AB(opRI, reg1, immediate);
+	}
+}
 Byte AssemblerStorage::ParseRegister(String reg) {
 	if (reg.Length() < 2 || reg[0] != 'r') {
 		Error(StringUtils::Format("Invalid register format: '{0}' (expected format: r0, r1, etc.)", reg));
@@ -1125,17 +854,16 @@ Byte AssemblerStorage::ParseRegister(String reg) {
 	}
 	return (Byte)ParseInt16(reg.Substring(1));
 }
-Byte AssemblerStorage::ParseByte(String num) {
-	// Simple number parsing - could be enhanced
+Int64 AssemblerStorage::ParseIntRange(String num,Int64 minVal,Int64 maxVal,String rangeName) {
 	Int64 result = 0;
 	Boolean negative = Boolean(false);
 	Int32 start = 0;
-	
+
 	if (num.Length() > 0 && num[0] == '-') {
 		negative = Boolean(true);
 		start = 1;
 	}
-	
+
 	for (Int32 i = start; i < num.Length(); i++) {
 		if (num[i] >= '0' && num[i] <= '9') {
 			result = result * 10 + (num[i] - '0');
@@ -1144,94 +872,25 @@ Byte AssemblerStorage::ParseByte(String num) {
 			return 0;
 		}
 	}
-	
+
 	if (negative) result = -result;
-	if (result < ByteMinValue || result > ByteMaxValue) {
-		Error(StringUtils::Format("Number '{0}' is out of range for Int16 ({1} to {2})", num, ByteMinValue, ByteMaxValue));
+	if (result < minVal || result > maxVal) {
+		Error(StringUtils::Format("Number '{0}' is out of range for {1} ({2} to {3})", num, rangeName, minVal, maxVal));
 		return 0;
 	}
-	return (Byte)result;
+	return result;
+}
+Byte AssemblerStorage::ParseByte(String num) {
+	return (Byte)ParseIntRange(num, ByteMinValue, ByteMaxValue, "Byte");
 }
 Int16 AssemblerStorage::ParseInt16(String num) {
-	// Simple number parsing - could be enhanced
-	Int64 result = 0;
-	Boolean negative = Boolean(false);
-	Int32 start = 0;
-	
-	if (num.Length() > 0 && num[0] == '-') {
-		negative = Boolean(true);
-		start = 1;
-	}
-	
-	for (Int32 i = start; i < num.Length(); i++) {
-		if (num[i] >= '0' && num[i] <= '9') {
-			result = result * 10 + (num[i] - '0');
-		} else {
-			Error(StringUtils::Format("Invalid number format: '{0}' (unexpected character '{1}')", num, num[i]));
-			return 0;
-		}
-	}
-	
-	if (negative) result = -result;
-	if (result < Int16MinValue || result > Int16MaxValue) {
-		Error(StringUtils::Format("Number '{0}' is out of range for Int16 ({1} to {2})", num, Int16MinValue, Int16MaxValue));
-		return 0;
-	}
-	return (Int16)result;
+	return (Int16)ParseIntRange(num, Int16MinValue, Int16MaxValue, "Int16");
 }
 Int32 AssemblerStorage::ParseInt24(String num) {
-	// Simple number parsing - could be enhanced
-	Int64 result = 0;
-	Boolean negative = Boolean(false);
-	Int32 start = 0;
-	
-	if (num.Length() > 0 && num[0] == '-') {
-		negative = Boolean(true);
-		start = 1;
-	}
-	
-	for (Int32 i = start; i < num.Length(); i++) {
-		if (num[i] >= '0' && num[i] <= '9') {
-			result = result * 10 + (num[i] - '0');
-		} else {
-			Error(StringUtils::Format("Invalid number format: '{0}' (unexpected character '{1}')", num, num[i]));
-			return 0;
-		}
-	}
-	
-	if (negative) result = -result;
-	if (result < -16777215 || result > 16777215) {
-		Error(StringUtils::Format("Number '{0}' is out of range for 24-bit signed integer (-16777215 to 16777215)", num));
-		return 0;
-	}
-	return (Int32)result;
+	return (Int32)ParseIntRange(num, -16777215, 16777215, "24-bit signed integer");
 }
 Int32 AssemblerStorage::ParseInt32(String num) {
-	// Simple number parsing - could be enhanced
-	Int64 result = 0;
-	Boolean negative = Boolean(false);
-	Int32 start = 0;
-	
-	if (num.Length() > 0 && num[0] == '-') {
-		negative = Boolean(true);
-		start = 1;
-	}
-	
-	for (Int32 i = start; i < num.Length(); i++) {
-		if (num[i] >= '0' && num[i] <= '9') {
-			result = result * 10 + (num[i] - '0');
-		} else {
-			Error(StringUtils::Format("Invalid number format: '{0}' (unexpected character '{1}')", num, num[i]));
-			return 0;
-		}
-	}
-	
-	if (negative) result = -result;
-	if (result < Int32MinValue || result > Int32MaxValue) {
-		Error(StringUtils::Format("Number '{0}' is out of range for Int32 ({1} to {2})", num, Int32MinValue, Int32MaxValue));
-		return 0;
-	}
-	return (Int32)result;
+	return (Int32)ParseIntRange(num, Int32MinValue, Int32MaxValue, "Int32");
 }
 Boolean AssemblerStorage::IsLabel(String token) {
 	return token.Length() > 1 && token[token.Length() - 1] == ':';
