@@ -7,6 +7,15 @@
 // This file is part of Layer 0 (foundation utilities)
 #define CORE_LAYER_0
 
+// Force-inline macro for performance-critical helpers called from the hot loop.
+#if defined(_MSC_VER)
+  #define FORCE_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+  #define FORCE_INLINE __attribute__((always_inline)) inline
+#else
+  #define FORCE_INLINE inline
+#endif
+
 // Feature detection (override with -DVM_USE_COMPUTED_GOTO=0/1)
 #ifndef VM_USE_COMPUTED_GOTO
 /*

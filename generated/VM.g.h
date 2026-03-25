@@ -10,6 +10,7 @@
 #include "ErrorPool.g.h"
 #include "value_map.h"
 #include <vector>
+#include "gc.h"
 
 namespace MiniScript {
 typedef const FuncDefStorage& FuncDefRef;
@@ -159,6 +160,15 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: Value RunInner(UInt32 maxCycles);
 
 	private: void EnsureFrame(Int32 baseIndex, UInt16 neededRegs);
+	void SwitchFrame(Int32 currentFuncIndex, Int32 baseIndex, FuncDefStorage* &curFuncRaw, Int32 &codeCount, UInt32* &curCode, Value* &curConstants, Value* &localStack, Value* stackPtr);
+
+	// Switch all frame-local execution state to the function at currentFuncIndex.
+
+	// Get or create a VarMap for the current call frame's local variables.
+	// At global scope (callStackTop == 0), creates a VarMap directly.
+	private: Value GetCurrentLocalVarMap(Int32 baseIndex, UInt16 maxRegs);
+
+	private: void SaveState(Int32 pc, Int32 baseIndex, Int32 currentFuncIndex);
 
 	public: Value LookupParamByName(String varName);
 
@@ -323,6 +333,14 @@ struct VM {
 
 	private: inline void EnsureFrame(Int32 baseIndex, UInt16 neededRegs);
 
+	// Switch all frame-local execution state to the function at currentFuncIndex.
+
+	// Get or create a VarMap for the current call frame's local variables.
+	// At global scope (callStackTop == 0), creates a VarMap directly.
+	private: inline Value GetCurrentLocalVarMap(Int32 baseIndex, UInt16 maxRegs);
+
+	private: inline void SaveState(Int32 pc, Int32 baseIndex, Int32 currentFuncIndex);
+
 	public: inline Value LookupParamByName(String varName);
 
 	private: inline Value LookupVariable(Value varName);
@@ -406,6 +424,28 @@ inline void VMStorage::EnsureFrame(Int32 baseIndex,UInt16 neededRegs) {
 	if (baseIndex + neededRegs > stack.Count()) {
 		RaiseRuntimeError("Stack Overflow");
 	}
+}
+inline Value VM::GetCurrentLocalVarMap(Int32 baseIndex,UInt16 maxRegs) { return get()->GetCurrentLocalVarMap(baseIndex, maxRegs); }
+inline Value VMStorage::GetCurrentLocalVarMap(Int32 baseIndex,UInt16 maxRegs) {
+	GC_PUSH_SCOPE();
+	Value result; GC_PROTECT(&result);
+	if (callStackTop > 0) {
+		CallInfo frame = callStack[callStackTop - 1];
+		result = frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
+		callStack[callStackTop - 1] = frame;  // write back (CallInfo is a struct)
+		GC_POP_SCOPE();
+		return result;
+	} else {
+		return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
+	}
+	GC_POP_SCOPE();
+}
+inline void VM::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) { return get()->SaveState(pc, baseIndex, currentFuncIndex); }
+inline void VMStorage::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) {
+	PC = pc;
+	BaseIndex = baseIndex;
+	_currentFuncIndex = currentFuncIndex;
+	CurrentFunction = functions[currentFuncIndex];
 }
 inline Value VM::LookupParamByName(String varName) { return get()->LookupParamByName(varName); }
 inline Value VM::LookupVariable(Value varName) { return get()->LookupVariable(varName); }
