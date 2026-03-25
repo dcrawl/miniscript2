@@ -204,6 +204,9 @@ bool map_lookup(Value map_val, Value key, Value* out_value) {
     return false;
 }
 
+// Look up a key in a map walking the __isa chain, and also return the __isa
+// of the map where the key was found (for computing 'super').
+// Returns true if found, false otherwise.
 bool map_lookup_with_origin(Value map_val, Value key, Value* out_value, Value* out_super) {
     if (out_value) *out_value = val_null;
     if (out_super) *out_super = val_null;
