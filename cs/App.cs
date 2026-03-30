@@ -100,12 +100,15 @@ public struct App {
 
 		if (functions != null) {
 			RunProgram(functions, errors);
+		} else if (inlineCode == null && fileArgIndex == -1 && !debugMode) {
+			// No file or inline code: enter REPL mode
+			RunREPL();
 		}
 
 		if (errors.HasError()) {
 			IOHelper.Print(errors.TopError());
 		}
-		
+
 		IOHelper.Print("All done!");
 	}
 
@@ -411,6 +414,22 @@ public struct App {
 		if (!errors.HasError()) {
 			IOHelper.Print("\nVM execution complete. Result in r0:");
 			IOHelper.Print(StringUtils.Format("\u001b[1;93m{0}\u001b[0m", result)); // (bold bright yellow)
+		}
+	}
+
+	private static void RunREPL() {
+		Interpreter interp = new Interpreter();
+		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
+		// CPP: interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
+		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
+		// CPP: interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
+		interp.implicitOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
+		// CPP: interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s); });
+		while (true) {
+			String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
+			String line = IOHelper.Input(prompt);
+			if (line == "quit" || line == "exit") break;
+			interp.REPL(line, 60);
 		}
 	}
 

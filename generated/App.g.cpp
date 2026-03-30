@@ -99,12 +99,15 @@ void App::MainProgram(List<String> args) {
 
 	if (!IsNull(functions)) {
 		RunProgram(functions, errors);
+	} else if (IsNull(inlineCode) && fileArgIndex == -1 && !debugMode) {
+		// No file or inline code: enter REPL mode
+		RunREPL();
 	}
 
 	if (errors.HasError()) {
 		IOHelper::Print(errors.TopError());
 	}
-	
+
 	IOHelper::Print("All done!");
 }
 List<FuncDef> App::CompileSource(String source,ErrorPool errors,Boolean verbose) {
@@ -403,6 +406,18 @@ void App::RunProgram(List<FuncDef> functions,ErrorPool errors) {
 		IOHelper::Print(StringUtils::Format("\u001b[1;93m{0}\u001b[0m", result)); // (bold bright yellow)
 	}
 	GC_POP_SCOPE();
+}
+void App::RunREPL() {
+	Interpreter interp =  Interpreter::New();
+	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
+	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
+	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s); });
+	while (Boolean(true)) {
+		String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
+		String line = IOHelper::Input(prompt);
+		if (line == "quit" || line == "exit") break;
+		interp.REPL(line, 60);
+	}
 }
 
 } // end of namespace MiniScript

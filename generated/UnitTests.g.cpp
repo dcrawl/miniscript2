@@ -756,7 +756,6 @@ List<String> UnitTests::RunREPLSequence(List<String> inputs) {
 	interp.set_implicitOutput([](String s, Boolean) { gTestOutput.Add(s); });
 	interp.set_errorOutput([](String s, Boolean) { gTestOutput.Add(s); });
 	for (Int32 i = 0; i < inputs.Count(); i++) {
-		IOHelper::Print(StringUtils::Format("--------------------------\n{0}", inputs[i]));
 		interp.REPL(inputs[i]);
 	}
 	return output;
@@ -897,6 +896,59 @@ Boolean UnitTests::TestREPL() {
 		ok = ok && Assert(output.Count() >= 1 && output[0] == "99",
 			StringUtils::Format("Multi-line if: expected '99' but got {0}",
 				output.Count() > 0 ? output[0] : "(empty)"));
+	}
+
+	// Test 7: Function call with argument across REPL entries
+	{
+		List<String> inputs =  List<String>::New();
+		inputs.Add("f = function(s)");
+		inputs.Add("return s * 4");
+		inputs.Add("end function");
+		inputs.Add("print f(\"spam\")");
+		List<String> output = RunREPLSequence(inputs);
+		ok = ok && Assert(output.Count() >= 1 && output[0] == "spamspamspamspam",
+			StringUtils::Format("Function call with arg: expected 'spamspamspamspam' but got {0}",
+				output.Count() > 0 ? output[0] : "(empty)"));
+	}
+
+	// Test 8: Function call as expression (implicit output) — not via print
+	{
+		List<String> inputs =  List<String>::New();
+		inputs.Add("f = function(s)");
+		inputs.Add("return s * 4");
+		inputs.Add("end function");
+		inputs.Add("f(\"spam\")");
+		List<String> output = RunREPLSequence(inputs);
+		ok = ok && Assert(output.Count() >= 1 && output[0] == "spamspamspamspam",
+			StringUtils::Format("Function call implicit output: expected 'spamspamspamspam' but got {0}",
+				output.Count() > 0 ? output[0] : "(empty)"));
+	}
+
+	// Test 9: Function call result used in expression
+	{
+		List<String> inputs =  List<String>::New();
+		inputs.Add("f = function(s)");
+		inputs.Add("return s * 4");
+		inputs.Add("end function");
+		inputs.Add("print f(\"spam \") + \"and spam!\"");
+		List<String> output = RunREPLSequence(inputs);
+		ok = ok && Assert(output.Count() >= 1 && output[0] == "spam spam spam spam and spam!",
+			StringUtils::Format("Function call in expression: expected 'spam spam spam spam and spam!' but got {0}",
+				output.Count() > 0 ? output[0] : "(empty)"));
+	}
+
+	// Test 10: Multiple functions
+	{
+		List<String> inputs =  List<String>::New();
+		inputs.Add("f = function; return 101; end function");
+		inputs.Add("g = function; return 202; end function");
+		inputs.Add("print f");
+		inputs.Add("print g");
+		inputs.Add("print f(\"spam \") + \" and spam!\"");			
+		List<String> output = RunREPLSequence(inputs);
+		ok = ok && Assert(output.Count() >= 2 && output[0] == "101" && output[1] == "202",
+			StringUtils::Format("Multi-function test: expected 101 and 102 but got {0} and {1}",
+				output[0], output[1]));
 	}
 
 	if (!ok) IOHelper::Print("TestREPL FAILED");

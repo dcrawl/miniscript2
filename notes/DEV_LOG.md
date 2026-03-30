@@ -678,3 +678,9 @@ The trick is to keep the global VarMap around, and in sync with the new variable
 
 Resetting the VM requires care in this case: we must really do a *partial* reset, keeping the functions list from before, while creating new stack and name lists -- but then rebinding the persistent globals map to these new lists.
 
+It's mostly working now, but there is one problem: as we compile code freshly for each input, every time we define a function, it gets a funcIndex of 1.  You can see this in CodeGenerator.Visit(FunctionNode node), which sets the funcIndex to _functions.Count.
+
+This relates to the choice made a while back to add all the intrinsic functions *after* the user-defined functions, which works only as long as there aren't multiple VMs sharing them (or sharing code compiled at different times), because then they might get different function indexes.  The whole approach is fragile, and now (with the REPL) unworkable.
+
+So what we should do instead is: add the intrinsics *first*, when a VM is initialized.  And then give CodeGenerator an offset (`firstFunctionIndex` or similar) to add to _functions.Count for any functions that it generates.  This way, even on a non-REPL run, it can stick the user functions after the intrinsic functions; and on a REPL run, it can also avoid reusing indexes in use by previous user functions.
+

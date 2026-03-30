@@ -33,6 +33,8 @@ struct App {
 	// Run a program given its list of functions
 	private: static void RunProgram(List<FuncDef> functions, ErrorPool errors);
 
+	private: static void RunREPL();
+
 }; // end of struct App
 
 // INLINE METHODS
