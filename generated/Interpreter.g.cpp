@@ -3,6 +3,7 @@
 
 #include "Interpreter.g.h"
 #include "StringUtils.g.h"
+#include "Intrinsic.g.h" // ToDo: remove this once we've refactored set_FunctionIndexOffset away
 
 namespace MiniScript {
 
@@ -57,10 +58,11 @@ void InterpreterStorage::Compile() {
 		statements[i] = statements[i].Simplify();
 	}
 
-	// Compile to bytecode
+	// Compile to bytecode (offset past intrinsics so indices don't collide)
 	BytecodeEmitter emitter =  BytecodeEmitter::New();
 	CodeGenerator generator =  CodeGenerator::New(emitter);
 	generator.set_Errors(errors);
+	generator.set_FunctionIndexOffset(Intrinsic::Count());
 	generator.CompileProgram(statements, "@main");
 
 	if (errors.HasError()) {
@@ -171,10 +173,12 @@ void InterpreterStorage::REPL(String sourceLine,double timeLimit) {
 		hasImplicitOutput = Boolean(true);
 	}
 
-	// Compile to bytecode
+	// Compile to bytecode (offset past intrinsics + previous user functions)
+	Int32 funcOffset = (!IsNull(vm)) ? vm.FunctionCount() : Intrinsic::Count();
 	BytecodeEmitter emitter =  BytecodeEmitter::New();
 	CodeGenerator generator =  CodeGenerator::New(emitter);
 	generator.set_Errors(errors);
+	generator.set_FunctionIndexOffset(funcOffset);
 	generator.CompileProgram(statements, "@main");
 
 	if (errors.HasError()) {

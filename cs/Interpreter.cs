@@ -18,6 +18,7 @@ using static MiniScript.ValueHelpers;
 // H: #include "CodeGenerator.g.h"
 // H: #include "gc.h"
 // CPP: #include "StringUtils.g.h"
+// CPP: #include "Intrinsic.g.h" // ToDo: remove this once we've refactored set_FunctionIndexOffset away
 
 namespace MiniScript {
 
@@ -167,10 +168,11 @@ public class Interpreter {
 			statements[i] = statements[i].Simplify();
 		}
 
-		// Compile to bytecode
+		// Compile to bytecode (offset past intrinsics so indices don't collide)
 		BytecodeEmitter emitter = new BytecodeEmitter();
 		CodeGenerator generator = new CodeGenerator(emitter);
 		generator.Errors = errors;
+		generator.FunctionIndexOffset = Intrinsic.Count();
 		generator.CompileProgram(statements, "@main");
 
 		if (errors.HasError()) {
@@ -317,10 +319,12 @@ public class Interpreter {
 			hasImplicitOutput = true;
 		}
 
-		// Compile to bytecode
+		// Compile to bytecode (offset past intrinsics + previous user functions)
+		Int32 funcOffset = (vm != null) ? vm.FunctionCount() : Intrinsic.Count();
 		BytecodeEmitter emitter = new BytecodeEmitter();
 		CodeGenerator generator = new CodeGenerator(emitter);
 		generator.Errors = errors;
+		generator.FunctionIndexOffset = funcOffset;
 		generator.CompileProgram(statements, "@main");
 
 		if (errors.HasError()) {

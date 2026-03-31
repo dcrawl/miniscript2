@@ -28,6 +28,9 @@ class IntrinsicStorage : public std::enable_shared_from_this<IntrinsicStorage> {
 	private: static Boolean _initialized;
 	public: IntrinsicStorage() {}
 
+	// Return the number of intrinsics (initializing them if needed).
+	public: static Int32 Count();
+
 	public: static Intrinsic Create(String name);
 
 	public: void AddParam(String name);
@@ -73,6 +76,9 @@ struct Intrinsic {
 	public: static Intrinsic New() {
 		return Intrinsic(std::make_shared<IntrinsicStorage>());
 	}
+
+	// Return the number of intrinsics (initializing them if needed).
+	public: static Int32 Count() { return IntrinsicStorage::Count(); }
 
 	public: static Intrinsic Create(String name) { return IntrinsicStorage::Create(name); }
 

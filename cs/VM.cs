@@ -256,44 +256,26 @@ public class VM {
 	public void Reset(List<FuncDef> allFunctions, Value replGlobals) {
 		bool partialReset = !is_null(replGlobals);
 
-		// Store all functions for CALLF instructions, and find @main.
-		// NOTE: if given replGlobals, then don't clear previous functions,
-		// (except for @main), as some of those globals might reference them.
-		// (We can also skip registering intrinsics in this case, as they're 
-		// already registered.)	
 		Int32 mainIdx = -1;
 		if (partialReset) {
-			// search existing functions for old main func;
-			// clear that slot and note the index
-			for (Int32 i = 0; i < functions.Count; i++) {
-				if (functions[i].Name == "@main") {
-					functions[i] = null;
-					mainIdx = i;
-					break;
-				}
-			}
-		} else {
-			// full reset: clear all previous functions
-			functions.Clear();
-		}
-		
-		// Then, add new functions (taking special care with @main)
-		for (Int32 i = 0; i < allFunctions.Count; i++) {
-			if (allFunctions[i].Name == "@main") {
-				if (mainIdx >= 0) {
-					functions[mainIdx] = allFunctions[i];
-				} else {
-					functions.Add(allFunctions[i]);
-					mainIdx = i;
-				}
-			} else {
+			// REPL mode: intrinsics and previous user functions are already in the list.
+			// Just append the newly compiled functions (which were compiled with an
+			// offset matching the current functions.Count, so indices line up).
+			for (Int32 i = 0; i < allFunctions.Count; i++) {
+				if (allFunctions[i].Name == "@main") mainIdx = functions.Count;
 				functions.Add(allFunctions[i]);
 			}
-		}
-
-		if (is_null(replGlobals)) {
+		} else {
+			// Full reset: register intrinsics first, then add user functions.
+			// User functions are compiled with FunctionIndexOffset = intrinsic count,
+			// so their indices in the bytecode already account for the intrinsics.
+			functions.Clear();
 			_intrinsics = new Dictionary<String, Value>();
 			Intrinsic.RegisterAll(functions, _intrinsics);
+			for (Int32 i = 0; i < allFunctions.Count; i++) {
+				if (allFunctions[i].Name == "@main") mainIdx = functions.Count;
+				functions.Add(allFunctions[i]);
+			}
 		}
 		
 		// Basic validation
@@ -370,6 +352,10 @@ public class VM {
 		IOHelper.Print(StringUtils.Format("Runtime Error: {0} [{1} line {2}]",
 		  RuntimeError, CurrentFunction.Name, PC - 1));
 		return true;
+	}
+
+	public Int32 FunctionCount() {
+		return functions.Count;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):

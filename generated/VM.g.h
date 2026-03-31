@@ -129,6 +129,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	public: bool ReportRuntimeError();
 
+	public: Int32 FunctionCount();
+
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
 	// Returns the PC after the CALL instruction, or -1 on error.
@@ -317,6 +319,8 @@ struct VM {
 
 	public: inline bool ReportRuntimeError();
 
+	public: inline Int32 FunctionCount();
+
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
 	// Returns the PC after the CALL instruction, or -1 on error.
@@ -445,6 +449,7 @@ inline void VM::Reset(List<FuncDef> allFunctions,Value replGlobals) { return get
 inline void VM::Stop() { return get()->Stop(); }
 inline void VM::RaiseRuntimeError(String message) { return get()->RaiseRuntimeError(message); }
 inline bool VM::ReportRuntimeError() { return get()->ReportRuntimeError(); }
+inline Int32 VM::FunctionCount() { return get()->FunctionCount(); }
 inline Int32 VM::SelfParamOffset(FuncDefRef callee) { return get()->SelfParamOffset(callee); }
 inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDefRef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
 inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDefRef callee) { return get()->ApplyPendingContext(calleeBase, callee); }

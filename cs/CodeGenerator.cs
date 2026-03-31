@@ -25,6 +25,7 @@ public class CodeGenerator : IASTVisitor {
 	private List<Int32> _loopExitLabels;      // Stack of loop exit labels for break
 	private List<Int32> _loopContinueLabels;  // Stack of loop continue labels for continue
 	private List<FuncDef> _functions;          // All compiled functions (shared across inner generators)
+	public Int32 FunctionIndexOffset;          // Offset added to local function indices for FUNCREF emission
 	public ErrorPool Errors;
 
 	public CodeGenerator(CodeEmitterBase emitter) {
@@ -1027,6 +1028,7 @@ public class CodeGenerator : IASTVisitor {
 		BytecodeEmitter innerEmitter = new BytecodeEmitter();
 		CodeGenerator innerGen = new CodeGenerator(innerEmitter);
 		innerGen._functions = _functions;  // share the function list
+		innerGen.FunctionIndexOffset = FunctionIndexOffset;  // share the offset too
 		innerGen.Errors = Errors;
 
 		// Reserve r0 for return value, then set up param registers (r1, r2, ...)
@@ -1046,7 +1048,8 @@ public class CodeGenerator : IASTVisitor {
 		innerEmitter.Emit(Opcode.RETURN, null);
 
 		// Finalize the inner function
-		String funcName = StringUtils.Format("@f{0}", funcIndex);
+		Int32 globalFuncIndex = funcIndex + FunctionIndexOffset;
+		String funcName = StringUtils.Format("@f{0}", globalFuncIndex);
 		FuncDef funcDef = innerEmitter.Finalize(funcName);
 
 		// Set parameter info on the FuncDef
@@ -1076,7 +1079,7 @@ public class CodeGenerator : IASTVisitor {
 		_functions[funcIndex] = funcDef;
 
 		// In the outer function, emit FUNCREF to create a reference
-		_emitter.EmitAB(Opcode.FUNCREF_iA_iBC, resultReg, funcIndex,
+		_emitter.EmitAB(Opcode.FUNCREF_iA_iBC, resultReg, globalFuncIndex,
 			$"r{resultReg} = funcref {funcName}");
 
 		return resultReg;

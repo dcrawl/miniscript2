@@ -966,6 +966,7 @@ Int32 CodeGeneratorStorage::Visit(FunctionNode node) {
 	BytecodeEmitter innerEmitter =  BytecodeEmitter::New();
 	CodeGenerator innerGen =  CodeGenerator::New(innerEmitter);
 	innerGen.set__functions(_functions);  // share the function list
+	innerGen.set_FunctionIndexOffset(FunctionIndexOffset);  // share the offset too
 	innerGen.set_Errors(Errors);
 
 	// Reserve r0 for return value, then set up param registers (r1, r2, ...)
@@ -985,7 +986,8 @@ Int32 CodeGeneratorStorage::Visit(FunctionNode node) {
 	innerEmitter.Emit(Opcode::RETURN, nullptr);
 
 	// Finalize the inner function
-	String funcName = StringUtils::Format("@f{0}", funcIndex);
+	Int32 globalFuncIndex = funcIndex + FunctionIndexOffset;
+	String funcName = StringUtils::Format("@f{0}", globalFuncIndex);
 	FuncDef funcDef = innerEmitter.Finalize(funcName);
 
 	// Set parameter info on the FuncDef
@@ -1016,7 +1018,7 @@ Int32 CodeGeneratorStorage::Visit(FunctionNode node) {
 	_functions[funcIndex] = funcDef;
 
 	// In the outer function, emit FUNCREF to create a reference
-	_emitter.EmitAB(Opcode::FUNCREF_iA_iBC, resultReg, funcIndex,
+	_emitter.EmitAB(Opcode::FUNCREF_iA_iBC, resultReg, globalFuncIndex,
 		Interp("r{} = funcref {}", resultReg, funcName));
 
 	GC_POP_SCOPE();

@@ -21,6 +21,7 @@ using static MiniScript.ValueHelpers;
 // CPP: #include "StringUtils.g.h"
 // CPP: #include "IOHelper.g.h"
 // CPP: #include "Interpreter.g.h"
+// CPP: #include "Intrinsic.g.h" // ToDo: remove this once we've refactored set_FunctionIndexOffset away
 // CPP: #include <thread>
 // CPP: #include <chrono>
 // CPP: using namespace MiniScript;
@@ -133,10 +134,13 @@ public struct App {
 			statements[i] = statements[i].Simplify();
 		}
 
-		// Compile to bytecode
+		// Compile to bytecode (offset past intrinsics so indices don't collide)
+		// (ToDo: refactor this so that callers don't have to know so many steps
+		// to get correct behavior; it should be more automatic.)
 		BytecodeEmitter emitter = new BytecodeEmitter();
 		CodeGenerator generator = new CodeGenerator(emitter);
 		generator.Errors = errors;
+		generator.FunctionIndexOffset = Intrinsic.Count();
 		generator.CompileProgram(statements, "@main");
 
 		if (generator.Errors.HasError()) return null;
@@ -147,6 +151,7 @@ public struct App {
 		if (verbose) {
 			AssemblyEmitter asmEmitter = new AssemblyEmitter();
 			CodeGenerator asmGenerator = new CodeGenerator(asmEmitter);
+			asmGenerator.FunctionIndexOffset = Intrinsic.Count();
 			asmGenerator.CompileProgram(statements, "@main");
 
 			IOHelper.Print("\nGenerated assembly:");
@@ -428,7 +433,7 @@ public struct App {
 		while (true) {
 			String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
 			String line = IOHelper.Input(prompt);
-			if (line == "quit" || line == "exit") break;
+			if (line == null) break;
 			interp.REPL(line, 60);
 		}
 	}

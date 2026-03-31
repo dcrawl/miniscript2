@@ -8,6 +8,13 @@ namespace MiniScript {
 
 	List<Intrinsic> IntrinsicStorage::_all;
 	Boolean IntrinsicStorage::_initialized;
+Int32 IntrinsicStorage::Count() {
+	if (!_initialized) {
+		CoreIntrinsics::Init();
+		_initialized = Boolean(true);
+	}
+	return _all.Count();
+}
 Intrinsic IntrinsicStorage::Create(String name) {
 	Intrinsic result =  Intrinsic::New();
 	result.set_Name(name);

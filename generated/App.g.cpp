@@ -18,6 +18,7 @@
 #include "StringUtils.g.h"
 #include "IOHelper.g.h"
 #include "Interpreter.g.h"
+#include "Intrinsic.g.h" // ToDo: remove this once we've refactored set_FunctionIndexOffset away
 #include <thread>
 #include <chrono>
 using namespace MiniScript;
@@ -129,10 +130,11 @@ List<FuncDef> App::CompileSource(String source,ErrorPool errors,Boolean verbose)
 		statements[i] = statements[i].Simplify();
 	}
 
-	// Compile to bytecode
+	// Compile to bytecode (offset past intrinsics so indices don't collide)
 	BytecodeEmitter emitter =  BytecodeEmitter::New();
 	CodeGenerator generator =  CodeGenerator::New(emitter);
 	generator.set_Errors(errors);
+	generator.set_FunctionIndexOffset(Intrinsic::Count());
 	generator.CompileProgram(statements, "@main");
 
 	if (generator.Errors().HasError()) return nullptr;
@@ -143,6 +145,7 @@ List<FuncDef> App::CompileSource(String source,ErrorPool errors,Boolean verbose)
 	if (verbose) {
 		AssemblyEmitter asmEmitter =  AssemblyEmitter::New();
 		CodeGenerator asmGenerator =  CodeGenerator::New(asmEmitter);
+		asmGenerator.set_FunctionIndexOffset(Intrinsic::Count());
 		asmGenerator.CompileProgram(statements, "@main");
 
 		IOHelper::Print("\nGenerated assembly:");
@@ -415,7 +418,7 @@ void App::RunREPL() {
 	while (Boolean(true)) {
 		String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
 		String line = IOHelper::Input(prompt);
-		if (line == "quit" || line == "exit") break;
+		if (IsNull(line)) break;
 		interp.REPL(line, 60);
 	}
 }

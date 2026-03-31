@@ -27,6 +27,15 @@ public class Intrinsic {
 
 	public Intrinsic() {}
 
+	// Return the number of intrinsics (initializing them if needed).
+	public static Int32 Count() {
+		if (!_initialized) {
+			CoreIntrinsics.Init();
+			_initialized = true;
+		}
+		return _all.Count;
+	}
+
 	public static Intrinsic Create(String name) {
 		Intrinsic result = new Intrinsic();
 		result.Name = name;
