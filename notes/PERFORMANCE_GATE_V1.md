@@ -38,6 +38,16 @@ The gate performs:
   - non-completion,
   - runtime errors,
   - result drift.
+- Runtime performance thresholds are enforced in `tools/perf_gate.sh`:
+  - per-benchmark max duration (`factorial_iterative`, `iter_fib`, `recur_fib`)
+  - max total gate duration
+
+Thresholds can be overridden from CLI when needed:
+
+- `--max-factorial-s <N>`
+- `--max-iterfib-s <N>`
+- `--max-recurfib-s <N>`
+- `--max-gate-s <N>`
 
 ## Optional Tightening (Post-Baseline)
 

@@ -49,6 +49,7 @@ For a combined performance and long-run stability gate with report output:
 ```bash
 tools/build.sh perf-gate           # full benchmark + soak gate
 tools/build.sh perf-gate --quick   # faster smoke variant
+tools/build.sh perf-gate --max-gate-s 3600 --max-recurfib-s 45
 tools/build.sh ship-gate --quick   # ci-gate + perf-gate + contract checks
 ```
 

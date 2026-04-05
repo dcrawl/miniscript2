@@ -9,6 +9,10 @@ cd "$PROJECT_ROOT"
 SOAK_ITERS=1000
 BENCH_LANGS="cs,cpp-switch,cpp-goto"
 QUICK_MODE=0
+MAX_FACTORIAL_S=120
+MAX_ITERFIB_S=120
+MAX_RECURFIB_S=120
+MAX_GATE_S=7200
 REPORT_DIR="build/reports"
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
 REPORT_PATH="${REPORT_DIR}/perf_gate_${RUN_ID}.md"
@@ -22,6 +26,10 @@ usage() {
     echo "  -n, --iterations N      Soak iterations (default: 1000)"
     echo "  -bench-langs LANGS      Benchmark runtime variants (cs,cpp-switch,cpp-goto)"
     echo "                          default: cs,cpp-switch,cpp-goto"
+    echo "  --max-factorial-s N     Max allowed seconds for factorial_iterative benchmark"
+    echo "  --max-iterfib-s N       Max allowed seconds for iter_fib benchmark"
+    echo "  --max-recurfib-s N      Max allowed seconds for recur_fib benchmark"
+    echo "  --max-gate-s N          Max allowed total gate duration in seconds"
     echo "  -report PATH            Output report path"
     echo ""
     echo "Examples:"
@@ -42,6 +50,22 @@ while [[ $# -gt 0 ]]; do
             ;;
         -bench-langs)
             BENCH_LANGS="$2"
+            shift 2
+            ;;
+        --max-factorial-s)
+            MAX_FACTORIAL_S="$2"
+            shift 2
+            ;;
+        --max-iterfib-s)
+            MAX_ITERFIB_S="$2"
+            shift 2
+            ;;
+        --max-recurfib-s)
+            MAX_RECURFIB_S="$2"
+            shift 2
+            ;;
+        --max-gate-s)
+            MAX_GATE_S="$2"
             shift 2
             ;;
         -report)
@@ -65,9 +89,20 @@ if ! [[ "$SOAK_ITERS" =~ ^[0-9]+$ ]] || [[ "$SOAK_ITERS" -lt 1 ]]; then
     exit 1
 fi
 
+for n in "$MAX_FACTORIAL_S" "$MAX_ITERFIB_S" "$MAX_RECURFIB_S" "$MAX_GATE_S"; do
+    if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -lt 1 ]]; then
+        echo "Error: threshold values must be positive integers."
+        exit 1
+    fi
+done
+
 if [[ "$QUICK_MODE" -eq 1 ]]; then
     SOAK_ITERS=100
     BENCH_LANGS="cpp-goto"
+    MAX_FACTORIAL_S=30
+    MAX_ITERFIB_S=30
+    MAX_RECURFIB_S=30
+    MAX_GATE_S=1800
 fi
 
 verify_result() {
@@ -95,6 +130,7 @@ run_one_benchmark() {
     local script_path="$2"
     local expected="$3"
     local name="$4"
+    local max_seconds="$5"
 
     local started ended elapsed output actual
     started="$(date +%s)"
@@ -104,7 +140,11 @@ run_one_benchmark() {
     actual="$(printf '%s\n' "$output" | awk '/Result in r0:/{getline; print; exit}')"
 
     if verify_result "$actual" "$expected" "$name"; then
-        echo "  - $name: PASS ($elapsed s, result=$actual)" | tee -a "$BENCH_LOG"
+        if [[ "$elapsed" -gt "$max_seconds" ]]; then
+            echo "  - $name: FAIL (time ${elapsed}s > threshold ${max_seconds}s, result=$actual)" | tee -a "$BENCH_LOG"
+            return 1
+        fi
+        echo "  - $name: PASS ($elapsed s <= ${max_seconds}s, result=$actual)" | tee -a "$BENCH_LOG"
         return 0
     fi
 
@@ -139,9 +179,9 @@ run_benchmark_variant() {
             ;;
     esac
 
-    run_one_benchmark "$exe" "tools/benchmarks/factorial_iterative.ms" "2432902008176640000" "factorial_iterative" || return 1
-    run_one_benchmark "$exe" "tools/benchmarks/iter_fib.ms" "832040" "iter_fib" || return 1
-    run_one_benchmark "$exe" "tools/benchmarks/recur_fib.ms" "3524578" "recur_fib" || return 1
+    run_one_benchmark "$exe" "tools/benchmarks/factorial_iterative.ms" "2432902008176640000" "factorial_iterative" "$MAX_FACTORIAL_S" || return 1
+    run_one_benchmark "$exe" "tools/benchmarks/iter_fib.ms" "832040" "iter_fib" "$MAX_ITERFIB_S" || return 1
+    run_one_benchmark "$exe" "tools/benchmarks/recur_fib.ms" "3524578" "recur_fib" "$MAX_RECURFIB_S" || return 1
     return 0
 }
 
@@ -156,6 +196,7 @@ start_human="$(date)"
     echo "- Start: $start_human"
     echo "- Soak iterations: $SOAK_ITERS"
     echo "- Benchmark languages: $BENCH_LANGS"
+    echo "- Thresholds (seconds): factorial=$MAX_FACTORIAL_S, iter_fib=$MAX_ITERFIB_S, recur_fib=$MAX_RECURFIB_S, gate=$MAX_GATE_S"
     if [[ "$QUICK_MODE" -eq 1 ]]; then
         echo "- Mode: quick"
     else
@@ -209,6 +250,20 @@ echo "- Soak status: PASS (cs, cpp-switch, cpp-goto)" >> "$REPORT_PATH"
 end_epoch="$(date +%s)"
 end_human="$(date)"
 elapsed="$((end_epoch - start_epoch))"
+
+if [[ "$elapsed" -gt "$MAX_GATE_S" ]]; then
+    {
+        echo ""
+        echo "## Summary"
+        echo ""
+        echo "- End: $end_human"
+        echo "- Duration (seconds): $elapsed"
+        echo "- Overall gate: FAIL (duration exceeded threshold ${MAX_GATE_S}s)"
+    } >> "$REPORT_PATH"
+    echo "Performance + soak gate FAILED: duration ${elapsed}s exceeded threshold ${MAX_GATE_S}s."
+    echo "Report: $REPORT_PATH"
+    exit 1
+fi
 
 {
     echo ""
