@@ -960,6 +960,81 @@ public static class UnitTests {
 		return ok;
 	}
 
+	public static Boolean TestInterpreterGlobalAccess() {
+		Boolean ok = true;
+
+		// Test 1: host can inject a global before execution, and script sees it.
+		{
+			List<String> output = new List<String>();
+			// CPP: gTestOutput = output;
+			Interpreter interp = new Interpreter("print hostValue");
+			interp.standardOutput = (String s, bool eol) => { output.Add(s); }; // CPP:
+			// CPP: interp.set_standardOutput([](String s, Boolean) { gTestOutput.Add(s); });
+			interp.errorOutput = (String s, bool eol) => { output.Add(s); }; // CPP:
+			// CPP: interp.set_errorOutput([](String s, Boolean) { gTestOutput.Add(s); });
+			interp.Compile();
+			interp.SetGlobalValue("hostValue", make_int(123));
+			interp.RunUntilDone();
+			ok = ok && Assert(output.Count >= 1 && output[0] == "123",
+				StringUtils.Format("Host-injected global: expected '123' but got {0}",
+					output.Count > 0 ? output[0] : "(empty)"));
+		}
+
+		// Test 2: host can read and update a script-created global.
+		{
+			Interpreter interp = new Interpreter("x = 7");
+			interp.Compile();
+			interp.RunUntilDone();
+
+			Value x = interp.GetGlobalValue("x");
+			ok = ok && Assert(is_number(x) && numeric_val(x) == 7,
+				StringUtils.Format("Read global x: expected 7 but got {0}", x));
+
+			interp.SetGlobalValue("x", make_int(99));
+			x = interp.GetGlobalValue("x");
+			ok = ok && Assert(is_number(x) && numeric_val(x) == 99,
+				StringUtils.Format("Updated global x: expected 99 but got {0}", x));
+		}
+
+		if (!ok) IOHelper.Print("TestInterpreterGlobalAccess FAILED");
+		return ok;
+	}
+
+	public static Boolean TestScriptInstanceFacade() {
+		Boolean ok = true;
+
+		// Test 1: host-facing load/compile/set-global/run path.
+		{
+			List<String> output = new List<String>();
+			// CPP: gTestOutput = output;
+			ScriptInstance script = new ScriptInstance(
+				(String s, bool eol) => { output.Add(s); }, // CPP:
+				// CPP: [](String s, Boolean) { gTestOutput.Add(s); },
+				null);
+
+			script.LoadSource("print score");
+			ok = ok && Assert(script.Compile(), "ScriptInstance.Compile should succeed");
+			script.SetGlobalValue("score", make_int(42));
+			script.RunCycles(500);
+
+			ok = ok && Assert(output.Count >= 1 && output[0] == "42",
+				StringUtils.Format("ScriptInstance run output: expected '42' but got {0}",
+					output.Count > 0 ? output[0] : "(empty)"));
+			ok = ok && Assert(!script.IsRunning(), "Script should not be running after completion");
+		}
+
+		// Test 2: error capture path should retain runtime errors.
+		{
+			ScriptInstance script = new ScriptInstance();
+			script.LoadSource("print unknownIdentifier");
+			script.RunForSeconds(0.1, true);
+			ok = ok && Assert(script.ErrorCount() > 0, "ScriptInstance should capture runtime errors");
+		}
+
+		if (!ok) IOHelper.Print("TestScriptInstanceFacade FAILED");
+		return ok;
+	}
+
 	public static Boolean RunAll() {
 		return TestStringUtils()
 			&& TestDisassembler()
@@ -970,6 +1045,8 @@ public static class UnitTests {
 			&& TestCodeGenerator()
 			&& TestEmitPatternValidation()
 			&& TestParserNeedMoreInput()
+			&& TestInterpreterGlobalAccess()
+			&& TestScriptInstanceFacade()
 			&& TestREPL();
 	}
 }

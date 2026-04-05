@@ -174,6 +174,25 @@ public class VM {
 		return names[index];
 	}
 
+	// Get a global variable by name from the globals VarMap.
+	// Returns null when not found or when VM is not initialized.
+	public Value GetGlobalValue(String varName) {
+		if (CurrentFunction == null) return val_null;
+		Value result;
+		if (map_try_get(GetGlobalsVarMap(), make_string(varName), out result)) {
+			return result;
+		}
+		return val_null;
+	}
+
+	// Set a global variable by name in the globals VarMap.
+	// This updates a register-backed global when mapped, or creates/updates
+	// a plain map entry otherwise.
+	public void SetGlobalValue(String varName, Value value) {
+		if (CurrentFunction == null) return;
+		map_set(GetGlobalsVarMap(), make_string(varName), value);
+	}
+
 	public CallInfo GetCallStackFrame(Int32 index) {
 		if (index < 0 || index >= callStackTop) return new CallInfo(0, 0, -1);
 		return callStack[index];
@@ -1878,13 +1897,11 @@ public class VM {
 			}
 		}
 
-		// Check global variables via VarMap (registers at base 0 in the @main frame)
-		Value globalMap;
-		if (callStackTop > 0 || !is_null(ReplGlobals)) {
-			globalMap = GetGlobalsVarMap();
-			if (map_try_get(globalMap, varName, out result)) {
-				return result;
-			}
+		// Check global variables via VarMap (registers at base 0 in the @main frame).
+		// This must be checked even at top level so host-injected globals resolve.
+		Value globalMap = GetGlobalsVarMap();
+		if (map_try_get(globalMap, varName, out result)) {
+			return result;
 		}
 
 		// Check intrinsics table

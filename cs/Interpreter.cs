@@ -431,18 +431,7 @@ public class Interpreter {
 	/// <returns>Value of the named variable, or val_null if not found</returns>
 	public Value GetGlobalValue(String varName) {
 		if (vm == null) return val_null;
-		// Search the @main frame (base 0) for a register with this name
-		Value nameVal = make_string(varName);
-		Int32 regCount = vm.CurrentFunction != null ? vm.StackSize() : 0;
-		// Look through all named registers at base 0 (the global frame)
-		Value name;
-		for (Int32 i = 0; i < regCount; i++) {
-			name = vm.GetStackName(i);
-			if (!is_null(name) && value_equal(name, nameVal)) {
-				return vm.GetStackValue(i);
-			}
-		}
-		return val_null;
+		return vm.GetGlobalValue(varName);
 	}
 
 	/// <summary>
@@ -452,8 +441,8 @@ public class Interpreter {
 	/// <param name="varName">name of global variable to set</param>
 	/// <param name="value">value to set</param>
 	public void SetGlobalValue(String varName, Value value) {
-		// TODO: Implement when VM supports setting stack values by index.
-		// The current VM API only provides read access to the stack.
+		if (vm == null || varName == null) return;
+		vm.SetGlobalValue(varName, value);
 	}
 
 	/// <summary>
