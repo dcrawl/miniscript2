@@ -82,6 +82,21 @@ Value VMStorage::GetStackName(Int32 index) {
 	if (index < 0 || index >= names.Count()) return val_null;
 	return names[index];
 }
+Value VMStorage::GetGlobalValue(String varName) {
+	if (IsNull(CurrentFunction)) return val_null;
+	GC_PUSH_SCOPE();
+	Value result; GC_PROTECT(&result);
+	if (map_try_get(GetGlobalsVarMap(), make_string(varName), &result)) {
+		GC_POP_SCOPE();
+		return result;
+	}
+	GC_POP_SCOPE();
+	return val_null;
+}
+void VMStorage::SetGlobalValue(String varName,Value value) {
+	if (IsNull(CurrentFunction)) return;
+	map_set(GetGlobalsVarMap(), make_string(varName), value);
+}
 CallInfo VMStorage::GetCallStackFrame(Int32 index) {
 	if (index < 0 || index >= callStackTop) return CallInfo(0, 0, -1);
 	return callStack[index];
@@ -1697,14 +1712,12 @@ Value VMStorage::LookupVariable(Value varName) {
 		}
 	}
 
-	// Check global variables via VarMap (registers at base 0 in the @main frame)
-	Value globalMap; GC_PROTECT(&globalMap);
-	if (callStackTop > 0 || !is_null(ReplGlobals)) {
-		globalMap = GetGlobalsVarMap();
-		if (map_try_get(globalMap, varName, &result)) {
-			GC_POP_SCOPE();
-			return result;
-		}
+	// Check global variables via VarMap (registers at base 0 in the @main frame).
+	// This must be checked even at top level so host-injected globals resolve.
+	Value globalMap = GetGlobalsVarMap(); GC_PROTECT(&globalMap);
+	if (map_try_get(globalMap, varName, &result)) {
+		GC_POP_SCOPE();
+		return result;
 	}
 
 	// Check intrinsics table

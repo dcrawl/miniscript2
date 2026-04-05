@@ -39,6 +39,9 @@ class IntrinsicStorage : public std::enable_shared_from_this<IntrinsicStorage> {
 
 	public: static Intrinsic GetByName(String name);
 
+	// Return a copy of all intrinsic names currently registered.
+	public: static List<String> AllNames();
+
 	public: Value GetFunc();
 
 	// Build a FuncDef from this intrinsic's definition.
@@ -87,6 +90,9 @@ struct Intrinsic {
 	public: inline void AddParam(String name, Value defaultValue);
 
 	public: static Intrinsic GetByName(String name) { return IntrinsicStorage::GetByName(name); }
+
+	// Return a copy of all intrinsic names currently registered.
+	public: static List<String> AllNames() { return IntrinsicStorage::AllNames(); }
 
 	public: inline Value GetFunc();
 

@@ -32,10 +32,25 @@ void IntrinsicStorage::AddParam(String name,Value defaultValue) {
 	_paramDefaults.Add(defaultValue);
 }
 Intrinsic IntrinsicStorage::GetByName(String name) {
+	if (!_initialized) {
+		CoreIntrinsics::Init();
+		_initialized = Boolean(true);
+	}
 	for (Int32 i = 0; i < _all.Count(); i++) {
 		if (_all[i].Name() == name) return _all[i];
 	}
 	return nullptr;
+}
+List<String> IntrinsicStorage::AllNames() {
+	if (!_initialized) {
+		CoreIntrinsics::Init();
+		_initialized = Boolean(true);
+	}
+	List<String> result =  List<String>::New();
+	for (Int32 i = 0; i < _all.Count(); i++) {
+		result.Add(_all[i].Name());
+	}
+	return result;
 }
 Value IntrinsicStorage::GetFunc() {
 	return make_funcref(_funcIndex, val_null);

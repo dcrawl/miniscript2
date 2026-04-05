@@ -133,11 +133,30 @@ case "$TARGET" in
     "test")
         echo "Running quick smoke tests..."
         echo "Testing C# version:"
-        cd build/cs && echo "These are some words for testing" | ./miniscript2
-        cd ../..
+        echo "These are some words for testing" | ./build/cs/miniscript2
         echo "Testing C++ version:"
-        cd build/cpp && echo "These are some words for testing" | ./miniscript2
-        cd ../..
+        echo "These are some words for testing" | ./build/cpp/miniscript2
+        ;;
+
+    "ci-gate")
+        echo "Running CI gate pipeline..."
+        echo "[1/8] Build C#"
+        $0 cs
+        echo "[2/8] Run C# debug tests"
+        ./build/cs/miniscript2 -debug
+        echo "[3/8] Transpile C# -> C++"
+        $0 transpile
+        echo "[4/8] Build C++ (computed-goto ON)"
+        $0 cpp on
+        echo "[5/8] Run C++ debug tests (computed-goto ON)"
+        ./build/cpp/miniscript2 -debug
+        echo "[6/8] Clean C++ objects"
+        make -C cpp clean
+        echo "[7/8] Build C++ (computed-goto OFF)"
+        $0 cpp off
+        echo "[8/8] Run C++ debug tests (computed-goto OFF)"
+        ./build/cpp/miniscript2 -debug
+        echo "CI gate passed."
         ;;
 
     "test-all")
@@ -174,7 +193,7 @@ case "$TARGET" in
         ;;
 
     *)
-        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|test-*|xcode} [options]"
+        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|ci-gate|test-*|xcode} [options]"
         echo ""
         echo "Build Commands:"
         echo "  setup       - Set up development environment"
@@ -186,6 +205,7 @@ case "$TARGET" in
         echo ""
         echo "Test Commands:"
         echo "  test        - Quick smoke test of built executables"
+        echo "  ci-gate     - Full C# + transpile + C++(on/off) debug gate"
         echo "  test-all    - Run all test suites (C++ and C#)"
         echo "  test-cpp    - Run all C++ test suites"
         echo "  test-cs     - Run all C# test suites"

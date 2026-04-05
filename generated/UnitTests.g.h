@@ -55,6 +55,10 @@ class UnitTests {
 
 	public: static Boolean TestREPL();
 
+	public: static Boolean TestInterpreterGlobalAccess();
+
+	public: static Boolean TestIntrinsicAllowlistV1();
+
 	public: static Boolean RunAll();
 }; // end of struct UnitTests
 

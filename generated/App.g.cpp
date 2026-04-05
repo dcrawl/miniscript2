@@ -40,11 +40,21 @@ void App::MainProgram(List<String> args) {
 	// Parse command-line switches
 	Int32 fileArgIndex = -1;
 	String inlineCode = nullptr;
+	bool soakMode = Boolean(false);
+	Int32 soakIterations = 500;
 	for (Int32 i = 1; i < args.Count(); i++) {
 		if (args[i] == "-debug" || args[i] == "-d") {
 			debugMode = Boolean(true);
 		} else if (args[i] == "-vis") {
 			visMode = Boolean(true);
+		} else if (args[i] == "-soak") {
+			soakMode = Boolean(true);
+		} else if (args[i].StartsWith("-soak=")) {
+			soakMode = Boolean(true);
+			String countText = args[i].Substring(6);
+			if (!String::IsNullOrEmpty(countText)) {
+				soakIterations = StringUtils::ParseInt32(countText);
+			}
 		} else if (args[i] == "-c" && i + 1 < args.Count()) {
 			// Inline code follows -c
 			i = i + 1;
@@ -76,6 +86,17 @@ void App::MainProgram(List<String> args) {
 //				return;
 		}
 		IOHelper::Print("Integration tests complete.");
+	}
+
+	if (soakMode) {
+		if (fileArgIndex == -1) {
+			IOHelper::Print("Soak mode requires a script file argument.");
+			return;
+		}
+		String filePath = args[fileArgIndex];
+		RunSoak(filePath, soakIterations);
+		IOHelper::Print("All done!");
+		return;
 	}
 	
 	// Handle inline code (-c), file argument, or REPL
@@ -353,6 +374,82 @@ void App::RunREPL() {
 		if (IsNull(line)) break;
 		interp.REPL(line, 60);
 	}
+}
+bool App::PrepareInterpreterForFile(Interpreter interp,String filePath) {
+	if (filePath.EndsWith(".ms")) {
+		List<String> lines = IOHelper::ReadFile(filePath);
+		if (lines.Count() == 0) {
+			IOHelper::Print("No lines read from file.");
+			return Boolean(false);
+		}
+		String source = "";
+		for (Int32 i = 0; i < lines.Count(); i++) {
+			if (i > 0) source += "\n";
+			source += lines[i];
+		}
+		interp.Reset(source);
+		interp.Compile();
+		return !IsNull(interp.vm());
+	}
+
+	List<FuncDef> functions = AssembleFile(filePath);
+	if (IsNull(functions)) return Boolean(false);
+	interp.Reset(functions);
+	return !IsNull(interp.vm());
+}
+void App::RunSoak(String filePath,Int32 iterations) {
+	if (iterations < 1) iterations = 1;
+
+	IOHelper::Print(StringUtils::Format("Running soak test: {0} iterations ({1})",
+		iterations, filePath));
+
+	Interpreter interp = CreateInterpreter();
+	GC_PUSH_SCOPE();
+	Value result = val_null; GC_PROTECT(&result);
+	if (!PrepareInterpreterForFile(interp, filePath)) {
+		IOHelper::Print("Soak setup failed.");
+		GC_POP_SCOPE();
+		return;
+	}
+
+	Value baselineResult = val_null; GC_PROTECT(&baselineResult);
+	for (Int32 i = 0; i < iterations; i++) {
+		interp.Restart();
+		interp.RunUntilDone(60, Boolean(false));
+
+		if (interp.Running()) {
+			IOHelper::Print(StringUtils::Format(
+				"SOAK FAIL at iteration {0}: script did not complete.", i + 1));
+			GC_POP_SCOPE();
+			return;
+		}
+
+		if (IsNull(interp.vm()) || interp.vm().Errors().HasError()) {
+			IOHelper::Print(StringUtils::Format(
+				"SOAK FAIL at iteration {0}: runtime error.", i + 1));
+			GC_POP_SCOPE();
+			return;
+		}
+
+		result = interp.vm().GetStackValue(0);
+		if (i == 0) {
+			baselineResult = result;
+		} else if (!value_equal(result, baselineResult)) {
+			IOHelper::Print(StringUtils::Format(
+				"SOAK FAIL at iteration {0}: result drift (expected {1}, got {2}).",
+				i + 1, baselineResult, result));
+			GC_POP_SCOPE();
+			return;
+		}
+
+		if (((i + 1) % 100) == 0 || (i + 1) == iterations) {
+			IOHelper::Print(StringUtils::Format("  progress: {0}/{1}", i + 1, iterations));
+		}
+	}
+
+	IOHelper::Print(StringUtils::Format(
+		"Soak passed. Stable result in r0: {0}", baselineResult));
+	GC_POP_SCOPE();
 }
 
 } // end of namespace MiniScript

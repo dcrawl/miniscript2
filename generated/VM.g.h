@@ -105,6 +105,15 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	public: Value GetStackName(Int32 index);
 
+	// Get a global variable by name from the globals VarMap.
+	// Returns null when not found or when VM is not initialized.
+	public: Value GetGlobalValue(String varName);
+
+	// Set a global variable by name in the globals VarMap.
+	// This updates a register-backed global when mapped, or creates/updates
+	// a plain map entry otherwise.
+	public: void SetGlobalValue(String varName, Value value);
+
 	public: CallInfo GetCallStackFrame(Int32 index);
 
 	public: String GetFunctionName(Int32 funcIndex);
@@ -297,6 +306,15 @@ struct VM {
 
 	public: inline Value GetStackName(Int32 index);
 
+	// Get a global variable by name from the globals VarMap.
+	// Returns null when not found or when VM is not initialized.
+	public: inline Value GetGlobalValue(String varName);
+
+	// Set a global variable by name in the globals VarMap.
+	// This updates a register-backed global when mapped, or creates/updates
+	// a plain map entry otherwise.
+	public: inline void SetGlobalValue(String varName, Value value);
+
 	public: inline CallInfo GetCallStackFrame(Int32 index);
 
 	public: inline String GetFunctionName(Int32 funcIndex);
@@ -443,6 +461,8 @@ inline List<Value> VM::GetNames() { return get()->GetNames(); }
 inline Int32 VM::CallStackDepth() { return get()->CallStackDepth(); }
 inline Value VM::GetStackValue(Int32 index) { return get()->GetStackValue(index); }
 inline Value VM::GetStackName(Int32 index) { return get()->GetStackName(index); }
+inline Value VM::GetGlobalValue(String varName) { return get()->GetGlobalValue(varName); }
+inline void VM::SetGlobalValue(String varName,Value value) { return get()->SetGlobalValue(varName, value); }
 inline CallInfo VM::GetCallStackFrame(Int32 index) { return get()->GetCallStackFrame(index); }
 inline String VM::GetFunctionName(Int32 funcIndex) { return get()->GetFunctionName(funcIndex); }
 inline void VM::InitVM(Int32 stackSlots,Int32 callSlots) { return get()->InitVM(stackSlots, callSlots); }
@@ -498,4 +518,3 @@ inline Value VM::LookupParamByName(String varName) { return get()->LookupParamBy
 inline Value VM::LookupVariable(Value varName) { return get()->LookupVariable(varName); }
 
 } // end of namespace MiniScript
-

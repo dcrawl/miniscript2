@@ -32,6 +32,10 @@ struct App {
 
 	private: static void RunREPL();
 
+	private: static bool PrepareInterpreterForFile(Interpreter interp, String filePath);
+
+	private: static void RunSoak(String filePath, Int32 iterations);
+
 }; // end of struct App
 
 // INLINE METHODS

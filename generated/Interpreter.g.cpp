@@ -264,25 +264,11 @@ bool InterpreterStorage::NeedMoreInput() {
 }
 Value InterpreterStorage::GetGlobalValue(String varName) {
 	if (IsNull(vm)) return val_null;
-	// Search the @main frame (base 0) for a register with this name
-	GC_PUSH_SCOPE();
-	Value nameVal = make_string(varName); GC_PROTECT(&nameVal);
-	Int32 regCount = !IsNull(vm.CurrentFunction()) ? vm.StackSize() : 0;
-	// Look through all named registers at base 0 (the global frame)
-	Value name; GC_PROTECT(&name);
-	for (Int32 i = 0; i < regCount; i++) {
-		name = vm.GetStackName(i);
-		if (!is_null(name) && value_equal(name, nameVal)) {
-			GC_POP_SCOPE();
-			return vm.GetStackValue(i);
-		}
-	}
-	GC_POP_SCOPE();
-	return val_null;
+	return vm.GetGlobalValue(varName);
 }
 void InterpreterStorage::SetGlobalValue(String varName,Value value) {
-	// TODO: Implement when VM supports setting stack values by index.
-	// The current VM API only provides read access to the stack.
+	if (IsNull(vm) || IsNull(varName)) return;
+	vm.SetGlobalValue(varName, value);
 }
 void InterpreterStorage::ReportErrors() {
 	if (IsNull(errorOutput)) return;

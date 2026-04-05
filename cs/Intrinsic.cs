@@ -56,10 +56,27 @@ public class Intrinsic {
 	}
 
 	public static Intrinsic GetByName(String name) {
+		if (!_initialized) {
+			CoreIntrinsics.Init();
+			_initialized = true;
+		}
 		for (Int32 i = 0; i < _all.Count; i++) {
 			if (_all[i].Name == name) return _all[i];
 		}
 		return null;
+	}
+
+	// Return a copy of all intrinsic names currently registered.
+	public static List<String> AllNames() {
+		if (!_initialized) {
+			CoreIntrinsics.Init();
+			_initialized = true;
+		}
+		List<String> result = new List<String>();
+		for (Int32 i = 0; i < _all.Count; i++) {
+			result.Add(_all[i].Name);
+		}
+		return result;
 	}
 
 	public Value GetFunc() {

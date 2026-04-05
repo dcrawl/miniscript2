@@ -57,6 +57,8 @@ struct MemberParselet;
 class MemberParseletStorage;
 struct Intrinsic;
 class IntrinsicStorage;
+struct ScriptInstance;
+class ScriptInstanceStorage;
 struct Parser;
 class ParserStorage;
 struct Interpreter;

@@ -15,6 +15,8 @@ using static MiniScript.ValueHelpers;
 // CPP: #include "CodeEmitter.g.h"
 // CPP: #include "CodeGenerator.g.h"
 // CPP: #include "Interpreter.g.h"
+// CPP: #include "ScriptInstance.g.h"
+// CPP: #include "Intrinsic.g.h"
 
 namespace MiniScript {
 
@@ -962,6 +964,7 @@ public static class UnitTests {
 
 	public static Boolean TestInterpreterGlobalAccess() {
 		Boolean ok = true;
+		Value x = val_null;
 
 		// Test 1: host can inject a global before execution, and script sees it.
 		{
@@ -986,7 +989,7 @@ public static class UnitTests {
 			interp.Compile();
 			interp.RunUntilDone();
 
-			Value x = interp.GetGlobalValue("x");
+			x = interp.GetGlobalValue("x");
 			ok = ok && Assert(is_number(x) && numeric_val(x) == 7,
 				StringUtils.Format("Read global x: expected 7 but got {0}", x));
 
@@ -1000,6 +1003,7 @@ public static class UnitTests {
 		return ok;
 	}
 
+	//*** BEGIN CS_ONLY ***
 	public static Boolean TestScriptInstanceFacade() {
 		Boolean ok = true;
 
@@ -1035,7 +1039,169 @@ public static class UnitTests {
 		return ok;
 	}
 
+	public static Boolean TestScriptInstanceFrameBudget() {
+		Boolean ok = true;
+		Value x = val_null;
+		Int32 status = ScriptInstance.StatusNotCompiled;
+
+		// Test 1: bounded frame execution should report Running, then eventually Completed.
+		{
+			ScriptInstance script = new ScriptInstance();
+			script.LoadSource("x = 0\nwhile x < 50\n\tx += 1\nend while");
+
+			Boolean sawRunning = false;
+			for (Int32 i = 0; i < 2000; i++) {
+				status = script.RunFrame(1, true);
+				if (status == ScriptInstance.StatusRunning) sawRunning = true;
+				if (status == ScriptInstance.StatusCompleted) break;
+			}
+
+			ok = ok && Assert(sawRunning, "RunFrame should report Running under tight instruction budget");
+			ok = ok && Assert(status == ScriptInstance.StatusCompleted,
+				StringUtils.Format("RunFrame should eventually complete, got {0}", status));
+			x = script.GetGlobalValue("x");
+			ok = ok && Assert(is_number(x) && numeric_val(x) == 50,
+				StringUtils.Format("Expected x=50 after completion, got {0}", x));
+		}
+
+		// Test 2: yield should return Yielded first, then Completed on resume.
+		{
+			ScriptInstance script = new ScriptInstance();
+			script.LoadSource("x = 1\nyield\nx = 2");
+			status = script.RunFrame(200, true);
+			ok = ok && Assert(status == ScriptInstance.StatusYielded,
+				StringUtils.Format("Expected Yielded status, got {0}", status));
+			x = script.GetGlobalValue("x");
+			ok = ok && Assert(is_number(x) && numeric_val(x) == 1,
+				StringUtils.Format("Expected x=1 at yield point, got {0}", x));
+
+			status = script.RunFrame(200, true);
+			ok = ok && Assert(status == ScriptInstance.StatusCompleted,
+				StringUtils.Format("Expected Completed after resume, got {0}", status));
+			x = script.GetGlobalValue("x");
+			ok = ok && Assert(is_number(x) && numeric_val(x) == 2,
+				StringUtils.Format("Expected x=2 after resume, got {0}", x));
+		}
+
+		// Test 3: runtime fault should report Faulted and capture at least one error.
+		{
+			ScriptInstance script = new ScriptInstance();
+			script.LoadSource("print unknownIdentifier");
+			status = script.RunFrame(200, true);
+			ok = ok && Assert(status == ScriptInstance.StatusFaulted,
+				StringUtils.Format("Expected Faulted status, got {0}", status));
+			ok = ok && Assert(script.ErrorCount() > 0,
+				"Faulted script should capture runtime errors");
+		}
+
+		if (!ok) IOHelper.Print("TestScriptInstanceFrameBudget FAILED");
+		return ok;
+	}
+	//*** END CS_ONLY ***
+
+	public static Boolean TestIntrinsicAllowlistV1() {
+		Boolean ok = true;
+		Boolean found = false;
+
+		// Force intrinsic initialization before validation.
+		Int32 intrinsicCount = Intrinsic.Count();
+		ok = ok && Assert(intrinsicCount > 0, "Intrinsic.Count should be > 0");
+
+		List<String> required = new List<String>();
+		required.Add("abs");
+		required.Add("acos");
+		required.Add("asin");
+		required.Add("atan");
+		required.Add("ceil");
+		required.Add("char");
+		required.Add("code");
+		required.Add("cos");
+		required.Add("floor");
+		required.Add("freeze");
+		required.Add("frozenCopy");
+		required.Add("funcRef");
+		required.Add("hasIndex");
+		required.Add("indexOf");
+		required.Add("indexes");
+		required.Add("print");
+		required.Add("input");
+		required.Add("insert");
+		required.Add("isFrozen");
+		required.Add("join");
+		required.Add("len");
+		required.Add("list");
+		required.Add("log");
+		required.Add("lower");
+		required.Add("map");
+		required.Add("number");
+		required.Add("pi");
+		required.Add("pop");
+		required.Add("pull");
+		required.Add("push");
+		required.Add("range");
+		required.Add("remove");
+		required.Add("replace");
+		required.Add("rnd");
+		required.Add("round");
+		required.Add("shuffle");
+		required.Add("sign");
+		required.Add("sin");
+		required.Add("slice");
+		required.Add("sort");
+		required.Add("split");
+		required.Add("sqrt");
+		required.Add("str");
+		required.Add("string");
+		required.Add("sum");
+		required.Add("tan");
+		required.Add("time");
+		required.Add("wait");
+		required.Add("yield");
+		required.Add("upper");
+		required.Add("val");
+		required.Add("values");
+
+		List<String> actual = Intrinsic.AllNames();
+
+		// Must contain every required intrinsic.
+
+		for (Int32 i = 0; i < required.Count; i++) {
+			String name = required[i];
+			Intrinsic intr = Intrinsic.GetByName(name);
+			ok = ok && Assert(intr != null,
+				StringUtils.Format("Required intrinsic missing: {0}", name));
+		}
+
+		// Must not contain unapproved extras.
+		for (Int32 i = 0; i < actual.Count; i++) {
+			String name = actual[i];
+			found = false;
+			for (Int32 j = 0; j < required.Count; j++) {
+				if (required[j] == name) {
+					found = true;
+					break;
+				}
+			}
+			ok = ok && Assert(found,
+				StringUtils.Format("Unapproved intrinsic in v1 surface: {0}", name));
+		}
+
+		// Size must match exactly.
+		ok = ok && Assert(actual.Count == required.Count,
+			StringUtils.Format("Intrinsic count mismatch for v1 surface: expected {0}, got {1}",
+				required.Count, actual.Count));
+
+		if (!ok) IOHelper.Print("TestIntrinsicAllowlistV1 FAILED");
+		return ok;
+	}
+
 	public static Boolean RunAll() {
+		Boolean scriptInstanceTestsOK = true;
+		//*** BEGIN CS_ONLY ***
+		scriptInstanceTestsOK = TestScriptInstanceFacade()
+			&& TestScriptInstanceFrameBudget();
+		//*** END CS_ONLY ***
+
 		return TestStringUtils()
 			&& TestDisassembler()
 			&& TestAssembler()
@@ -1045,8 +1211,9 @@ public static class UnitTests {
 			&& TestCodeGenerator()
 			&& TestEmitPatternValidation()
 			&& TestParserNeedMoreInput()
+			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()
-			&& TestScriptInstanceFacade()
+			&& scriptInstanceTestsOK
 			&& TestREPL();
 	}
 }

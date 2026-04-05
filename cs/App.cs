@@ -39,11 +39,21 @@ public struct App {
 		// Parse command-line switches
 		Int32 fileArgIndex = -1;
 		String inlineCode = null;
+		bool soakMode = false;
+		Int32 soakIterations = 500;
 		for (Int32 i = 1; i < args.Count; i++) {
 			if (args[i] == "-debug" || args[i] == "-d") {
 				debugMode = true;
 			} else if (args[i] == "-vis") {
 				visMode = true;
+			} else if (args[i] == "-soak") {
+				soakMode = true;
+			} else if (args[i].StartsWith("-soak=")) {
+				soakMode = true;
+				String countText = args[i].Substring(6);
+				if (!String.IsNullOrEmpty(countText)) {
+					soakIterations = StringUtils.ParseInt32(countText);
+				}
 			} else if (args[i] == "-c" && i + 1 < args.Count) {
 				// Inline code follows -c
 				i = i + 1;
@@ -77,6 +87,17 @@ public struct App {
 //				return;
 			}
 			IOHelper.Print("Integration tests complete.");
+		}
+
+		if (soakMode) {
+			if (fileArgIndex == -1) {
+				IOHelper.Print("Soak mode requires a script file argument.");
+				return;
+			}
+			String filePath = args[fileArgIndex];
+			RunSoak(filePath, soakIterations);
+			IOHelper.Print("All done!");
+			return;
 		}
 		
 		// Handle inline code (-c), file argument, or REPL
@@ -367,6 +388,78 @@ public struct App {
 			if (line == null) break;
 			interp.REPL(line, 60);
 		}
+	}
+
+	private static bool PrepareInterpreterForFile(Interpreter interp, String filePath) {
+		if (filePath.EndsWith(".ms")) {
+			List<String> lines = IOHelper.ReadFile(filePath);
+			if (lines.Count == 0) {
+				IOHelper.Print("No lines read from file.");
+				return false;
+			}
+			String source = "";
+			for (Int32 i = 0; i < lines.Count; i++) {
+				if (i > 0) source += "\n";
+				source += lines[i];
+			}
+			interp.Reset(source);
+			interp.Compile();
+			return interp.vm != null;
+		}
+
+		List<FuncDef> functions = AssembleFile(filePath);
+		if (functions == null) return false;
+		interp.Reset(functions);
+		return interp.vm != null;
+	}
+
+	private static void RunSoak(String filePath, Int32 iterations) {
+		if (iterations < 1) iterations = 1;
+
+		IOHelper.Print(StringUtils.Format("Running soak test: {0} iterations ({1})",
+			iterations, filePath));
+
+		Interpreter interp = CreateInterpreter();
+		Value result = val_null;
+		if (!PrepareInterpreterForFile(interp, filePath)) {
+			IOHelper.Print("Soak setup failed.");
+			return;
+		}
+
+		Value baselineResult = val_null;
+		for (Int32 i = 0; i < iterations; i++) {
+			interp.Restart();
+			interp.RunUntilDone(60, false);
+
+			if (interp.Running()) {
+				IOHelper.Print(StringUtils.Format(
+					"SOAK FAIL at iteration {0}: script did not complete.", i + 1));
+				return;
+			}
+
+			if (interp.vm == null || interp.vm.Errors.HasError()) {
+				IOHelper.Print(StringUtils.Format(
+					"SOAK FAIL at iteration {0}: runtime error.", i + 1));
+				return;
+			}
+
+			result = interp.vm.GetStackValue(0);
+			if (i == 0) {
+				baselineResult = result;
+			} else if (!value_equal(result, baselineResult)) {
+				IOHelper.Print(StringUtils.Format(
+					"SOAK FAIL at iteration {0}: result drift (expected {1}, got {2}).",
+					i + 1, baselineResult, result));
+				return;
+			}
+
+			if (((i + 1) % 100) == 0 || (i + 1) == iterations) {
+				IOHelper.Print(StringUtils.Format("  progress: {0}/{1}", i + 1, iterations));
+			}
+		}
+
+		IOHelper.Print(StringUtils.Format(
+			"Soak passed. Stable result in r0: {0}", baselineResult));
 	}
 
 	//*** BEGIN CS_ONLY ***

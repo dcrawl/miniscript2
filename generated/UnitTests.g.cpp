@@ -13,6 +13,8 @@
 #include "CodeEmitter.g.h"
 #include "CodeGenerator.g.h"
 #include "Interpreter.g.h"
+#include "ScriptInstance.g.h"
+#include "Intrinsic.g.h"
 
 namespace MiniScript {
 
@@ -954,7 +956,144 @@ Boolean UnitTests::TestREPL() {
 	if (!ok) IOHelper::Print("TestREPL FAILED");
 	return ok;
 }
+Boolean UnitTests::TestInterpreterGlobalAccess() {
+	Boolean ok = Boolean(true);
+	GC_PUSH_SCOPE();
+	Value x = val_null; GC_PROTECT(&x);
+
+	// Test 1: host can inject a global before execution, and script sees it.
+	{
+		List<String> output =  List<String>::New();
+		gTestOutput = output;
+		Interpreter interp =  Interpreter::New("print hostValue");
+		interp.set_standardOutput([](String s, Boolean) { gTestOutput.Add(s); });
+		interp.set_errorOutput([](String s, Boolean) { gTestOutput.Add(s); });
+		interp.Compile();
+		interp.SetGlobalValue("hostValue", make_int(123));
+		interp.RunUntilDone();
+		ok = ok && Assert(output.Count() >= 1 && output[0] == "123",
+			StringUtils::Format("Host-injected global: expected '123' but got {0}",
+				output.Count() > 0 ? output[0] : "(empty)"));
+	}
+
+	// Test 2: host can read and update a script-created global.
+	{
+		Interpreter interp =  Interpreter::New("x = 7");
+		interp.Compile();
+		interp.RunUntilDone();
+
+		x = interp.GetGlobalValue("x");
+		ok = ok && Assert(is_number(x) && numeric_val(x) == 7,
+			StringUtils::Format("Read global x: expected 7 but got {0}", x));
+
+		interp.SetGlobalValue("x", make_int(99));
+		x = interp.GetGlobalValue("x");
+		ok = ok && Assert(is_number(x) && numeric_val(x) == 99,
+			StringUtils::Format("Updated global x: expected 99 but got {0}", x));
+	}
+
+	if (!ok) IOHelper::Print("TestInterpreterGlobalAccess FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestIntrinsicAllowlistV1() {
+	Boolean ok = Boolean(true);
+	Boolean found = Boolean(false);
+
+	// Force intrinsic initialization before validation.
+	Int32 intrinsicCount = Intrinsic::Count();
+	ok = ok && Assert(intrinsicCount > 0, "Intrinsic.Count should be > 0");
+
+	List<String> required =  List<String>::New();
+	required.Add("abs");
+	required.Add("acos");
+	required.Add("asin");
+	required.Add("atan");
+	required.Add("ceil");
+	required.Add("char");
+	required.Add("code");
+	required.Add("cos");
+	required.Add("floor");
+	required.Add("freeze");
+	required.Add("frozenCopy");
+	required.Add("funcRef");
+	required.Add("hasIndex");
+	required.Add("indexOf");
+	required.Add("indexes");
+	required.Add("print");
+	required.Add("input");
+	required.Add("insert");
+	required.Add("isFrozen");
+	required.Add("join");
+	required.Add("len");
+	required.Add("list");
+	required.Add("log");
+	required.Add("lower");
+	required.Add("map");
+	required.Add("number");
+	required.Add("pi");
+	required.Add("pop");
+	required.Add("pull");
+	required.Add("push");
+	required.Add("range");
+	required.Add("remove");
+	required.Add("replace");
+	required.Add("rnd");
+	required.Add("round");
+	required.Add("shuffle");
+	required.Add("sign");
+	required.Add("sin");
+	required.Add("slice");
+	required.Add("sort");
+	required.Add("split");
+	required.Add("sqrt");
+	required.Add("str");
+	required.Add("string");
+	required.Add("sum");
+	required.Add("tan");
+	required.Add("time");
+	required.Add("wait");
+	required.Add("yield");
+	required.Add("upper");
+	required.Add("val");
+	required.Add("values");
+
+	List<String> actual = Intrinsic::AllNames();
+
+	// Must contain every required intrinsic.
+
+	for (Int32 i = 0; i < required.Count(); i++) {
+		String name = required[i];
+		Intrinsic intr = Intrinsic::GetByName(name);
+		ok = ok && Assert(!IsNull(intr),
+			StringUtils::Format("Required intrinsic missing: {0}", name));
+	}
+
+	// Must not contain unapproved extras.
+	for (Int32 i = 0; i < actual.Count(); i++) {
+		String name = actual[i];
+		found = Boolean(false);
+		for (Int32 j = 0; j < required.Count(); j++) {
+			if (required[j] == name) {
+				found = Boolean(true);
+				break;
+			}
+		}
+		ok = ok && Assert(found,
+			StringUtils::Format("Unapproved intrinsic in v1 surface: {0}", name));
+	}
+
+	// Size must match exactly.
+	ok = ok && Assert(actual.Count() == required.Count(),
+		StringUtils::Format("Intrinsic count mismatch for v1 surface: expected {0}, got {1}",
+			required.Count(), actual.Count()));
+
+	if (!ok) IOHelper::Print("TestIntrinsicAllowlistV1 FAILED");
+	return ok;
+}
 Boolean UnitTests::RunAll() {
+	Boolean scriptInstanceTestsOK = Boolean(true);
+
 	return TestStringUtils()
 		&& TestDisassembler()
 		&& TestAssembler()
@@ -964,6 +1103,9 @@ Boolean UnitTests::RunAll() {
 		&& TestCodeGenerator()
 		&& TestEmitPatternValidation()
 		&& TestParserNeedMoreInput()
+		&& TestIntrinsicAllowlistV1()
+		&& TestInterpreterGlobalAccess()
+		&& scriptInstanceTestsOK
 		&& TestREPL();
 }
 

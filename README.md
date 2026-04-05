@@ -12,7 +12,26 @@ tools/build.sh transpile  # Generate C++ code from C# code
 tools/build.sh cpp        # Build C++ only
 tools/build.sh all        # Build everything (C#, transpile, C++)
 tools/build.sh test       # Run smoke tests
+tools/build.sh ci-gate    # Full C# + transpile + C++(goto/switch) debug gate
 ```
+
+The `ci-gate` target is the recommended pre-merge validation path.
+
+## Soak Validation
+
+Use soak mode to run repeated in-process restart/run cycles against one script:
+
+```bash
+# Run script 500 times (default)
+./build/cs/miniscript2 -soak examples/recur_fib.ms
+
+# Run script N times
+./build/cs/miniscript2 -soak=2000 examples/recur_fib.ms
+./build/cpp/miniscript2 -soak=2000 examples/recur_fib.msa
+```
+
+Soak mode fails if a run does not complete, if runtime errors occur, or if the final `r0`
+result drifts across iterations.
 
 ## Notes
 
