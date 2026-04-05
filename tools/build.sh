@@ -165,6 +165,18 @@ case "$TARGET" in
         ./tools/soak.sh "$@"
         ;;
 
+    "perf-gate")
+        echo "Running performance + soak gate..."
+        shift  # consume "perf-gate"
+        ./tools/perf_gate.sh "$@"
+        ;;
+
+    "ship-gate")
+        echo "Running ship gate..."
+        shift  # consume "ship-gate"
+        ./tools/ship_gate.sh "$@"
+        ;;
+
     "test-all")
         echo "Running all test suites..."
         make -C tests all
@@ -199,7 +211,7 @@ case "$TARGET" in
         ;;
 
     *)
-        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|ci-gate|soak|test-*|xcode} [options]"
+        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|ci-gate|soak|perf-gate|ship-gate|test-*|xcode} [options]"
         echo ""
         echo "Build Commands:"
         echo "  setup       - Set up development environment"
@@ -213,6 +225,8 @@ case "$TARGET" in
         echo "  test        - Quick smoke test of built executables"
         echo "  ci-gate     - Full C# + transpile + C++(on/off) debug gate"
         echo "  soak        - Run soak validation via tools/soak.sh"
+        echo "  perf-gate   - Run benchmark + soak gate via tools/perf_gate.sh"
+        echo "  ship-gate   - Run ci-gate + perf-gate + contract checks"
         echo "  test-all    - Run all test suites (C++ and C#)"
         echo "  test-cpp    - Run all C++ test suites"
         echo "  test-cs     - Run all C# test suites"
@@ -232,6 +246,8 @@ case "$TARGET" in
         echo "  $0 cpp debug        # Debug build, auto goto"
         echo "  $0 cpp debug on     # Debug build, computed-goto forced on"
         echo "  $0 soak -n 2000     # Soak run in C# and C++ runtimes"
+        echo "  $0 perf-gate --quick # Quick performance + soak gate"
+        echo "  $0 ship-gate --quick # Quick release-style combined gate"
         exit 1
         ;;
 esac

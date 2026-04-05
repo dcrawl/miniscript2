@@ -14,6 +14,8 @@ tools/build.sh all        # Build everything (C#, transpile, C++)
 tools/build.sh test       # Run smoke tests
 tools/build.sh ci-gate    # Full C# + transpile + C++(goto/switch) debug gate
 tools/build.sh soak       # Soak validation wrapper (see options below)
+tools/build.sh perf-gate  # Benchmark + soak report gate
+tools/build.sh ship-gate  # Combined release-style validation gate
 ```
 
 The `ci-gate` target is the recommended pre-merge validation path.
@@ -42,6 +44,14 @@ tools/build.sh soak -n 2000 -lang cs   # C# only
 tools/build.sh soak -n 2000 -lang cpp  # C++ only
 ```
 
+For a combined performance and long-run stability gate with report output:
+
+```bash
+tools/build.sh perf-gate           # full benchmark + soak gate
+tools/build.sh perf-gate --quick   # faster smoke variant
+tools/build.sh ship-gate --quick   # ci-gate + perf-gate + contract checks
+```
+
 ## Notes
 
 - [CS_CODING_STANDARDS.md](notes/CS_CODING_STANDARDS.md) — C# coding restrictions required by the C#-to-C++ transpiler.
@@ -53,6 +63,7 @@ tools/build.sh soak -n 2000 -lang cpp  # C++ only
 - [MEMORY_SYSTEMS.md](notes/MEMORY_SYSTEMS.md) — Overview of the three memory systems (GC, intern table, etc.).
 - [OPCODE_ADDITION.md](notes/OPCODE_ADDITION.md) — Procedure for adding new opcodes to the VM.
 - [SCRIPT_COMPATIBILITY_V1.md](notes/SCRIPT_COMPATIBILITY_V1.md) — Launch-branch compatibility guarantees and change policy for shipped scripts.
+- [SHIP_GATE_V1.md](notes/SHIP_GATE_V1.md) — Combined release-style gate (`ship-gate`) covering contracts, CI, and perf/soak checks.
 - [UNARY_MINUS_QUIRK.md](notes/UNARY_MINUS_QUIRK.md) — Language quirk involving unary minus and call statement syntax.
 - [VARIABLES.md](notes/VARIABLES.md) — How variables map to registers and interact with scope maps.
 - [VM_DESIGN.md](notes/VM_DESIGN.md) — Architecture of the register-based VM and instruction encoding.
