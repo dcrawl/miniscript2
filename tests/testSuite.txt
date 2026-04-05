@@ -3824,6 +3824,70 @@ x = 1; print outer == globals
 ---------------------------------
 1
 ================================
+==== SECTION: ENGINE-STYLE SCRIPT PATTERNS
+================================
+==== finite-state transitions across update ticks
+================================
+state = "idle"
+nextState = {"idle": "move", "move": "attack", "attack": "idle"}
+for i in [1, 2, 3]
+state = nextState[state]
+print state
+end for
+--------------------------------
+move
+attack
+idle
+================================
+==== event dispatch via handler map and payload list
+================================
+total = 0
+effects = {"hit": 1, "heal": -1}
+events = [["hit", 3], ["hit", 2], ["heal", 4]]
+for e in events
+name = e[0]
+amount = e[1]
+total += effects[name] * amount
+print "hp-" + total
+end for
+print total
+--------------------------------
+hp-3
+hp-5
+hp-1
+1
+================================
+==== closure state persists independently per script component
+================================
+makeScaler = function(mult, bias)
+	return function(x)
+		return mult * x + bias
+	end function
+end function
+
+tickA = makeScaler(2, 10)
+tickB = makeScaler(5, 1)
+print tickA(1)
+print tickA(2)
+print tickB(2)
+print tickA(3)
+--------------------------------
+12
+14
+11
+16
+================================
+==== missing event handler surfaces runtime error
+================================
+handlers = {}
+handlers["ok"] = function()
+print "ok"
+end function
+ev = "missing"
+print handlers[ev]
+--------------------------------
+Runtime Error: Key Not Found: 'missing' not found in map
+================================
 ==== END OF TESTS
 ================================================================================
 
