@@ -13,6 +13,7 @@ tools/build.sh cpp        # Build C++ only
 tools/build.sh all        # Build everything (C#, transpile, C++)
 tools/build.sh test       # Run smoke tests
 tools/build.sh ci-gate    # Full C# + transpile + C++(goto/switch) debug gate
+tools/build.sh soak       # Soak validation wrapper (see options below)
 ```
 
 The `ci-gate` target is the recommended pre-merge validation path.
@@ -33,6 +34,14 @@ Use soak mode to run repeated in-process restart/run cycles against one script:
 Soak mode fails if a run does not complete, if runtime errors occur, or if the final `r0`
 result drifts across iterations.
 
+For a repeatable multi-runtime soak workflow, use:
+
+```bash
+tools/build.sh soak -n 2000            # run C# + C++ (switch) soak
+tools/build.sh soak -n 2000 -lang cs   # C# only
+tools/build.sh soak -n 2000 -lang cpp  # C++ only
+```
+
 ## Notes
 
 - [CS_CODING_STANDARDS.md](notes/CS_CODING_STANDARDS.md) — C# coding restrictions required by the C#-to-C++ transpiler.
@@ -43,6 +52,7 @@ result drifts across iterations.
 - [LANGUAGE_CHANGES.md](notes/LANGUAGE_CHANGES.md) — Observable language changes in MiniScript 2.0 vs 1.x.
 - [MEMORY_SYSTEMS.md](notes/MEMORY_SYSTEMS.md) — Overview of the three memory systems (GC, intern table, etc.).
 - [OPCODE_ADDITION.md](notes/OPCODE_ADDITION.md) — Procedure for adding new opcodes to the VM.
+- [SCRIPT_COMPATIBILITY_V1.md](notes/SCRIPT_COMPATIBILITY_V1.md) — Launch-branch compatibility guarantees and change policy for shipped scripts.
 - [UNARY_MINUS_QUIRK.md](notes/UNARY_MINUS_QUIRK.md) — Language quirk involving unary minus and call statement syntax.
 - [VARIABLES.md](notes/VARIABLES.md) — How variables map to registers and interact with scope maps.
 - [VM_DESIGN.md](notes/VM_DESIGN.md) — Architecture of the register-based VM and instruction encoding.

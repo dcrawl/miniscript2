@@ -159,6 +159,12 @@ case "$TARGET" in
         echo "CI gate passed."
         ;;
 
+    "soak")
+        echo "Running soak validation..."
+        shift  # consume "soak"
+        ./tools/soak.sh "$@"
+        ;;
+
     "test-all")
         echo "Running all test suites..."
         make -C tests all
@@ -193,7 +199,7 @@ case "$TARGET" in
         ;;
 
     *)
-        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|ci-gate|test-*|xcode} [options]"
+        echo "Usage: $0 {setup|cs|transpile|cpp|all|clean|test|ci-gate|soak|test-*|xcode} [options]"
         echo ""
         echo "Build Commands:"
         echo "  setup       - Set up development environment"
@@ -206,6 +212,7 @@ case "$TARGET" in
         echo "Test Commands:"
         echo "  test        - Quick smoke test of built executables"
         echo "  ci-gate     - Full C# + transpile + C++(on/off) debug gate"
+        echo "  soak        - Run soak validation via tools/soak.sh"
         echo "  test-all    - Run all test suites (C++ and C#)"
         echo "  test-cpp    - Run all C++ test suites"
         echo "  test-cs     - Run all C# test suites"
@@ -224,6 +231,7 @@ case "$TARGET" in
         echo "  $0 cpp              # Release build, auto goto"
         echo "  $0 cpp debug        # Debug build, auto goto"
         echo "  $0 cpp debug on     # Debug build, computed-goto forced on"
+        echo "  $0 soak -n 2000     # Soak run in C# and C++ runtimes"
         exit 1
         ;;
 esac
