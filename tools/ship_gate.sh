@@ -7,16 +7,18 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 QUICK_MODE=0
+REQUIRE_APPROVAL=0
 PERF_ARGS=()
 REPORT_DIR="build/reports"
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
 REPORT_PATH="${REPORT_DIR}/ship_gate_${RUN_ID}.md"
 
 usage() {
-    echo "Usage: $0 [--quick] [--perf-arg ARG ...]"
+    echo "Usage: $0 [--quick] [--require-approval] [--perf-arg ARG ...]"
     echo ""
     echo "Options:"
     echo "  --quick               Use quick perf gate mode"
+    echo "  --require-approval    Require notes/RELEASE_SIGNOFF_V1.md to contain 'Status: APPROVED'"
     echo "  --perf-arg ARG        Forward one argument to perf gate (repeatable)"
     echo ""
     echo "Examples:"
@@ -29,6 +31,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick)
             QUICK_MODE=1
+            shift
+            ;;
+        --require-approval)
+            REQUIRE_APPROVAL=1
             shift
             ;;
         --perf-arg)
@@ -61,6 +67,11 @@ start_human="$(date)"
     else
         echo "- Mode: full"
     fi
+    if [[ "$REQUIRE_APPROVAL" -eq 1 ]]; then
+        echo "- Approval check: required"
+    else
+        echo "- Approval check: not required"
+    fi
     echo ""
     echo "## Contract Presence"
 } > "$REPORT_PATH"
@@ -78,6 +89,20 @@ require_file() {
 require_file "notes/SCRIPT_COMPATIBILITY_V1.md"
 require_file "notes/INTRINSIC_SURFACE_V1.md"
 require_file "notes/PERFORMANCE_GATE_V1.md"
+require_file "notes/RELEASE_SIGNOFF_V1.md"
+
+echo "" >> "$REPORT_PATH"
+echo "## Release Signoff" >> "$REPORT_PATH"
+if [[ "$REQUIRE_APPROVAL" -eq 1 ]]; then
+    if grep -Eq '^- Status:[[:space:]]*APPROVED$' notes/RELEASE_SIGNOFF_V1.md; then
+        echo "- PASS: RELEASE_SIGNOFF_V1 approval status is APPROVED" | tee -a "$REPORT_PATH"
+    else
+        echo "- FAIL: RELEASE_SIGNOFF_V1 approval status is not APPROVED" | tee -a "$REPORT_PATH"
+        exit 1
+    fi
+else
+    echo "- INFO: Approval status not required for this run" >> "$REPORT_PATH"
+fi
 
 echo "" | tee -a "$REPORT_PATH"
 echo "## CI Gate" | tee -a "$REPORT_PATH"

@@ -8,6 +8,7 @@
    - notes/SCRIPT_COMPATIBILITY_V1.md
    - notes/INTRINSIC_SURFACE_V1.md
    - notes/PERFORMANCE_GATE_V1.md
+   - notes/RELEASE_SIGNOFF_V1.md
 2. `ci-gate` passes:
    - C# build + debug tests
    - transpile
@@ -22,6 +23,11 @@
 
 - Full: `tools/build.sh ship-gate`
 - Quick: `tools/build.sh ship-gate --quick`
+- Approval-required: `tools/build.sh ship-gate --require-approval`
+
+`--require-approval` enforces that `notes/RELEASE_SIGNOFF_V1.md` contains:
+
+- `- Status: APPROVED`
 
 ## Output
 

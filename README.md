@@ -51,6 +51,7 @@ tools/build.sh perf-gate           # full benchmark + soak gate
 tools/build.sh perf-gate --quick   # faster smoke variant
 tools/build.sh perf-gate --max-gate-s 3600 --max-recurfib-s 45
 tools/build.sh ship-gate --quick   # ci-gate + perf-gate + contract checks
+tools/build.sh ship-gate --require-approval
 ```
 
 ## Notes
@@ -64,6 +65,7 @@ tools/build.sh ship-gate --quick   # ci-gate + perf-gate + contract checks
 - [MEMORY_SYSTEMS.md](notes/MEMORY_SYSTEMS.md) — Overview of the three memory systems (GC, intern table, etc.).
 - [OPCODE_ADDITION.md](notes/OPCODE_ADDITION.md) — Procedure for adding new opcodes to the VM.
 - [SCRIPT_COMPATIBILITY_V1.md](notes/SCRIPT_COMPATIBILITY_V1.md) — Launch-branch compatibility guarantees and change policy for shipped scripts.
+- [RELEASE_SIGNOFF_V1.md](notes/RELEASE_SIGNOFF_V1.md) — Release/content-freeze signoff artifact used by ship gate approval mode.
 - [SHIP_GATE_V1.md](notes/SHIP_GATE_V1.md) — Combined release-style gate (`ship-gate`) covering contracts, CI, and perf/soak checks.
 - [UNARY_MINUS_QUIRK.md](notes/UNARY_MINUS_QUIRK.md) — Language quirk involving unary minus and call statement syntax.
 - [VARIABLES.md](notes/VARIABLES.md) — How variables map to registers and interact with scope maps.
