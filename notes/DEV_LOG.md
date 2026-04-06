@@ -690,3 +690,6 @@ So what we should do instead is: add the intrinsics *first*, when a VM is initia
 
 Today I'm going to refactor the App code a bit; much of it predates the Interpreter class, and so is working harder than it needs to.
 
+OK, so that's done and it helps quite a bit.  App.cs is now much shorter and cleaner, and it's properly exercising Interpreter.
+
+Now I'm going to indulge in a little quality-of-life enhancement over MS1: I'm going to style (color) the text in the REPL.  We'll have the prompt in gray, the user's input in normal, and the output in bold.

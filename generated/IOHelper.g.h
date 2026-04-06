@@ -11,11 +11,21 @@ namespace MiniScript {
 
 // DECLARATIONS
 
-class IOHelper {
+enum class TextStyle : Int32 {
+	Normal,
+	Subdued,
+	Strong,
+	Error
+}; // end of enum TextStyle
 
-	public: static void Print(String message);
+class IOHelper {
+	static: TextStyle currentStyle = TextStyle.Normal;
+
+	private: static void SetStyle(TextStyle style);
+
+	public: static void Print(String message, TextStyle style=TextStyle.Normal);
 	
-	public: static String Input(String prompt);
+	public: static String Input(String prompt, TextStyle promptStyle=TextStyle.Normal, TextStyle inputStyle=TextStyle.Normal);
 	
 	public: static List<String> ReadFile(String filePath);
 	

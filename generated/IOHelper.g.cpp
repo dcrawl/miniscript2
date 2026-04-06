@@ -10,11 +10,30 @@
 
 namespace MiniScript {
 
-void IOHelper::Print(String message) {
+void IOHelper::SetStyle(TextStyle style) {
+	if (style == currentStyle) return;
+
+	if (style == TextStyle::Normal) {
+		std::cout << "\033[0m";
+	} else if (style == TextStyle::Subdued) {
+		std::cout << "\033[90m";
+	} else if (style == TextStyle::Strong) {
+		std::cout << "\033[1m";
+	} else if (style == TextStyle::Error) {
+		std::cout << "\033[31m";
+	}
+
+	currentStyle = style;
+}
+void IOHelper::Print(String message,TextStyle style) {
+	SetStyle(style);
 	std::cout << message.c_str() << std::endl;
 }
-String IOHelper::Input(String prompt) {
+String IOHelper::Input(String prompt,TextStyle promptStyle,TextStyle inputStyle) {
+	SetStyle(promptStyle);
+
 	std::cout << prompt.c_str();
+	SetStyle(inputStyle);
 	char *line = NULL;
 	size_t len = 0;
 	

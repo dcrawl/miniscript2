@@ -24,9 +24,45 @@ MiniScript documentation has always said that the order of data in a map is unde
 
 In MiniScript 2, we will commit to this behavior: **maps return keys in insertion order**, and this is true in both the C# and the C++ versions.
 
-## Function Notes
+## Function Info
 
 _This feature is not officially settled on yet._
 
-Similar to Python doc strings, we may associate a string with a function definition by having the first statement of the function body evaluate to a string constant.  This constant could be accessible via the funcRef, e.g. as `someFunc.note`, and should be displayed by a REPL when the input expression evaluates to a funcRef.
+FuncRef will get some metadata which can be accessed via a new intrinsic, perhaps like `info(@f)`.  This will include:
+
+- name: the text of the expression to the left of `=` where the function was defined, if any
+- note: when the first statement of a function body evaluates to a string constant, it is stored as the note (similar to a Python docstring)
+- params: a list of litle maps, one for each parameter; each contains `name` and `default` (the actual default value)
+- sourceLoc: the location of this function definition in the source code
+
+These details will be returned by `info` as a frozen map.
+
+## Error Type
+
+We'll add one new type to MiniScript, `error`, which represents a runtime error, and a new `err(msg, innerErr=null)` intrinsic for creating them.  Here are the special rules, given an error `e` and any type `x`:
+
+- `err(msg, e)` returns a new `error` (let's call it `e2`) such that `e2.message == msg`,  `e2.inner == e`, and `e2.stack` returns the stack trace at this point.
+- `e.foo` (where `foo` is _not_ literally `message`, `inner`, or `stack`) terminates [note 1].
+- `e or x` evaluates to `x`.
+- `if e then` and `while e` both terminate.
+- `f(e)` returns `e` for any intrinsic pure function `f` [note 2]; functions that affect state (or which don't normally return a result) terminate.
+- All binary operators except for `isa`, `==`, and `!=` (so `+`, `-`, `*`, `/`, `%`, `^`, `<`, `<=`, `>`, `>=`, `and`) involving `e` evaluate to `e` (or if both operands are errors, evaluate to the first one), as do the unary operators `-` and `not`.
+- `e[i]` evaluate to `e`.
+- Any use of `e.foo` or `e[i]` in an lvalue expression terminates.
+
+Note 1: "Terminates" above means that the program is halted, and a new runtime error is displayed, containing `e` as its `inner` error.  Program code can not catch these; but they are always preventable with proper code.
+Note 2: Any function can be written to propagate an argument error, or do something else when sensible; user functions are up to the user.
+
+And here are some ways in which errors are perfectly ordinary:
+- `return e` simply returns `e` to the caller (i.e., ordinary `return` behavior, nothing special here).
+- `e isa error` evaluates to 1; `isa` with any other type evaluates to 0.
+- `e == x` evaluates to 0 (unless `x` is, in fact, another reference to `e`).
+- `e != x` evaluates to 1 (unless `x` is, in fact, another reference to `e`).
+- `@e` evaluates to `e`.
+- `x = e` makes `x` another reference to `e`.
+- `e` may be stored in lists and maps (including as map keys).
+
+
+
+
 

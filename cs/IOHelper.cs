@@ -11,19 +11,50 @@ using System.Collections.Generic;
 
 namespace MiniScript {
 
+public enum TextStyle : Int32 {
+	Normal,
+	Subdued,
+	Strong,
+	Error
+}
+
 public static class IOHelper {
 
-	public static void Print(String message) {
+	static TextStyle currentStyle = TextStyle.Normal;
+
+	private static void SetStyle(TextStyle style) {
+		if (style == currentStyle) return;
+
+		if (style == TextStyle.Normal) {
+			Console.Write("\u001b[0m");			// CPP: std::cout << "\033[0m";
+		} else if (style == TextStyle.Subdued) {
+			Console.Write("\u001b[90m");		// CPP: std::cout << "\033[90m";
+		} else if (style == TextStyle.Strong) {
+			Console.Write("\u001b[1m");			// CPP: std::cout << "\033[1m";
+		} else if (style == TextStyle.Error) {
+			Console.Write("\u001b[31m");		// CPP: std::cout << "\033[31m";
+		}
+
+		currentStyle = style;
+	}
+
+	public static void Print(String message, TextStyle style=TextStyle.Normal) {
+		SetStyle(style);
 		Console.WriteLine(message);  // CPP: std::cout << message.c_str() << std::endl;
 	}
 	
-	public static String Input(String prompt) {
+	public static String Input(String prompt, TextStyle promptStyle=TextStyle.Normal, TextStyle inputStyle=TextStyle.Normal) {
+		SetStyle(promptStyle);
+
 		//*** BEGIN CS_ONLY ***
 		Console.Write(prompt);
+		SetStyle(inputStyle);
 		return Console.ReadLine();
 		//*** END CS_ONLY ***
+
 		/*** BEGIN CPP_ONLY ***
 		std::cout << prompt.c_str();
+		SetStyle(inputStyle);
 		char *line = NULL;
 		size_t len = 0;
 		

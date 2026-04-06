@@ -32,8 +32,5 @@ struct App {
 
 	private: static void RunREPL();
 
-}; // end of struct App
-
 // INLINE METHODS
 
-} // end of namespace MiniScript

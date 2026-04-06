@@ -54,7 +54,7 @@ public struct App {
 			}
 		}
 		
-		IOHelper.Print("MiniScript 2.0");
+		IOHelper.Print("MiniScript 2.0", TextStyle.Strong);
 		/*** BEGIN CPP_ONLY ***
 		#if VM_USE_COMPUTED_GOTO
 		#define VARIANT "(goto)"
@@ -63,7 +63,8 @@ public struct App {
 		#endif
 		*** END CPP_ONLY ***/
 		IOHelper.Print(
-			"Build: C# version" // CPP: "Build: C++ " VARIANT " version"
+			"Build: C# version", // CPP: "Build: C++ " VARIANT " version",
+			TextStyle.Subdued
 		);
 		
 		if (debugMode) {
@@ -356,15 +357,20 @@ public struct App {
 
 	private static void RunREPL() {
 		Interpreter interp = new Interpreter();
-		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
-		// CPP: interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
-		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
-		// CPP: interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
-		interp.implicitOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
-		// CPP: interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s); });
+		//*** BEGIN CS_ONLY ***
+		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Strong); };
+		interp.implicitOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Strong); };
+		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Error); };
+		//*** END CS_ONLY ***/
+		/*** BEGIN CPP_ONLY ***
+		interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
+		interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
+		interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Error); });
+		*** END CPP_ONLY ***/
+		
 		while (true) {
 			String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
-			String line = IOHelper.Input(prompt);
+			String line = IOHelper.Input(prompt, TextStyle.Subdued, TextStyle.Normal);
 			if (line == null) break;
 			interp.REPL(line, 60);
 		}
