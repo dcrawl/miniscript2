@@ -28,6 +28,10 @@ class StringUtils {
 
 	public: static Double ParseDouble(String str);
 
+	public: static Boolean IsNaN(Double x);
+
+	public: static Boolean IsInfinity(Double x);
+
 	public: static String ZeroPad(Int32 value, Int32 digits = 5);
 	
 	public: static String Spaces(Int32 count);
@@ -155,6 +159,12 @@ inline Int32 StringUtils::ParseInt32(String str) {
 }
 inline Double StringUtils::ParseDouble(String str) {
 	return std::stod(str.c_str());
+}
+inline Boolean StringUtils::IsNaN(Double x) {
+	return std::isnan(x);
+}
+inline Boolean StringUtils::IsInfinity(Double x) {
+	return std::isinf(x);
 }
 inline String StringUtils::Str(Char c) {
 	return String(c);

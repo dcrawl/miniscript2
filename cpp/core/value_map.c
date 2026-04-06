@@ -699,32 +699,43 @@ Value map_to_string(Value map_val) {
 
 // VarMap creation and management
 Value make_varmap(Value* registers, Value* names, int firstIndex, int count) {
+    GC_PUSH_SCOPE();
+
     // Create regular map structure
     ValueMap* map = (ValueMap*)gc_allocate(sizeof(ValueMap));
     Value result = MAP_TAG | ((uintptr_t)map & 0xFFFFFFFFFFFFULL);
+    GC_PROTECT(&result);  // Keep map live during subsequent allocations
+
     map->count = 0;
     map->freeCount = 0;
     map->capacity = 8;
     map->frozen = false;
+    map->varmap_data = NULL;
     map->buckets = (int*)gc_allocate(8 * sizeof(int));
     map->entries = (MapEntry*)gc_allocate(8 * sizeof(MapEntry));
     init_storage(map);
 
-    // Allocate and initialize VarMapData
+    // Allocate VarMapData and attach it to the map BEFORE allocating sub-arrays,
+    // so that gc_mark_map can reach vdata through map->varmap_data if GC runs.
     VarMapData* vdata = (VarMapData*)gc_allocate(sizeof(VarMapData));
     vdata->registers = registers;
     vdata->names = names;
-    vdata->reg_map_keys = (Value*)gc_allocate(5 * sizeof(Value));
-    vdata->reg_map_indices = (int*)gc_allocate(5 * sizeof(int));
+    vdata->reg_map_keys = NULL;
+    vdata->reg_map_indices = NULL;
     vdata->reg_map_count = 0;
     vdata->reg_map_capacity = 5;
+    map->varmap_data = vdata;  // Attach before allocating sub-arrays
 
-    map->varmap_data = vdata;
+    // Now sub-array allocations can trigger GC safely: map is protected, vdata
+    // is reachable via map->varmap_data, and gc_mark_map marks it.
+    vdata->reg_map_keys = (Value*)gc_allocate(5 * sizeof(Value));
+    vdata->reg_map_indices = (int*)gc_allocate(5 * sizeof(int));
 
     for (int i = firstIndex; i < firstIndex + count; i++) {
     	if (!is_null(names[i])) varmap_map_to_register(result, names[i], registers, i);
     }
 
+    GC_POP_SCOPE();
     return result;
 }
 

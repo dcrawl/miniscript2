@@ -126,6 +126,11 @@ public class Parser : IParser {
 			_current = _lexer.NextToken();
 		} while (_current.Type == TokenType.COMMENT
 			|| (_current.Type == TokenType.EOL && AllowsLineContinuation(_previousType)));
+		// If the last meaningful token allows line continuation and we've run out
+		// of input (with or without a trailing EOL), we need more input.
+		if (_current.Type == TokenType.END_OF_INPUT && AllowsLineContinuation(_previousType)) {
+			_needMoreInput = true;
+		}
 	}
 
 	// Return true if the given token type allows a line continuation after it.
@@ -256,7 +261,9 @@ public class Parser : IParser {
 		// Look up the prefix parselet for this token
 		PrefixParselet prefix = null;
 		if (!_prefixParselets.TryGetValue(token.Type, out prefix)) {
-			ReportError($"Unexpected token: {TokenDescription(token)}");
+			// If we already know we need more input (e.g. trailing binary operator
+			// at end of REPL line), don't also emit an error.
+			if (!_needMoreInput) ReportError($"Unexpected token: {TokenDescription(token)}");
 			return new NumberNode(0);
 		}
 

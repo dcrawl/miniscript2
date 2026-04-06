@@ -39,6 +39,8 @@ struct IdentifierParselet;
 class IdentifierParseletStorage;
 struct UnaryOpParselet;
 class UnaryOpParseletStorage;
+struct AddressOfParselet;
+class AddressOfParseletStorage;
 struct GroupParselet;
 class GroupParseletStorage;
 struct ListParselet;

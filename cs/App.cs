@@ -361,11 +361,11 @@ public struct App {
 		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Strong); };
 		interp.implicitOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Strong); };
 		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s, TextStyle.Error); };
-		//*** END CS_ONLY ***/
+		//*** END CS_ONLY ***
 		/*** BEGIN CPP_ONLY ***
-		interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
-		interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
-		interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Error); });
+		interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+		interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+		interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Error); });
 		*** END CPP_ONLY ***/
 		
 		while (true) {

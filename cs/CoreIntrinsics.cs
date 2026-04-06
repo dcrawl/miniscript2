@@ -223,14 +223,14 @@ public static class CoreIntrinsics {
 				map_set(result, make_string("type"), make_string("funcRef"));
 				Int32 funcIndex = funcref_index(arg);
 				map_set(result, make_string("__idx"), make_int(funcIndex));
-				FuncDef f = ctx.vm.GetFuncDef(funcIndex);
-				map_set(result, make_string("name"), make_string(f.Name));
-				map_set(result, make_string("note"), make_string(f.Note));
-				parameters = make_list(f.ParamNames.Count);
-				for (int i=0; i < f.ParamNames.Count; i++) {
+				FuncDef func = ctx.vm.GetFuncDef(funcIndex);
+				map_set(result, make_string("name"), make_string(func.Name));
+				map_set(result, make_string("note"), make_string(func.Note));
+				parameters = make_list(func.ParamNames.Count);
+				for (int i=0; i < func.ParamNames.Count; i++) {
 					pinfo = make_map(2);
-					map_set(pinfo, make_string("name"), f.ParamNames[i]);
-					map_set(pinfo, make_string("default"), f.ParamDefaults[i]);
+					map_set(pinfo, make_string("name"), func.ParamNames[i]);
+					map_set(pinfo, make_string("default"), func.ParamDefaults[i]);
 					list_push(parameters, pinfo);
 				}
 				map_set(result, make_string("params"), parameters);

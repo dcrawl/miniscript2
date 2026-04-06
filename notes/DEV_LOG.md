@@ -706,5 +706,7 @@ I'm adding metadata to functions today, accessed through a new `@note` intrinsic
 > info(@foo)
 {"type": "funcRef", "__idx": 54, "name": "foo", "note": "Returns the ultimate answer to life, the universe, and everything.", "params": []}
 
-`info` returns a frozen map, and in the case of a function, that includes `name`, `note` (when the first statement in the function evaluates to a string literal), and `params`.
+`info` returns a frozen map, and in the case of a function, that includes `name`, `note` (when the first statement in the function evaluates to a string literal), and `params`.  The `note` expression supports string constant folding, which will be most useful if you
+want to break your note up onto multiple lines.
+
 

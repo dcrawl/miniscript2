@@ -24,6 +24,8 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	public: List<Value> ParamDefaults = List<Value>::New(); // default values for parameters
 	public: Int16 SelfReg = -1; // register for 'self' (-1 if not used)
 	public: Int16 SuperReg = -1; // register for 'super' (-1 if not used)
+	public: String Note = "";
+	public: String SourceLoc = "";
 	public: NativeCallbackDelegate NativeCallback = null;
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
@@ -71,6 +73,10 @@ struct FuncDef {
 	public: void set_SelfReg(Int16 _v); // register for 'self' (-1 if not used)
 	public: Int16 SuperReg(); // register for 'super' (-1 if not used)
 	public: void set_SuperReg(Int16 _v); // register for 'super' (-1 if not used)
+	public: String Note();
+	public: void set_Note(String _v);
+	public: String SourceLoc();
+	public: void set_SourceLoc(String _v);
 	public: NativeCallbackDelegate NativeCallback();
 	public: void set_NativeCallback(NativeCallbackDelegate _v);
 
@@ -111,6 +117,10 @@ inline Int16 FuncDef::SelfReg() { return get()->SelfReg; } // register for 'self
 inline void FuncDef::set_SelfReg(Int16 _v) { get()->SelfReg = _v; } // register for 'self' (-1 if not used)
 inline Int16 FuncDef::SuperReg() { return get()->SuperReg; } // register for 'super' (-1 if not used)
 inline void FuncDef::set_SuperReg(Int16 _v) { get()->SuperReg = _v; } // register for 'super' (-1 if not used)
+inline String FuncDef::Note() { return get()->Note; }
+inline void FuncDef::set_Note(String _v) { get()->Note = _v; }
+inline String FuncDef::SourceLoc() { return get()->SourceLoc; }
+inline void FuncDef::set_SourceLoc(String _v) { get()->SourceLoc = _v; }
 inline NativeCallbackDelegate FuncDef::NativeCallback() { return get()->NativeCallback; }
 inline void FuncDef::set_NativeCallback(NativeCallbackDelegate _v) { get()->NativeCallback = _v; }
 inline void FuncDef::ReserveRegister(Int32 registerNumber) { return get()->ReserveRegister(registerNumber); }

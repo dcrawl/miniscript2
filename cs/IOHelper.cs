@@ -20,7 +20,7 @@ public enum TextStyle : Int32 {
 
 public static class IOHelper {
 
-	static TextStyle currentStyle = TextStyle.Normal;
+	private static TextStyle currentStyle = TextStyle.Normal;
 
 	private static void SetStyle(TextStyle style) {
 		if (style == currentStyle) return;

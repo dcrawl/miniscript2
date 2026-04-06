@@ -46,8 +46,14 @@ void gc_unregister_mark_callback(gc_mark_callback_t callback, void* user_data);
 void gc_mark_value(Value v);
 
 // Scope management macros for automatic root tracking
+//#define GC_SCOPE_DEBUG
+#ifdef GC_SCOPE_DEBUG
+#define GC_PUSH_SCOPE() gc_push_scope_debug(__FILE__, __LINE__)
+#define GC_POP_SCOPE()  gc_pop_scope_debug(__FILE__, __LINE__)
+#else
 #define GC_PUSH_SCOPE() gc_push_scope()
 #define GC_POP_SCOPE() gc_pop_scope()
+#endif
 
 // Protect multiple local variables at once (up to 8)
 // These macros both declare and protect the variables
@@ -102,6 +108,8 @@ void gc_mark_value(Value v);
 // Internal scope management functions
 void gc_push_scope(void);
 void gc_pop_scope(void);
+void gc_push_scope_debug(const char* file, int line);
+void gc_pop_scope_debug(const char* file, int line);
 
 // GC statistics and debugging
 typedef struct {

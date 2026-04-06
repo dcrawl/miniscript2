@@ -22,9 +22,6 @@
 #include <thread>
 #include <chrono>
 using namespace MiniScript;
-	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
-	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Strong); });
-	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle.Error); });
 
 int main(int argc, const char* argv[]) {
 List<String> args;
@@ -349,5 +346,16 @@ void App::RunInterpreter(Interpreter interp) {
 }
 void App::RunREPL() {
 	Interpreter interp =  Interpreter::New();
+	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Error); });
+	
+	while (Boolean(true)) {
+		String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
+		String line = IOHelper::Input(prompt, TextStyle::Subdued, TextStyle::Normal);
+		if (IsNull(line)) break;
+		interp.REPL(line, 60);
+	}
+}
 
 } // end of namespace MiniScript

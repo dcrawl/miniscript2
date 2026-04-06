@@ -51,6 +51,14 @@ ASTNode UnaryOpParseletStorage::Parse(IParser& parser,Token token) {
 	return  UnaryOpNode::New(_op, operand);
 }
 
+AddressOfParseletStorage::AddressOfParseletStorage() {
+	Prec = Precedence::ADDRESS_OF;
+}
+ASTNode AddressOfParseletStorage::Parse(IParser& parser,Token token) {
+	ASTNode operand = parser.ParseExpression(Precedence::POWER);
+	return  UnaryOpNode::New(Op::ADDRESS_OF, operand);
+}
+
 ASTNode GroupParseletStorage::Parse(IParser& parser,Token token) {
 	ASTNode expr = parser.ParseExpression(Precedence::NONE);
 	parser.Expect(TokenType::RPAREN, "Expected ')' after expression");

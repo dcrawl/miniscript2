@@ -172,7 +172,7 @@ public class IndexedAssignmentNode : ASTNode {
 	public ASTNode Value;       // the value being assigned
 	public String LHSName;      // human-readable LHS (e.g. "foo.bar"), used for function naming
 
-	public IndexedAssignmentNode(ASTNode target, ASTNode index, ASTNode value, String lhsName = null) {
+	public IndexedAssignmentNode(ASTNode target, ASTNode index, ASTNode value, String lhsName) {
 		Target = target;
 		Index = index;
 		Value = value;
@@ -306,13 +306,13 @@ public class BinaryOpNode : ASTNode {
 		// string * number: repeat the string (mirrors Value.Multiply logic)
 		if (leftStr != null && rightNum != null && Op == MiniScript.Op.TIMES) {
 			double factor = rightNum.Value;
-			if (double.IsNaN(factor) || double.IsInfinity(factor) || factor <= 0) return new StringNode("");
+			if (StringUtils.IsNaN(factor) || StringUtils.IsInfinity(factor) || factor <= 0) return new StringNode("");
 			int repeats = (int)factor;
 			int extraChars = (int)(leftStr.Value.Length * (factor - repeats));
-			System.Text.StringBuilder sb = new System.Text.StringBuilder(repeats * leftStr.Value.Length + extraChars);
-			for (int i = 0; i < repeats; i++) sb.Append(leftStr.Value);
-			if (extraChars > 0) sb.Append(leftStr.Value.Substring(0, extraChars));
-			return new StringNode(sb.ToString());
+			String result = "";
+			for (int i = 0; i < repeats; i++) result = result + leftStr.Value;
+			if (extraChars > 0) result = result + leftStr.Value.Substring(0, extraChars);
+			return new StringNode(result);
 		}
 
 		// Otherwise return binary op with simplified operands

@@ -1074,7 +1074,7 @@ public class CodeGenerator : IASTVisitor {
 			StringNode firstStmt = node.Body[0].Simplify() as StringNode;
 			if (firstStmt != null) {
 				noteText = firstStmt.Value;
-				bodyToCompile = node.Body.GetRange(1, node.Body.Count - 1);
+				bodyToCompile.RemoveAt(0);
 			}
 		}
 

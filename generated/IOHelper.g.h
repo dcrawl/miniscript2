@@ -19,13 +19,13 @@ enum class TextStyle : Int32 {
 }; // end of enum TextStyle
 
 class IOHelper {
-	static: TextStyle currentStyle = TextStyle.Normal;
+	private: static TextStyle currentStyle;
 
 	private: static void SetStyle(TextStyle style);
 
-	public: static void Print(String message, TextStyle style=TextStyle.Normal);
+	public: static void Print(String message, TextStyle style=TextStyle::Normal);
 	
-	public: static String Input(String prompt, TextStyle promptStyle=TextStyle.Normal, TextStyle inputStyle=TextStyle.Normal);
+	public: static String Input(String prompt, TextStyle promptStyle=TextStyle::Normal, TextStyle inputStyle=TextStyle::Normal);
 	
 	public: static List<String> ReadFile(String filePath);
 	

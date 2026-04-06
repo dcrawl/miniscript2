@@ -141,6 +141,13 @@ class UnaryOpParseletStorage : public PrefixParseletStorage {
 	public: ASTNode Parse(IParser& parser, Token token);
 }; // end of class UnaryOpParseletStorage
 
+class AddressOfParseletStorage : public PrefixParseletStorage {
+	friend struct AddressOfParselet;
+	public: AddressOfParseletStorage();
+
+	public: ASTNode Parse(IParser& parser, Token token);
+}; // end of class AddressOfParseletStorage
+
 class GroupParseletStorage : public PrefixParseletStorage {
 	friend struct GroupParselet;
 	public: GroupParseletStorage() {}
@@ -311,6 +318,25 @@ struct UnaryOpParselet : public PrefixParselet {
 
 	public: ASTNode Parse(IParser& parser, Token token) { return get()->Parse(parser, token); }
 }; // end of struct UnaryOpParselet
+
+// AddressOfParselet: handles the @ (address-of) operator.
+// Unlike other unary operators, @ should bind tightly to member-access/index
+// chains (e.g. @foo.bar means @(foo.bar), not (@foo).bar).  We achieve this
+// by parsing the operand at POWER precedence (just below CALL), which allows
+// '.' and '[' to be consumed as part of the operand.
+struct AddressOfParselet : public PrefixParselet {
+	friend class AddressOfParseletStorage;
+	AddressOfParselet(std::shared_ptr<AddressOfParseletStorage> stor);
+	AddressOfParselet() : PrefixParselet() {}
+	AddressOfParselet(std::nullptr_t) : PrefixParselet(nullptr) {}
+	private: AddressOfParseletStorage* get() const;
+
+	public: static AddressOfParselet New() {
+		return AddressOfParselet(std::make_shared<AddressOfParseletStorage>());
+	}
+
+	public: ASTNode Parse(IParser& parser, Token token) { return get()->Parse(parser, token); }
+}; // end of struct AddressOfParselet
 
 // GroupParselet: handles parenthesized expressions like '(2 + 3)'.
 struct GroupParselet : public PrefixParselet {
@@ -484,6 +510,9 @@ inline UnaryOpParselet::UnaryOpParselet(std::shared_ptr<UnaryOpParseletStorage> 
 inline UnaryOpParseletStorage* UnaryOpParselet::get() const { return static_cast<UnaryOpParseletStorage*>(storage.get()); }
 inline String UnaryOpParselet::_op() { return get()->_op; }
 inline void UnaryOpParselet::set__op(String _v) { get()->_op = _v; }
+
+inline AddressOfParselet::AddressOfParselet(std::shared_ptr<AddressOfParseletStorage> stor) : PrefixParselet(stor) {}
+inline AddressOfParseletStorage* AddressOfParselet::get() const { return static_cast<AddressOfParseletStorage*>(storage.get()); }
 
 inline GroupParselet::GroupParselet(std::shared_ptr<GroupParseletStorage> stor) : PrefixParselet(stor) {}
 inline GroupParseletStorage* GroupParselet::get() const { return static_cast<GroupParseletStorage*>(storage.get()); }

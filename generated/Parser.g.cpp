@@ -27,7 +27,7 @@ void ParserStorage::RegisterParselets() {
 	// Unary operators
 	RegisterPrefix(TokenType::MINUS,  UnaryOpParselet::New(Op::MINUS, Precedence::UNARY_MINUS));
 	RegisterPrefix(TokenType::NOT,  UnaryOpParselet::New(Op::NOT, Precedence::NOT));
-	RegisterPrefix(TokenType::ADDRESS_OF,  UnaryOpParselet::New(Op::ADDRESS_OF, Precedence::ADDRESS_OF));
+	RegisterPrefix(TokenType::ADDRESS_OF,  AddressOfParselet::New());
 	RegisterPrefix(TokenType::NEW,  UnaryOpParselet::New(Op::NEW, Precedence::UNARY_MINUS));
 	RegisterPrefix(TokenType::SELF,  SelfParselet::New());
 	RegisterPrefix(TokenType::SUPER,  SuperParselet::New());
@@ -85,6 +85,11 @@ void ParserStorage::Advance() {
 		_current = _lexer.NextToken();
 	} while (_current.Type == TokenType::COMMENT
 		|| (_current.Type == TokenType::EOL && AllowsLineContinuation(_previousType)));
+	// If the last meaningful token allows line continuation and we've run out
+	// of input (with or without a trailing EOL), we need more input.
+	if (_current.Type == TokenType::END_OF_INPUT && AllowsLineContinuation(_previousType)) {
+		_needMoreInput = Boolean(true);
+	}
 }
 Boolean ParserStorage::AllowsLineContinuation(TokenType type) {
 	return type == TokenType::COMMA
@@ -195,7 +200,9 @@ ASTNode ParserStorage::ParseExpression(Precedence minPrecedence) {
 	// Look up the prefix parselet for this token
 	PrefixParselet prefix = nullptr;
 	if (!_prefixParselets.TryGetValue(token.Type, &prefix)) {
-		ReportError(Interp("Unexpected token: {}", TokenDescription(token)));
+		// If we already know we need more input (e.g. trailing binary operator
+		// at end of REPL line), don't also emit an error.
+		if (!_needMoreInput) ReportError(Interp("Unexpected token: {}", TokenDescription(token)));
 		return  NumberNode::New(0);
 	}
 
@@ -314,7 +321,8 @@ ASTNode ParserStorage::ParseSimpleStatement() {
 			if (!IsNull(compoundOp)) {
 				value =  BinaryOpNode::New(compoundOp,  IndexNode::New(idxNode.Target(), idxNode.Index()), value);
 			}
-			return  IndexedAssignmentNode::New(idxNode.Target(), idxNode.Index(), value);
+			String lhsName = idxNode.Target().ToStr() + "[" + idxNode.Index().ToStr() + "]";
+			return  IndexedAssignmentNode::New(idxNode.Target(), idxNode.Index(), value, lhsName);
 		}
 
 		// Check for member assignment: expr.member = value (or compound: expr.member += value)
@@ -327,7 +335,8 @@ ASTNode ParserStorage::ParseSimpleStatement() {
 			if (!IsNull(compoundOp)) {
 				value =  BinaryOpNode::New(compoundOp,  IndexNode::New(memNode.Target(), index), value);
 			}
-			return  IndexedAssignmentNode::New(memNode.Target(), index, value);
+			String lhsName = memNode.Target().ToStr() + "." + memNode.Member();
+			return  IndexedAssignmentNode::New(memNode.Target(), index, value, lhsName);
 		}
 
 		// Check for no-parens call on an expression result, e.g. funcs[0] 10
@@ -353,7 +362,8 @@ ASTNode ParserStorage::ParseSimpleStatement() {
 		if (!IsNull(compoundOp2)) {
 			value =  BinaryOpNode::New(compoundOp2,  IndexNode::New(idxNode2.Target(), idxNode2.Index()), value);
 		}
-		return  IndexedAssignmentNode::New(idxNode2.Target(), idxNode2.Index(), value);
+		String lhsName2 = idxNode2.Target().ToStr() + "[" + idxNode2.Index().ToStr() + "]";
+		return  IndexedAssignmentNode::New(idxNode2.Target(), idxNode2.Index(), value, lhsName2);
 	}
 	MemberNode memNode2 = As<MemberNode, MemberNodeStorage>(expr2);
 	if (!IsNull(memNode2) && IsAssignOp(_current.Type)) {
@@ -364,7 +374,8 @@ ASTNode ParserStorage::ParseSimpleStatement() {
 		if (!IsNull(compoundOp2)) {
 			value =  BinaryOpNode::New(compoundOp2,  IndexNode::New(memNode2.Target(), index), value);
 		}
-		return  IndexedAssignmentNode::New(memNode2.Target(), index, value);
+		String lhsName2 = memNode2.Target().ToStr() + "." + memNode2.Member();
+		return  IndexedAssignmentNode::New(memNode2.Target(), index, value, lhsName2);
 	}
 	return expr2;
 }

@@ -10,6 +10,7 @@
 
 namespace MiniScript {
 
+TextStyle IOHelper::currentStyle = TextStyle::Normal;
 void IOHelper::SetStyle(TextStyle style) {
 	if (style == currentStyle) return;
 
