@@ -244,16 +244,39 @@ void VMStorage::UpdateStubLifecycleFromHotCandidates() {
 		}
 	}
 }
+String VMStorage::ValidateStubCompilableSubset(FuncDef f) {
+	if (IsNull(f)) return "missing function";
+	Int32 codeCount = f.Code().Count();
+	if (codeCount == 0) return "empty function";
+	for (Int32 i = 0; i < codeCount; i++) {
+		Opcode op = (Opcode)BytecodeUtil::OP(f.Code()[i]);
+		if (op == Opcode::NOOP || op == Opcode::RETURN) continue;
+		return StringUtils::Format("unsupported opcode: {0}", BytecodeUtil::ToMnemonic(op));
+	}
+	Opcode lastOp = (Opcode)BytecodeUtil::OP(f.Code()[codeCount - 1]);
+	if (lastOp != Opcode::RETURN) return "missing RETURN terminator";
+	return nullptr;
+}
 bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
 	FuncDef f = functions[funcIndex];
 	if (!IsNull(f.NativeCallback())) return Boolean(false);
 
-	// Hook point for future native/codegen backend.
 	f.set_JitStubCompileAttempts(f.JitStubCompileAttempts() + 1);
 	jitStubCompileAttemptCount++;
+
+	String compileReason = ValidateStubCompilableSubset(f);
+	if (IsNull(compileReason)) {
+		// Phase-2 stepping stone: mark a tiny subset as compiled, while execution
+		// still routes through the interpreter until real codegen lands.
+		f.set_JitStubState(2);
+		f.set_JitStubLastError("");
+		return Boolean(true);
+	}
+
+	// Hook point for future native/codegen backend.
 	f.set_JitStubState(3);
-	f.set_JitStubLastError("Stub backend not implemented yet");
+	f.set_JitStubLastError(StringUtils::Format("Stub backend not implemented for {0}", compileReason));
 	return Boolean(false);
 }
 void VMStorage::RefreshHotFunctionCandidates() {

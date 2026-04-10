@@ -795,15 +795,55 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 3,
-			"Expected @main JitStubState to be failed after fallback compile attempt in jit=stub mode");
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+			"Expected @main JitStubState to be compiled for tiny supported stub subset");
 		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
 		ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
 			"Expected at least one VM-level stub compile attempt");
+		ok = ok && Assert(String.IsNullOrEmpty(funcs[mainIdx].JitStubLastError),
+			"Expected @main JitStubLastError to be empty for compiled subset");
+
+		if (!ok) IOHelper.Print("TestStubLifecycleGroundwork FAILED");
+		return ok;
+	}
+
+	public static Boolean TestStubLifecycleFallbackFailure() {
+		Boolean ok = true;
+
+		FuncDef f = new FuncDef();
+		f.Name = "@main";
+		f.MaxRegs = 1;
+		f.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 0, 42));
+		f.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 1;
+		vm.Reset(new List<FuncDef> { f });
+		vm.Run();
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		Int32 mainIdx = -1;
+		for (Int32 i = 0; i < funcs.Count; i++) {
+			if (funcs[i].Name == "@main") {
+				mainIdx = i;
+				break;
+			}
+		}
+		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for fallback stub lifecycle test");
+		if (mainIdx < 0) return false;
+
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 3,
+			"Expected @main JitStubState to be failed for unsupported stub subset");
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
+		ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
+			"Expected at least one VM-level stub compile attempt in fallback test");
 		ok = ok && Assert(!String.IsNullOrEmpty(funcs[mainIdx].JitStubLastError),
 			"Expected @main JitStubLastError to be set after failed compile attempt");
 
-		if (!ok) IOHelper.Print("TestStubLifecycleGroundwork FAILED");
+		if (!ok) IOHelper.Print("TestStubLifecycleFallbackFailure FAILED");
 		return ok;
 	}
 
@@ -1370,6 +1410,7 @@ public static class UnitTests {
 			&& TestSuperinstructionFusion()
 			&& TestHotFunctionCandidates()
 			&& TestStubLifecycleGroundwork()
+			&& TestStubLifecycleFallbackFailure()
 			&& TestParserNeedMoreInput()
 			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()

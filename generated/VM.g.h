@@ -150,6 +150,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	private: void UpdateStubLifecycleFromHotCandidates();
 
+	private: String ValidateStubCompilableSubset(FuncDef f);
+
 	private: bool TryCompileStubForFunction(Int32 funcIndex);
 
 	private: void RefreshHotFunctionCandidates();
@@ -405,6 +407,8 @@ struct VM {
 
 	private: inline void UpdateStubLifecycleFromHotCandidates();
 
+	private: inline String ValidateStubCompilableSubset(FuncDef f);
+
 	private: inline bool TryCompileStubForFunction(Int32 funcIndex);
 
 	private: inline void RefreshHotFunctionCandidates();
@@ -592,6 +596,7 @@ inline void VM::RegisterFunction(FuncDef funcDef) { return get()->RegisterFuncti
 inline void VM::ApplySuperinstructions() { return get()->ApplySuperinstructions(); }
 inline void VM::ClearHotFunctionCandidates() { return get()->ClearHotFunctionCandidates(); }
 inline void VM::UpdateStubLifecycleFromHotCandidates() { return get()->UpdateStubLifecycleFromHotCandidates(); }
+inline String VM::ValidateStubCompilableSubset(FuncDef f) { return get()->ValidateStubCompilableSubset(f); }
 inline bool VM::TryCompileStubForFunction(Int32 funcIndex) { return get()->TryCompileStubForFunction(funcIndex); }
 inline void VM::RefreshHotFunctionCandidates() { return get()->RefreshHotFunctionCandidates(); }
 inline void VM::Reset(List<FuncDef> allFunctions) { return get()->Reset(allFunctions); }
