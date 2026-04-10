@@ -76,6 +76,10 @@ String BytecodeUtil::ToMnemonic(Opcode opcode) {
 		case Opcode::LOADC_rA_rB_kC: return "LOADC_rA_rB_kC";
 		case Opcode::FUNCREF_iA_iBC: return "FUNCREF_iA_iBC";
 		case Opcode::ASSIGN_rA_rB_kC:return "ASSIGN_rA_rB_kC";
+		case Opcode::SUPER_LOADI_ASSIGN_rA_iBC: return "SUPER_LOADI_ASSIGN_rA_iBC";
+		case Opcode::SUPER_LOADK_ASSIGN_rA_kBC: return "SUPER_LOADK_ASSIGN_rA_kBC";
+		case Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC: return "SUPER_LOADNULL_ASSIGN_rA_kBC";
+		case Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC: return "SUPER_LOADR_ASSIGN_rA_rB_kC";
 		case Opcode::NAME_rA_kBC:    return "NAME_rA_kBC";
 		case Opcode::ADD_rA_rB_rC:   return "ADD_rA_rB_rC";
 		case Opcode::SUB_rA_rB_rC:   return "SUB_rA_rB_rC";
@@ -156,6 +160,10 @@ Opcode BytecodeUtil::FromMnemonic(String s) {
 	if (s == "LOADC_rA_rB_kC")  return Opcode::LOADC_rA_rB_kC;
 	if (s == "FUNCREF_iA_iBC")  return Opcode::FUNCREF_iA_iBC;
 	if (s == "ASSIGN_rA_rB_kC") return Opcode::ASSIGN_rA_rB_kC;
+	if (s == "SUPER_LOADI_ASSIGN_rA_iBC") return Opcode::SUPER_LOADI_ASSIGN_rA_iBC;
+	if (s == "SUPER_LOADK_ASSIGN_rA_kBC") return Opcode::SUPER_LOADK_ASSIGN_rA_kBC;
+	if (s == "SUPER_LOADNULL_ASSIGN_rA_kBC") return Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC;
+	if (s == "SUPER_LOADR_ASSIGN_rA_rB_kC") return Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC;
 	if (s == "NAME_rA_kBC")     return Opcode::NAME_rA_kBC;
 	if (s == "ADD_rA_rB_rC")    return Opcode::ADD_rA_rB_rC;
 	if (s == "SUB_rA_rB_rC")    return Opcode::SUB_rA_rB_rC;

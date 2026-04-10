@@ -28,6 +28,10 @@ public class FuncDef {
 	public Int16 SelfReg = -1;   // register for 'self' (-1 if not used)
 	public Int16 SuperReg = -1;  // register for 'super' (-1 if not used)
 
+	// Tier-2 JIT groundwork: runtime hot-function candidate metadata.
+	public bool JitIsHotCandidate = false;
+	public UInt64 JitObservedInstructions = 0;
+
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
 	// instead of executing bytecode.  Parameters are in stack[baseIndex+1..].

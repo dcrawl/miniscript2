@@ -651,7 +651,121 @@ Boolean UnitTests::TestEmitPatternValidation() {
 		"ADD_rA_rB_rC should be EmitPattern.ABC");
 	ok = ok && Assert(BytecodeUtil::GetEmitPattern(Opcode::LT_rA_rB_iC) == EmitPattern::ABC,
 		"LT_rA_rB_iC should be EmitPattern.ABC");
+	ok = ok && Assert(BytecodeUtil::GetEmitPattern(Opcode::SUPER_LOADI_ASSIGN_rA_iBC) == EmitPattern::AB,
+		"SUPER_LOADI_ASSIGN_rA_iBC should be EmitPattern.AB");
+	ok = ok && Assert(BytecodeUtil::GetEmitPattern(Opcode::SUPER_LOADK_ASSIGN_rA_kBC) == EmitPattern::AB,
+		"SUPER_LOADK_ASSIGN_rA_kBC should be EmitPattern.AB");
+	ok = ok && Assert(BytecodeUtil::GetEmitPattern(Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC) == EmitPattern::AB,
+		"SUPER_LOADNULL_ASSIGN_rA_kBC should be EmitPattern.AB");
+	ok = ok && Assert(BytecodeUtil::GetEmitPattern(Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC) == EmitPattern::ABC,
+		"SUPER_LOADR_ASSIGN_rA_rB_kC should be EmitPattern.ABC");
 
+	return ok;
+}
+FuncDef UnitTests::MakeSuperinstructionFusionCandidate() {
+	FuncDef func =  FuncDef::New();
+	func.set_Name("@main");
+	func.set_MaxRegs(4);
+	func.Constants().Add(make_string("x"));
+	func.Constants().Add(make_string("y"));
+	func.Constants().Add(make_string("z"));
+	func.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 1, 42));
+	func.Code().Add(BytecodeUtil::INS_ABC(Opcode::ASSIGN_rA_rB_kC, 1, 1, 0));
+	func.Code().Add(BytecodeUtil::INS_A(Opcode::LOADNULL_rA, 2));
+	func.Code().Add(BytecodeUtil::INS_ABC(Opcode::ASSIGN_rA_rB_kC, 2, 2, 1));
+	func.Code().Add(BytecodeUtil::INS_ABC(Opcode::LOAD_rA_rB, 3, 1, 0));
+	func.Code().Add(BytecodeUtil::INS_ABC(Opcode::ASSIGN_rA_rB_kC, 3, 3, 2));
+	func.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+	return func;
+}
+Boolean UnitTests::TestSuperinstructionFusion() {
+	Boolean ok = Boolean(true);
+
+	// Baseline: JIT tier off should not rewrite bytecode.
+	VM vmOff =  VM::New();
+	vmOff.set_JitTier(0);
+	List<FuncDef> funcsOffInput =  List<FuncDef>::New({ MakeSuperinstructionFusionCandidate() });
+	vmOff.Reset(funcsOffInput);
+	ok = ok && AssertEqual(vmOff.GetSuperinstructionRewriteCount(), 0);
+
+	Int32 superCountOff = 0;
+	List<FuncDef> funcsOff = vmOff.GetFunctions();
+	for (Int32 i = 0; i < funcsOff.Count(); i++) {
+		if (funcsOff[i].Name() != "@main") continue;
+		for (Int32 j = 0; j < funcsOff[i].Code().Count(); j++) {
+			Opcode op = (Opcode)BytecodeUtil::OP(funcsOff[i].Code()[j]);
+			if (op == Opcode::SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode::SUPER_LOADK_ASSIGN_rA_kBC
+				|| op == Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC) {
+				superCountOff++;
+			}
+		}
+	}
+	ok = ok && AssertEqual(superCountOff, 0);
+
+	// Super tier: should rewrite at least one eligible pair in @main.
+	VM vmSuper =  VM::New();
+	vmSuper.set_JitTier(1);
+	List<FuncDef> funcsSuperInput =  List<FuncDef>::New({ MakeSuperinstructionFusionCandidate() });
+	vmSuper.Reset(funcsSuperInput);
+	ok = ok && Assert(vmSuper.GetSuperinstructionRewriteCount() >= 3,
+		"Expected VM superinstruction rewrite counter to report at least 3 rewrites");
+
+	Int32 superCountOn = 0;
+	List<FuncDef> funcsSuper = vmSuper.GetFunctions();
+	for (Int32 i = 0; i < funcsSuper.Count(); i++) {
+		if (funcsSuper[i].Name() != "@main") continue;
+		for (Int32 j = 0; j < funcsSuper[i].Code().Count(); j++) {
+			Opcode op = (Opcode)BytecodeUtil::OP(funcsSuper[i].Code()[j]);
+			if (op == Opcode::SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode::SUPER_LOADK_ASSIGN_rA_kBC
+				|| op == Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC) {
+				superCountOn++;
+			}
+		}
+	}
+	ok = ok && Assert(superCountOn >= 3, "Expected fused opcodes for three candidate pairs with JIT super tier");
+
+	if (!ok) IOHelper::Print("TestSuperinstructionFusion FAILED");
+	return ok;
+}
+Boolean UnitTests::TestHotFunctionCandidates() {
+	Boolean ok = Boolean(true);
+
+	FuncDef f =  FuncDef::New();
+	f.set_Name("@main");
+	f.set_MaxRegs(1);
+	f.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	f.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	f.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(1);
+	vm.Reset( List<FuncDef>::New({ f }));
+	vm.Run();
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	Int32 mainIdx = -1;
+	for (Int32 i = 0; i < funcs.Count(); i++) {
+		if (funcs[i].Name() == "@main") {
+			mainIdx = i;
+			break;
+		}
+	}
+	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM");
+	if (mainIdx < 0) return Boolean(false);
+
+	ok = ok && Assert(vm.GetHotFunctionCandidateCount() >= 1,
+		"Expected at least one hot-function candidate");
+	List<Int32> cands = vm.GetHotFunctionCandidates();
+	ok = ok && Assert(cands.Count() >= 1 && cands[0] == mainIdx,
+		"Expected @main to be first hot-function candidate");
+	ok = ok && Assert(funcs[mainIdx].JitIsHotCandidate(),
+		"Expected @main JitIsHotCandidate flag to be set");
+	ok = ok && Assert(funcs[mainIdx].JitObservedInstructions() >= 1,
+		"Expected @main JitObservedInstructions >= 1");
+
+	if (!ok) IOHelper::Print("TestHotFunctionCandidates FAILED");
 	return ok;
 }
 Boolean UnitTests::TestLexer() {
@@ -1102,6 +1216,8 @@ Boolean UnitTests::RunAll() {
 		&& TestParser()
 		&& TestCodeGenerator()
 		&& TestEmitPatternValidation()
+		&& TestSuperinstructionFusion()
+		&& TestHotFunctionCandidates()
 		&& TestParserNeedMoreInput()
 		&& TestIntrinsicAllowlistV1()
 		&& TestInterpreterGlobalAccess()

@@ -12,7 +12,11 @@ String Disassembler::AssemOp(Opcode opcode) {
 		case Opcode::NOOP:          return "NOOP";
 		case Opcode::LOAD_rA_rB:
 		case Opcode::LOAD_rA_iBC:
-		case Opcode::LOAD_rA_kBC:   return "LOAD";
+		case Opcode::LOAD_rA_kBC:
+		case Opcode::SUPER_LOADI_ASSIGN_rA_iBC:
+		case Opcode::SUPER_LOADK_ASSIGN_rA_kBC:
+		case Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC:
+		case Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC:   return "LOAD";
 		case Opcode::LOADNULL_rA:   return "LOADNULL";
 		case Opcode::LOADV_rA_rB_kC: return "LOADV";
 		case Opcode::LOADC_rA_rB_kC: return "LOADC";
@@ -146,6 +150,7 @@ String Disassembler::ToString(UInt32 instruction) {
 		case Opcode::LIST_rA_iBC:
 		case Opcode::MAP_rA_iBC:
 		case Opcode::FUNCREF_iA_iBC:
+		case Opcode::SUPER_LOADI_ASSIGN_rA_iBC:
 		case Opcode::IFLT_rA_iBC:
 		case Opcode::IFLE_rA_iBC:
 		case Opcode::IFEQ_rA_iBC:
@@ -156,6 +161,18 @@ String Disassembler::ToString(UInt32 instruction) {
 				mnemonic,
 				(Int32)BytecodeUtil::Au(instruction),
 				(Int32)BytecodeUtil::BCs(instruction));
+		case Opcode::SUPER_LOADK_ASSIGN_rA_kBC:
+		case Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC:
+			return StringUtils::Format("{0} r{1}, k{2}",
+				mnemonic,
+				(Int32)BytecodeUtil::Au(instruction),
+				(Int32)BytecodeUtil::BCu(instruction));
+		case Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC:
+			return StringUtils::Format("{0} r{1}, r{2}, k{3}",
+				mnemonic,
+				(Int32)BytecodeUtil::Au(instruction),
+				(Int32)BytecodeUtil::Bu(instruction),
+				(Int32)BytecodeUtil::Cu(instruction));
 		// iAB, rC
 		case Opcode::IFLT_iAB_rC:
 		case Opcode::IFLE_iAB_rC:

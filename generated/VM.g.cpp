@@ -46,6 +46,9 @@ Value CallInfo::GetLocalVarMap(List<Value> registers,List<Value> names,int baseI
 	return LocalVarMap;
 }
 
+const Int32 VMStorage::JitTierOff = 0;
+const Int32 VMStorage::JitTierSuper = 1;
+const Int32 VMStorage::JitTierStub = 2;
 void VM::SetInterpreter(Interpreter interp) { return get()->SetInterpreter(interp); } // NO_INLINE
 void VMStorage::SetInterpreter(Interpreter interp) { // NO_INLINE
 	interpreter = interp.get_storage();
@@ -113,6 +116,9 @@ void VMStorage::InitVM(Int32 stackSlots,Int32 callSlots) {
 	names =  List<Value>::New();
 	callStack =  List<CallInfo>::New();
 	functions =  List<FuncDef>::New();
+	functionExecutionCounts =  List<UInt64>::New();
+	superinstructionRewritesByFunction =  List<Int32>::New();
+	hotFunctionCandidates =  List<Int32>::New();
 	callStackTop = 0;
 	RuntimeError = "";
 
@@ -158,6 +164,99 @@ void VMStorage::MarkRoots(void* user_data) {
 void VMStorage::RegisterFunction(FuncDef funcDef) {
 	functions.Add(funcDef);
 }
+void VMStorage::ApplySuperinstructions() {
+	superinstructionRewriteCount = 0;
+	superinstructionRewritesByFunction.Clear();
+	for (Int32 i = 0; i < functions.Count(); i++) superinstructionRewritesByFunction.Add(0);
+	if (JitTier == JitTierOff) return;
+	for (Int32 f = 0; f < functions.Count(); f++) {
+		FuncDef func = functions[f];
+		if (!IsNull(func.NativeCallback())) continue;
+		List<UInt32> code = func.Code();
+		for (Int32 i = 0; i + 1 < code.Count(); i++) {
+			UInt32 ins0 = code[i];
+			UInt32 ins1 = code[i + 1];
+			Opcode op0 = (Opcode)BytecodeUtil::OP(ins0);
+			Opcode op1 = (Opcode)BytecodeUtil::OP(ins1);
+
+			if (op1 != Opcode::ASSIGN_rA_rB_kC) continue;
+			Byte assignDst = BytecodeUtil::Au(ins1);
+			Byte assignSrc = BytecodeUtil::Bu(ins1);
+
+			if (op0 == Opcode::LOAD_rA_iBC) {
+				Byte a = BytecodeUtil::Au(ins0);
+				if (assignDst == a && assignSrc == a) {
+					superinstructionRewriteCount++;
+					superinstructionRewritesByFunction[f]++;
+					code[i] = BytecodeUtil::INS_AB(Opcode::SUPER_LOADI_ASSIGN_rA_iBC, a, BytecodeUtil::BCs(ins0));
+				}
+			} else if (op0 == Opcode::LOAD_rA_kBC) {
+				Byte a = BytecodeUtil::Au(ins0);
+				if (assignDst == a && assignSrc == a) {
+					superinstructionRewriteCount++;
+					superinstructionRewritesByFunction[f]++;
+					code[i] = BytecodeUtil::INS_AB(Opcode::SUPER_LOADK_ASSIGN_rA_kBC, a, BytecodeUtil::BCs(ins0));
+				}
+			} else if (op0 == Opcode::LOADNULL_rA) {
+				Byte a = BytecodeUtil::Au(ins0);
+				if (assignDst == a && assignSrc == a) {
+					superinstructionRewriteCount++;
+					superinstructionRewritesByFunction[f]++;
+					Byte assignName = BytecodeUtil::Cu(ins1);
+					code[i] = BytecodeUtil::INS_AB(Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC, a, assignName);
+				}
+			} else if (op0 == Opcode::LOAD_rA_rB) {
+				Byte a = BytecodeUtil::Au(ins0);
+				Byte b = BytecodeUtil::Bu(ins0);
+				if (assignDst == a && assignSrc == a) {
+					superinstructionRewriteCount++;
+					superinstructionRewritesByFunction[f]++;
+					Byte assignName = BytecodeUtil::Cu(ins1);
+					code[i] = BytecodeUtil::INS_ABC(Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC, a, b, assignName);
+				}
+			}
+		}
+	}
+}
+void VMStorage::ClearHotFunctionCandidates() {
+	hotFunctionCandidates.Clear();
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		functions[i].set_JitIsHotCandidate(Boolean(false));
+		functions[i].set_JitObservedInstructions(0);
+	}
+}
+void VMStorage::RefreshHotFunctionCandidates() {
+	ClearHotFunctionCandidates();
+	if (!EnableJitProfiling) return;
+	Int32 limit = JitHotFunctionLimit;
+	if (limit < 0) limit = 0;
+	for (Int32 rank = 0; rank < limit; rank++) {
+		Int32 bestIdx = -1;
+		UInt64 bestCount = 0;
+		for (Int32 i = 0; i < functionExecutionCounts.Count(); i++) {
+			FuncDef candidateFunc = functions[i];
+			if (!IsNull(candidateFunc.NativeCallback())) continue;
+			UInt64 count = functionExecutionCounts[i];
+			if (count < (UInt64)JitHotThreshold) continue;
+			bool alreadySelected = Boolean(false);
+			for (Int32 j = 0; j < hotFunctionCandidates.Count(); j++) {
+				if (hotFunctionCandidates[j] == i) {
+					alreadySelected = Boolean(true);
+					break;
+				}
+			}
+			if (alreadySelected) continue;
+			if (bestIdx < 0 || count > bestCount) {
+				bestIdx = i;
+				bestCount = count;
+			}
+		}
+		if (bestIdx < 0) break;
+		hotFunctionCandidates.Add(bestIdx);
+		functions[bestIdx].set_JitIsHotCandidate(Boolean(true));
+		functions[bestIdx].set_JitObservedInstructions(bestCount);
+	}
+}
 void VMStorage::Reset(List<FuncDef> allFunctions) {
 	Reset(allFunctions, val_null);
 }
@@ -198,6 +297,8 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 		IOHelper::Print("Entry function has no code");
 		return;
 	}
+
+	ApplySuperinstructions();
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -241,6 +342,13 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 	if (DebugMode) {
 		IOHelper::Print(StringUtils::Format("VM Reset: Executing {0} out of {1} functions", mainFunc.Name(), functions.Count()));
 	}
+
+	totalExecutedInstructions = 0;
+	functionExecutionCounts.Clear();
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		functionExecutionCounts.Add(0);
+	}
+	ClearHotFunctionCandidates();
 }
 void VMStorage::Stop() {
 	IsRunning = Boolean(false);
@@ -261,6 +369,28 @@ Int32 VMStorage::FunctionCount() {
 }
 List<FuncDef> VMStorage::GetFunctions() {
 	return functions;
+}
+UInt64 VMStorage::GetTotalExecutedInstructions() {
+	return totalExecutedInstructions;
+}
+List<UInt64> VMStorage::GetFunctionExecutionCounts() {
+	return functionExecutionCounts;
+}
+Boolean VMStorage::IsFunctionHot(Int32 funcIndex) {
+	if (funcIndex < 0 || funcIndex >= functionExecutionCounts.Count()) return Boolean(false);
+	return functionExecutionCounts[funcIndex] >= (UInt64)JitHotThreshold;
+}
+Int32 VMStorage::GetSuperinstructionRewriteCount() {
+	return superinstructionRewriteCount;
+}
+List<Int32> VMStorage::GetSuperinstructionRewritesByFunction() {
+	return superinstructionRewritesByFunction;
+}
+List<Int32> VMStorage::GetHotFunctionCandidates() {
+	return hotFunctionCandidates;
+}
+Int32 VMStorage::GetHotFunctionCandidateCount() {
+	return hotFunctionCandidates.Count();
 }
 Int32 VMStorage::SelfParamOffset(FuncDefRef callee) {
 	if (hasPendingContext && callee.ParamNames.Count() > 0 && value_equal(callee.ParamNames[0], val_self)) {
@@ -450,6 +580,9 @@ Value VMStorage::Run(UInt32 maxCycles) {
 
 	GC_PUSH_SCOPE();
 	Value runResult = RunInner(maxCycles); GC_PROTECT(&runResult);
+	if (EnableJitProfiling) {
+		RefreshHotFunctionCandidates();
+	}
 	_activeVM = previousVM;
 	GC_POP_SCOPE();
 	return runResult;
@@ -507,6 +640,12 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 		}
 
 		UInt32 instruction = curCode[pc++];
+		if (EnableJitProfiling) {
+			totalExecutedInstructions++;
+			if (currentFuncIndex >= 0 && currentFuncIndex < functionExecutionCounts.Count()) {
+				functionExecutionCounts[currentFuncIndex]++;
+			}
+		}
 
 		if (DebugMode) {
 			IOHelper::Print(StringUtils::Format("{0} {1}: {2}     r0:{3}, r1:{4}, r2:{5}",
@@ -636,6 +775,105 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					varmap_map_to_register(ReplGlobals, valC, 
 						&stack[0],
 						baseIndex + a);
+				}
+				VM_NEXT();
+			}
+
+			VM_CASE(SUPER_LOADI_ASSIGN_rA_iBC) {
+				// Fused LOAD immediate + ASSIGN self-to-name.
+				Byte a = BytecodeUtil::Au(instruction);
+				short bc = BytecodeUtil::BCs(instruction);
+				localStack[a] = make_int(bc);
+				if (pc < codeCount) {
+					UInt32 nextInstruction = curCode[pc];
+					if ((Opcode)BytecodeUtil::OP(nextInstruction) == Opcode::ASSIGN_rA_rB_kC
+						&& BytecodeUtil::Au(nextInstruction) == a
+						&& BytecodeUtil::Bu(nextInstruction) == a) {
+						Byte c = BytecodeUtil::Cu(nextInstruction);
+						valC = curConstants[c];
+						names[baseIndex + a] = valC;
+						if (baseIndex == 0 && !is_null(ReplGlobals)) {
+							varmap_map_to_register(ReplGlobals,
+								valC,
+								&stack[0],
+								baseIndex + a);
+						}
+						pc++;
+					}
+				}
+				VM_NEXT();
+			}
+
+			VM_CASE(SUPER_LOADK_ASSIGN_rA_kBC) {
+				// Fused LOAD constant + ASSIGN self-to-name.
+				Byte a = BytecodeUtil::Au(instruction);
+				UInt16 constIdx = BytecodeUtil::BCu(instruction);
+				localStack[a] = curConstants[constIdx];
+				if (pc < codeCount) {
+					UInt32 nextInstruction = curCode[pc];
+					if ((Opcode)BytecodeUtil::OP(nextInstruction) == Opcode::ASSIGN_rA_rB_kC
+						&& BytecodeUtil::Au(nextInstruction) == a
+						&& BytecodeUtil::Bu(nextInstruction) == a) {
+						Byte c = BytecodeUtil::Cu(nextInstruction);
+						valC = curConstants[c];
+						names[baseIndex + a] = valC;
+						if (baseIndex == 0 && !is_null(ReplGlobals)) {
+							varmap_map_to_register(ReplGlobals,
+								valC,
+								&stack[0],
+								baseIndex + a);
+						}
+						pc++;
+					}
+				}
+				VM_NEXT();
+			}
+
+			VM_CASE(SUPER_LOADNULL_ASSIGN_rA_kBC) {
+				// Fused LOADNULL + ASSIGN self-to-name.
+				Byte a = BytecodeUtil::Au(instruction);
+				localStack[a] = val_null;
+				if (pc < codeCount) {
+					UInt32 nextInstruction = curCode[pc];
+					if ((Opcode)BytecodeUtil::OP(nextInstruction) == Opcode::ASSIGN_rA_rB_kC
+						&& BytecodeUtil::Au(nextInstruction) == a
+						&& BytecodeUtil::Bu(nextInstruction) == a) {
+						Byte c = BytecodeUtil::Cu(nextInstruction);
+						valC = curConstants[c];
+						names[baseIndex + a] = valC;
+						if (baseIndex == 0 && !is_null(ReplGlobals)) {
+							varmap_map_to_register(ReplGlobals,
+								valC,
+								&stack[0],
+								baseIndex + a);
+						}
+						pc++;
+					}
+				}
+				VM_NEXT();
+			}
+
+			VM_CASE(SUPER_LOADR_ASSIGN_rA_rB_kC) {
+				// Fused register copy + ASSIGN self-to-name.
+				Byte a = BytecodeUtil::Au(instruction);
+				Byte b = BytecodeUtil::Bu(instruction);
+				localStack[a] = localStack[b];
+				if (pc < codeCount) {
+					UInt32 nextInstruction = curCode[pc];
+					if ((Opcode)BytecodeUtil::OP(nextInstruction) == Opcode::ASSIGN_rA_rB_kC
+						&& BytecodeUtil::Au(nextInstruction) == a
+						&& BytecodeUtil::Bu(nextInstruction) == a) {
+						Byte c = BytecodeUtil::Cu(nextInstruction);
+						valC = curConstants[c];
+						names[baseIndex + a] = valC;
+						if (baseIndex == 0 && !is_null(ReplGlobals)) {
+							varmap_map_to_register(ReplGlobals,
+								valC,
+								&stack[0],
+								baseIndex + a);
+						}
+						pc++;
+					}
 				}
 				VM_NEXT();
 			}

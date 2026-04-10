@@ -36,6 +36,18 @@ struct CallInfo {
 class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	friend struct VM;
 	public: Boolean DebugMode = false;
+	public: static const Int32 JitTierOff;
+	public: static const Int32 JitTierSuper;
+	public: static const Int32 JitTierStub;
+	public: Int32 JitTier = JitTierOff;
+	public: Boolean EnableJitProfiling = false;
+	public: Int32 JitHotThreshold = 100000;
+	public: Int32 JitHotFunctionLimit = 3;
+	private: UInt64 totalExecutedInstructions;
+	private: List<UInt64> functionExecutionCounts;
+	private: Int32 superinstructionRewriteCount;
+	private: List<Int32> superinstructionRewritesByFunction;
+	private: List<Int32> hotFunctionCandidates;
 	private: List<Value> stack;
 	private: List<Value> names; // Variable names parallel to stack (null if unnamed)
 	private: InterpreterStorage* interpreter;
@@ -128,6 +140,15 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	public: void RegisterFunction(FuncDef funcDef);
 
+	// Superinstruction tier: fuse common bytecode pairs by rewriting the first
+	// opcode only. The second opcode remains in place so branch targets stay valid;
+	// the fused opcode consumes it when reached sequentially.
+	private: void ApplySuperinstructions();
+
+	private: void ClearHotFunctionCandidates();
+
+	private: void RefreshHotFunctionCandidates();
+
 	public: void Reset(List<FuncDef> allFunctions);
 
 	public: void Reset(List<FuncDef> allFunctions, Value replGlobals);
@@ -141,6 +162,20 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	public: Int32 FunctionCount();
 
 	public: List<FuncDef> GetFunctions();
+
+	public: UInt64 GetTotalExecutedInstructions();
+
+	public: List<UInt64> GetFunctionExecutionCounts();
+
+	public: Boolean IsFunctionHot(Int32 funcIndex);
+
+	public: Int32 GetSuperinstructionRewriteCount();
+
+	public: List<Int32> GetSuperinstructionRewritesByFunction();
+
+	public: List<Int32> GetHotFunctionCandidates();
+
+	public: Int32 GetHotFunctionCandidateCount();
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -216,6 +251,27 @@ struct VM {
 
 	public: Boolean DebugMode();
 	public: void set_DebugMode(Boolean _v);
+	public: Int32 JitTierOff();
+	public: Int32 JitTierSuper();
+	public: Int32 JitTierStub();
+	public: Int32 JitTier();
+	public: void set_JitTier(Int32 _v);
+	public: Boolean EnableJitProfiling();
+	public: void set_EnableJitProfiling(Boolean _v);
+	public: Int32 JitHotThreshold();
+	public: void set_JitHotThreshold(Int32 _v);
+	public: Int32 JitHotFunctionLimit();
+	public: void set_JitHotFunctionLimit(Int32 _v);
+	private: UInt64 totalExecutedInstructions();
+	private: void set_totalExecutedInstructions(UInt64 _v);
+	private: List<UInt64> functionExecutionCounts();
+	private: void set_functionExecutionCounts(List<UInt64> _v);
+	private: Int32 superinstructionRewriteCount();
+	private: void set_superinstructionRewriteCount(Int32 _v);
+	private: List<Int32> superinstructionRewritesByFunction();
+	private: void set_superinstructionRewritesByFunction(List<Int32> _v);
+	private: List<Int32> hotFunctionCandidates();
+	private: void set_hotFunctionCandidates(List<Int32> _v);
 	private: List<Value> stack();
 	private: void set_stack(List<Value> _v);
 	private: List<Value> names(); // Variable names parallel to stack (null if unnamed)
@@ -329,6 +385,15 @@ struct VM {
 
 	public: inline void RegisterFunction(FuncDef funcDef);
 
+	// Superinstruction tier: fuse common bytecode pairs by rewriting the first
+	// opcode only. The second opcode remains in place so branch targets stay valid;
+	// the fused opcode consumes it when reached sequentially.
+	private: inline void ApplySuperinstructions();
+
+	private: inline void ClearHotFunctionCandidates();
+
+	private: inline void RefreshHotFunctionCandidates();
+
 	public: inline void Reset(List<FuncDef> allFunctions);
 
 	public: inline void Reset(List<FuncDef> allFunctions, Value replGlobals);
@@ -342,6 +407,20 @@ struct VM {
 	public: inline Int32 FunctionCount();
 
 	public: inline List<FuncDef> GetFunctions();
+
+	public: inline UInt64 GetTotalExecutedInstructions();
+
+	public: inline List<UInt64> GetFunctionExecutionCounts();
+
+	public: inline Boolean IsFunctionHot(Int32 funcIndex);
+
+	public: inline Int32 GetSuperinstructionRewriteCount();
+
+	public: inline List<Int32> GetSuperinstructionRewritesByFunction();
+
+	public: inline List<Int32> GetHotFunctionCandidates();
+
+	public: inline Int32 GetHotFunctionCandidateCount();
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -408,6 +487,27 @@ struct VM {
 inline VMStorage* VM::get() const { return static_cast<VMStorage*>(storage.get()); }
 inline Boolean VM::DebugMode() { return get()->DebugMode; }
 inline void VM::set_DebugMode(Boolean _v) { get()->DebugMode = _v; }
+inline Int32 VM::JitTierOff() { return get()->JitTierOff; }
+inline Int32 VM::JitTierSuper() { return get()->JitTierSuper; }
+inline Int32 VM::JitTierStub() { return get()->JitTierStub; }
+inline Int32 VM::JitTier() { return get()->JitTier; }
+inline void VM::set_JitTier(Int32 _v) { get()->JitTier = _v; }
+inline Boolean VM::EnableJitProfiling() { return get()->EnableJitProfiling; }
+inline void VM::set_EnableJitProfiling(Boolean _v) { get()->EnableJitProfiling = _v; }
+inline Int32 VM::JitHotThreshold() { return get()->JitHotThreshold; }
+inline void VM::set_JitHotThreshold(Int32 _v) { get()->JitHotThreshold = _v; }
+inline Int32 VM::JitHotFunctionLimit() { return get()->JitHotFunctionLimit; }
+inline void VM::set_JitHotFunctionLimit(Int32 _v) { get()->JitHotFunctionLimit = _v; }
+inline UInt64 VM::totalExecutedInstructions() { return get()->totalExecutedInstructions; }
+inline void VM::set_totalExecutedInstructions(UInt64 _v) { get()->totalExecutedInstructions = _v; }
+inline List<UInt64> VM::functionExecutionCounts() { return get()->functionExecutionCounts; }
+inline void VM::set_functionExecutionCounts(List<UInt64> _v) { get()->functionExecutionCounts = _v; }
+inline Int32 VM::superinstructionRewriteCount() { return get()->superinstructionRewriteCount; }
+inline void VM::set_superinstructionRewriteCount(Int32 _v) { get()->superinstructionRewriteCount = _v; }
+inline List<Int32> VM::superinstructionRewritesByFunction() { return get()->superinstructionRewritesByFunction; }
+inline void VM::set_superinstructionRewritesByFunction(List<Int32> _v) { get()->superinstructionRewritesByFunction = _v; }
+inline List<Int32> VM::hotFunctionCandidates() { return get()->hotFunctionCandidates; }
+inline void VM::set_hotFunctionCandidates(List<Int32> _v) { get()->hotFunctionCandidates = _v; }
 inline List<Value> VM::stack() { return get()->stack; }
 inline void VM::set_stack(List<Value> _v) { get()->stack = _v; }
 inline List<Value> VM::names() { return get()->names; } // Variable names parallel to stack (null if unnamed)
@@ -468,6 +568,9 @@ inline String VM::GetFunctionName(Int32 funcIndex) { return get()->GetFunctionNa
 inline void VM::InitVM(Int32 stackSlots,Int32 callSlots) { return get()->InitVM(stackSlots, callSlots); }
 inline void VM::CleanupVM() { return get()->CleanupVM(); }
 inline void VM::RegisterFunction(FuncDef funcDef) { return get()->RegisterFunction(funcDef); }
+inline void VM::ApplySuperinstructions() { return get()->ApplySuperinstructions(); }
+inline void VM::ClearHotFunctionCandidates() { return get()->ClearHotFunctionCandidates(); }
+inline void VM::RefreshHotFunctionCandidates() { return get()->RefreshHotFunctionCandidates(); }
 inline void VM::Reset(List<FuncDef> allFunctions) { return get()->Reset(allFunctions); }
 inline void VM::Reset(List<FuncDef> allFunctions,Value replGlobals) { return get()->Reset(allFunctions, replGlobals); }
 inline void VM::Stop() { return get()->Stop(); }
@@ -475,6 +578,13 @@ inline void VM::RaiseRuntimeError(String message) { return get()->RaiseRuntimeEr
 inline bool VM::ReportRuntimeError() { return get()->ReportRuntimeError(); }
 inline Int32 VM::FunctionCount() { return get()->FunctionCount(); }
 inline List<FuncDef> VM::GetFunctions() { return get()->GetFunctions(); }
+inline UInt64 VM::GetTotalExecutedInstructions() { return get()->GetTotalExecutedInstructions(); }
+inline List<UInt64> VM::GetFunctionExecutionCounts() { return get()->GetFunctionExecutionCounts(); }
+inline Boolean VM::IsFunctionHot(Int32 funcIndex) { return get()->IsFunctionHot(funcIndex); }
+inline Int32 VM::GetSuperinstructionRewriteCount() { return get()->GetSuperinstructionRewriteCount(); }
+inline List<Int32> VM::GetSuperinstructionRewritesByFunction() { return get()->GetSuperinstructionRewritesByFunction(); }
+inline List<Int32> VM::GetHotFunctionCandidates() { return get()->GetHotFunctionCandidates(); }
+inline Int32 VM::GetHotFunctionCandidateCount() { return get()->GetHotFunctionCandidateCount(); }
 inline Int32 VM::SelfParamOffset(FuncDefRef callee) { return get()->SelfParamOffset(callee); }
 inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDefRef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
 inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDefRef callee) { return get()->ApplyPendingContext(calleeBase, callee); }

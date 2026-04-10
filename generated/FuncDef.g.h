@@ -24,7 +24,11 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	public: List<Value> ParamDefaults = List<Value>::New(); // default values for parameters
 	public: Int16 SelfReg = -1; // register for 'self' (-1 if not used)
 	public: Int16 SuperReg = -1; // register for 'super' (-1 if not used)
+	public: bool JitIsHotCandidate = false;
+	public: UInt64 JitObservedInstructions = 0;
 	public: NativeCallbackDelegate NativeCallback = null;
+
+	// Tier-2 JIT groundwork: runtime hot-function candidate metadata.
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
@@ -71,8 +75,14 @@ struct FuncDef {
 	public: void set_SelfReg(Int16 _v); // register for 'self' (-1 if not used)
 	public: Int16 SuperReg(); // register for 'super' (-1 if not used)
 	public: void set_SuperReg(Int16 _v); // register for 'super' (-1 if not used)
+	public: bool JitIsHotCandidate();
+	public: void set_JitIsHotCandidate(bool _v);
+	public: UInt64 JitObservedInstructions();
+	public: void set_JitObservedInstructions(UInt64 _v);
 	public: NativeCallbackDelegate NativeCallback();
 	public: void set_NativeCallback(NativeCallbackDelegate _v);
+
+	// Tier-2 JIT groundwork: runtime hot-function candidate metadata.
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
@@ -111,6 +121,10 @@ inline Int16 FuncDef::SelfReg() { return get()->SelfReg; } // register for 'self
 inline void FuncDef::set_SelfReg(Int16 _v) { get()->SelfReg = _v; } // register for 'self' (-1 if not used)
 inline Int16 FuncDef::SuperReg() { return get()->SuperReg; } // register for 'super' (-1 if not used)
 inline void FuncDef::set_SuperReg(Int16 _v) { get()->SuperReg = _v; } // register for 'super' (-1 if not used)
+inline bool FuncDef::JitIsHotCandidate() { return get()->JitIsHotCandidate; }
+inline void FuncDef::set_JitIsHotCandidate(bool _v) { get()->JitIsHotCandidate = _v; }
+inline UInt64 FuncDef::JitObservedInstructions() { return get()->JitObservedInstructions; }
+inline void FuncDef::set_JitObservedInstructions(UInt64 _v) { get()->JitObservedInstructions = _v; }
 inline NativeCallbackDelegate FuncDef::NativeCallback() { return get()->NativeCallback; }
 inline void FuncDef::set_NativeCallback(NativeCallbackDelegate _v) { get()->NativeCallback = _v; }
 inline void FuncDef::ReserveRegister(Int32 registerNumber) { return get()->ReserveRegister(registerNumber); }

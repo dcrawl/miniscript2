@@ -7,6 +7,12 @@
 
 namespace MiniScript {
 
+void InterpreterStorage::ApplyVMExecutionOptions() {
+	if (IsNull(vm)) return;
+	vm.set_JitTier(JitTier);
+	vm.set_EnableJitProfiling(EnableJitProfiling);
+	vm.set_JitHotThreshold(JitHotThreshold);
+}
 InterpreterStorage::InterpreterStorage(String source,TextOutputMethod standardOutput,TextOutputMethod errorOutput) {
 	Init(source, standardOutput, errorOutput);
 }
@@ -44,6 +50,7 @@ void InterpreterStorage::Reset(List<FuncDef> functions) {
 
 	// Create and configure VM
 	vm =  VM::New();
+	ApplyVMExecutionOptions();
 	vm.set_Errors(errors);
 	vm.SetInterpreter(_this);
 	vm.Reset(functions);
@@ -92,6 +99,7 @@ void InterpreterStorage::Compile() {
 
 	// Create and configure VM
 	vm =  VM::New();
+	ApplyVMExecutionOptions();
 	vm.set_Errors(errors);
 	vm.SetInterpreter(_this);
 	vm.Reset(compiledFunctions);
@@ -104,6 +112,7 @@ void InterpreterStorage::Compile() {
 void InterpreterStorage::Restart() {
 	if (!IsNull(vm) && !IsNull(compiledFunctions)) {
 		errors.Clear();
+		ApplyVMExecutionOptions();
 		vm.Reset(compiledFunctions);
 	}
 }
@@ -214,6 +223,7 @@ void InterpreterStorage::REPL(String sourceLine,double timeLimit) {
 
 	// Create/reset VM
 	if (IsNull(vm)) vm =  VM::New();
+	ApplyVMExecutionOptions();
 	vm.set_Errors(errors);
 	vm.SetInterpreter(_this);
 	vm.Reset(functions, _replGlobals);

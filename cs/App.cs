@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;	// only for ToList!
 using System.Threading;
 using MiniScript;
 using static MiniScript.ValueHelpers;
@@ -29,29 +28,41 @@ using static MiniScript.ValueHelpers;
 namespace MiniScript {
 
 public struct App {
+	private const Int32 JitTierOff = 0;
+	private const Int32 JitTierSuper = 1;
+	private const Int32 JitTierStub = 2;
+
 	public static bool debugMode = false;
 	public static bool visMode = false;
-	public static VMJitTier jitTier = VMJitTier.Off;
+	public static Int32 jitTier = JitTierOff;
 	public static bool jitProfile = false;
 	public static Int32 jitHotThreshold = 100000;
 
-	private static bool TryParseJitTier(String text, out VMJitTier parsedTier) {
-		parsedTier = VMJitTier.Off;
-		if (String.IsNullOrEmpty(text)) return false;
+	private static Int32 ParseJitTier(String text) {
+		if (String.IsNullOrEmpty(text)) return -1;
 		String normalized = text.ToLower();
 		if (normalized == "off" || normalized == "0") {
-			parsedTier = VMJitTier.Off;
-			return true;
+			return JitTierOff;
 		}
 		if (normalized == "super" || normalized == "on" || normalized == "1") {
-			parsedTier = VMJitTier.Super;
-			return true;
+			return JitTierSuper;
 		}
 		if (normalized == "stub" || normalized == "2") {
-			parsedTier = VMJitTier.Stub;
-			return true;
+			return JitTierStub;
 		}
-		return false;
+		return -1;
+	}
+
+	private static String JitTierName(Int32 tier) {
+		if (tier == JitTierSuper) return "super";
+		if (tier == JitTierStub) return "stub";
+		return "off";
+	}
+
+	private static String FormatCounter(UInt64 value) {
+		// Transpiler-safe display path: UInt64 formatting in C++ currently degrades.
+		if (value > 2147483647UL) return ">2.1B";
+		return StringUtils.Format("{0}", (Int32)value);
 	}
 
 	private static void ApplyRuntimeOptions(Interpreter interp) {
@@ -77,13 +88,15 @@ public struct App {
 				visMode = true;
 			} else if (args[i] == "-jit" && i + 1 < args.Count) {
 				i = i + 1;
-				if (!TryParseJitTier(args[i], out jitTier)) {
+				jitTier = ParseJitTier(args[i]);
+				if (jitTier < 0) {
 					IOHelper.Print(StringUtils.Format("Invalid -jit value: {0} (use off|super|stub)", args[i]));
 					return;
 				}
 			} else if (args[i].StartsWith("-jit=")) {
 				String tierText = args[i].Substring(5);
-				if (!TryParseJitTier(tierText, out jitTier)) {
+				jitTier = ParseJitTier(tierText);
+				if (jitTier < 0) {
 					IOHelper.Print(StringUtils.Format("Invalid -jit value: {0} (use off|super|stub)", tierText));
 					return;
 				}
@@ -366,7 +379,10 @@ public struct App {
 		if (debugMode) {
 			List<FuncDef> functions = vm.GetFunctions();
 			IOHelper.Print(StringUtils.Format("JIT tier: {0}; profiling: {1}; hot threshold: {2}",
-				jitTier, jitProfile, jitHotThreshold));
+				JitTierName(jitTier), jitProfile, jitHotThreshold));
+			if (jitTier != JitTierOff) {
+				IOHelper.Print(StringUtils.Format("Superinstruction rewrites this reset: {0}", vm.GetSuperinstructionRewriteCount()));
+			}
 			IOHelper.Print("Disassembly:\n");
 			List<String> disassembly = Disassembler.Disassemble(functions, true);
 			for (Int32 i = 0; i < disassembly.Count; i++) {
@@ -429,21 +445,50 @@ public struct App {
 			if (jitProfile) {
 				List<FuncDef> functions = vm.GetFunctions();
 				List<UInt64> counts = vm.GetFunctionExecutionCounts();
-				List<Int32> indices = new List<Int32>();
-				for (Int32 i = 0; i < counts.Count; i++) indices.Add(i);
-				List<Int32> hotIndices = indices
-					.OrderByDescending(idx => counts[idx])
-					.Where(idx => counts[idx] > 0)
-					.Take(5)
-					.ToList();
-				IOHelper.Print(StringUtils.Format("JIT profile: total instructions = {0}", vm.GetTotalExecutedInstructions()));
-				for (Int32 i = 0; i < hotIndices.Count; i++) {
-					Int32 idx = hotIndices[i];
+				List<Int32> selected = new List<Int32>();
+				IOHelper.Print(StringUtils.Format("JIT profile: total instructions = {0}",
+					FormatCounter(vm.GetTotalExecutedInstructions())));
+				if (jitTier != JitTierOff) {
+					IOHelper.Print(StringUtils.Format("JIT profile: superinstruction rewrites = {0}", vm.GetSuperinstructionRewriteCount()));
+				}
+				for (Int32 rank = 0; rank < 5; rank++) {
+					Int32 bestIdx = -1;
+					UInt64 bestCount = 0;
+					for (Int32 i = 0; i < counts.Count; i++) {
+						UInt64 c = counts[i];
+						if (c == 0) continue;
+						bool alreadyPrinted = false;
+						for (Int32 prior = 0; prior < selected.Count; prior++) {
+							if (selected[prior] == i) {
+								alreadyPrinted = true;
+								break;
+							}
+						}
+						if (alreadyPrinted) continue;
+						if (bestIdx < 0 || c > bestCount) {
+							bestIdx = i;
+							bestCount = c;
+						}
+					}
+					if (bestIdx < 0) break;
+					selected.Add(bestIdx);
 					IOHelper.Print(StringUtils.Format("  hot[{0}] {1}: {2} steps{3}",
-						i + 1,
-						functions[idx].Name,
-						counts[idx],
-						vm.IsFunctionHot(idx) ? " (hot)" : ""));
+						rank + 1,
+						functions[bestIdx].Name,
+						FormatCounter(bestCount),
+						vm.IsFunctionHot(bestIdx) ? " (hot)" : ""));
+				}
+
+				List<Int32> candidates = vm.GetHotFunctionCandidates();
+				if (candidates.Count > 0) {
+					IOHelper.Print(StringUtils.Format("JIT profile: top candidate slots = {0}", candidates.Count));
+					for (Int32 i = 0; i < candidates.Count; i++) {
+						Int32 idx = candidates[i];
+						IOHelper.Print(StringUtils.Format("  cand[{0}] {1}: {2} steps",
+							i + 1,
+							functions[idx].Name,
+							FormatCounter(functions[idx].JitObservedInstructions)));
+					}
 				}
 			}
 		}

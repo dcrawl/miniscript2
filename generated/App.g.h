@@ -10,8 +10,22 @@ namespace MiniScript {
 // DECLARATIONS
 
 struct App {
+	private: static const Int32 JitTierOff;
+	private: static const Int32 JitTierSuper;
+	private: static const Int32 JitTierStub;
 	public: static bool debugMode;
 	public: static bool visMode;
+	public: static Int32 jitTier;
+	public: static bool jitProfile;
+	public: static Int32 jitHotThreshold;
+
+	private: static Int32 ParseJitTier(String text);
+
+	private: static String JitTierName(Int32 tier);
+
+	private: static String FormatCounter(UInt64 value);
+
+	private: static void ApplyRuntimeOptions(Interpreter interp);
 	
 	public: static void MainProgram(List<String> args);
 

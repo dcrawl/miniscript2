@@ -46,6 +46,12 @@ class UnitTests {
 
 	public: static Boolean TestEmitPatternValidation();
 
+	private: static FuncDef MakeSuperinstructionFusionCandidate();
+
+	public: static Boolean TestSuperinstructionFusion();
+
+	public: static Boolean TestHotFunctionCandidates();
+
 	public: static Boolean TestLexer();
 
 	// Helper: run a sequence of REPL inputs and collect all printed output.

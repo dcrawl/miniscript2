@@ -32,6 +32,9 @@ class InterpreterStorage : public std::enable_shared_from_this<InterpreterStorag
 	public: TextOutputMethod errorOutput;
 	public: object hostData;
 	public: VM vm;
+	public: Int32 JitTier = 0;
+	public: bool EnableJitProfiling = false;
+	public: Int32 JitHotThreshold = 100000;
 	protected: String source;
 	protected: Parser parser;
 	protected: ErrorPool errors;
@@ -73,7 +76,11 @@ class InterpreterStorage : public std::enable_shared_from_this<InterpreterStorag
 	/// will not need to use this, but it's provided for advanced users.
 	/// </summary>
 
+	// Runtime execution tuning options forwarded to the VM.
+
 	// REPL state
+
+	private: void ApplyVMExecutionOptions();
 
   
 	/// <summary>
@@ -222,6 +229,12 @@ struct Interpreter {
 	public: void set_hostData(object _v);
 	public: VM vm();
 	public: void set_vm(VM _v);
+	public: Int32 JitTier();
+	public: void set_JitTier(Int32 _v);
+	public: bool EnableJitProfiling();
+	public: void set_EnableJitProfiling(bool _v);
+	public: Int32 JitHotThreshold();
+	public: void set_JitHotThreshold(Int32 _v);
 	protected: String source();
 	protected: void set_source(String _v);
 	protected: Parser parser();
@@ -234,7 +247,6 @@ struct Interpreter {
 	private: void set__pendingSource(String _v); // accumulated REPL lines so far
 	private: Value _replGlobals(); // persistent globals VarMap
 	private: void set__replGlobals(Value _v); // persistent globals VarMap
-	public: Interpreter(InterpreterStorage* p) : storage(p ? p->shared_from_this() : nullptr) {}  
 
 	/// <summary>
 	/// standardOutput: receives the output of the "print" intrinsic.
@@ -270,7 +282,12 @@ struct Interpreter {
 	/// will not need to use this, but it's provided for advanced users.
 	/// </summary>
 
+	// Runtime execution tuning options forwarded to the VM.
+
 	// REPL state
+
+	private: inline void ApplyVMExecutionOptions();
+	public: Interpreter(InterpreterStorage* p) : storage(p ? p->shared_from_this() : nullptr) {}  
 
   
 	/// <summary>
@@ -413,6 +430,12 @@ inline object Interpreter::hostData() { return get()->hostData; }
 inline void Interpreter::set_hostData(object _v) { get()->hostData = _v; }
 inline VM Interpreter::vm() { return get()->vm; }
 inline void Interpreter::set_vm(VM _v) { get()->vm = _v; }
+inline Int32 Interpreter::JitTier() { return get()->JitTier; }
+inline void Interpreter::set_JitTier(Int32 _v) { get()->JitTier = _v; }
+inline bool Interpreter::EnableJitProfiling() { return get()->EnableJitProfiling; }
+inline void Interpreter::set_EnableJitProfiling(bool _v) { get()->EnableJitProfiling = _v; }
+inline Int32 Interpreter::JitHotThreshold() { return get()->JitHotThreshold; }
+inline void Interpreter::set_JitHotThreshold(Int32 _v) { get()->JitHotThreshold = _v; }
 inline String Interpreter::source() { return get()->source; }
 inline void Interpreter::set_source(String _v) { get()->source = _v; }
 inline Parser Interpreter::parser() { return get()->parser; }
@@ -425,6 +448,7 @@ inline String Interpreter::_pendingSource() { return get()->_pendingSource; } //
 inline void Interpreter::set__pendingSource(String _v) { get()->_pendingSource = _v; } // accumulated REPL lines so far
 inline Value Interpreter::_replGlobals() { return get()->_replGlobals; } // persistent globals VarMap
 inline void Interpreter::set__replGlobals(Value _v) { get()->_replGlobals = _v; } // persistent globals VarMap
+inline void Interpreter::ApplyVMExecutionOptions() { return get()->ApplyVMExecutionOptions(); }
 inline void Interpreter::Init(String _source,TextOutputMethod _standardOutput,TextOutputMethod _errorOutput) { return get()->Init(_source, _standardOutput, _errorOutput); }
 inline void Interpreter::Stop() { return get()->Stop(); }
 inline void Interpreter::Reset(String _source) { return get()->Reset(_source); }

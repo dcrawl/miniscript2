@@ -72,7 +72,7 @@ public class Interpreter {
 	public VM vm;
 
 	// Runtime execution tuning options forwarded to the VM.
-	public VMJitTier JitTier = VMJitTier.Off;
+	public Int32 JitTier = 0;
 	public bool EnableJitProfiling = false;
 	public Int32 JitHotThreshold = 100000;
 

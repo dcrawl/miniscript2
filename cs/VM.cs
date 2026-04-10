@@ -29,12 +29,6 @@ namespace MiniScript {
 
 using FuncDefRef = FuncDef; // H: typedef const FuncDefStorage& FuncDefRef;
 
-public enum VMJitTier : Byte {
-	Off = 0,
-	Super = 1,
-	Stub = 2
-}
-
 // Call stack frame (return info)
 public struct CallInfo {
 	public Int32 ReturnPC;        // where to continue in caller (PC index)
@@ -79,11 +73,18 @@ public struct CallInfo {
 // VM state
 public class VM {
 	public Boolean DebugMode = false;
-	public VMJitTier JitTier = VMJitTier.Off;
+	public const Int32 JitTierOff = 0;
+	public const Int32 JitTierSuper = 1;
+	public const Int32 JitTierStub = 2;
+	public Int32 JitTier = JitTierOff;
 	public Boolean EnableJitProfiling = false;
 	public Int32 JitHotThreshold = 100000;
+	public Int32 JitHotFunctionLimit = 3;
 	private UInt64 totalExecutedInstructions;
 	private List<UInt64> functionExecutionCounts;
+	private Int32 superinstructionRewriteCount;
+	private List<Int32> superinstructionRewritesByFunction;
+	private List<Int32> hotFunctionCandidates;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -224,6 +225,8 @@ public class VM {
 		callStack = new List<CallInfo>();
 		functions = new List<FuncDef>();
 		functionExecutionCounts = new List<UInt64>();
+		superinstructionRewritesByFunction = new List<Int32>();
+		hotFunctionCandidates = new List<Int32>();
 		callStackTop = 0;
 		RuntimeError = "";
 
@@ -279,6 +282,105 @@ public class VM {
 		functions.Add(funcDef);
 	}
 
+	// Superinstruction tier: fuse common bytecode pairs by rewriting the first
+	// opcode only. The second opcode remains in place so branch targets stay valid;
+	// the fused opcode consumes it when reached sequentially.
+	private void ApplySuperinstructions() {
+		superinstructionRewriteCount = 0;
+		superinstructionRewritesByFunction.Clear();
+		for (Int32 i = 0; i < functions.Count; i++) superinstructionRewritesByFunction.Add(0);
+		if (JitTier == JitTierOff) return;
+		for (Int32 f = 0; f < functions.Count; f++) {
+			FuncDef func = functions[f];
+			if (func.NativeCallback != null) continue;
+			List<UInt32> code = func.Code;
+			for (Int32 i = 0; i + 1 < code.Count; i++) {
+				UInt32 ins0 = code[i];
+				UInt32 ins1 = code[i + 1];
+				Opcode op0 = (Opcode)BytecodeUtil.OP(ins0);
+				Opcode op1 = (Opcode)BytecodeUtil.OP(ins1);
+
+				if (op1 != Opcode.ASSIGN_rA_rB_kC) continue;
+				Byte assignDst = BytecodeUtil.Au(ins1);
+				Byte assignSrc = BytecodeUtil.Bu(ins1);
+
+				if (op0 == Opcode.LOAD_rA_iBC) {
+					Byte a = BytecodeUtil.Au(ins0);
+					if (assignDst == a && assignSrc == a) {
+						superinstructionRewriteCount++;
+						superinstructionRewritesByFunction[f]++;
+						code[i] = BytecodeUtil.INS_AB(Opcode.SUPER_LOADI_ASSIGN_rA_iBC, a, BytecodeUtil.BCs(ins0));
+					}
+				} else if (op0 == Opcode.LOAD_rA_kBC) {
+					Byte a = BytecodeUtil.Au(ins0);
+					if (assignDst == a && assignSrc == a) {
+						superinstructionRewriteCount++;
+						superinstructionRewritesByFunction[f]++;
+						code[i] = BytecodeUtil.INS_AB(Opcode.SUPER_LOADK_ASSIGN_rA_kBC, a, BytecodeUtil.BCs(ins0));
+					}
+				} else if (op0 == Opcode.LOADNULL_rA) {
+					Byte a = BytecodeUtil.Au(ins0);
+					if (assignDst == a && assignSrc == a) {
+						superinstructionRewriteCount++;
+						superinstructionRewritesByFunction[f]++;
+						Byte assignName = BytecodeUtil.Cu(ins1);
+						code[i] = BytecodeUtil.INS_AB(Opcode.SUPER_LOADNULL_ASSIGN_rA_kBC, a, assignName);
+					}
+				} else if (op0 == Opcode.LOAD_rA_rB) {
+					Byte a = BytecodeUtil.Au(ins0);
+					Byte b = BytecodeUtil.Bu(ins0);
+					if (assignDst == a && assignSrc == a) {
+						superinstructionRewriteCount++;
+						superinstructionRewritesByFunction[f]++;
+						Byte assignName = BytecodeUtil.Cu(ins1);
+						code[i] = BytecodeUtil.INS_ABC(Opcode.SUPER_LOADR_ASSIGN_rA_rB_kC, a, b, assignName);
+					}
+				}
+			}
+		}
+	}
+
+	private void ClearHotFunctionCandidates() {
+		hotFunctionCandidates.Clear();
+		for (Int32 i = 0; i < functions.Count; i++) {
+			functions[i].JitIsHotCandidate = false;
+			functions[i].JitObservedInstructions = 0;
+		}
+	}
+
+	private void RefreshHotFunctionCandidates() {
+		ClearHotFunctionCandidates();
+		if (!EnableJitProfiling) return;
+		Int32 limit = JitHotFunctionLimit;
+		if (limit < 0) limit = 0;
+		for (Int32 rank = 0; rank < limit; rank++) {
+			Int32 bestIdx = -1;
+			UInt64 bestCount = 0;
+			for (Int32 i = 0; i < functionExecutionCounts.Count; i++) {
+				FuncDef candidateFunc = functions[i];
+				if (candidateFunc.NativeCallback != null) continue;
+				UInt64 count = functionExecutionCounts[i];
+				if (count < (UInt64)JitHotThreshold) continue;
+				bool alreadySelected = false;
+				for (Int32 j = 0; j < hotFunctionCandidates.Count; j++) {
+					if (hotFunctionCandidates[j] == i) {
+						alreadySelected = true;
+						break;
+					}
+				}
+				if (alreadySelected) continue;
+				if (bestIdx < 0 || count > bestCount) {
+					bestIdx = i;
+					bestCount = count;
+				}
+			}
+			if (bestIdx < 0) break;
+			hotFunctionCandidates.Add(bestIdx);
+			functions[bestIdx].JitIsHotCandidate = true;
+			functions[bestIdx].JitObservedInstructions = bestCount;
+		}
+	}
+
 
 	public void Reset(List<FuncDef> allFunctions) {
 		Reset(allFunctions, val_null);
@@ -321,6 +423,8 @@ public class VM {
 			IOHelper.Print("Entry function has no code");
 			return;
 		}
+
+		ApplySuperinstructions();
 
 		/*** BEGIN CPP_ONLY ***
 		// C++ only: copy functions into functionsRaw vector for quick access
@@ -372,6 +476,7 @@ public class VM {
 		for (Int32 i = 0; i < functions.Count; i++) {
 			functionExecutionCounts.Add(0);
 		}
+		ClearHotFunctionCandidates();
 	}
 
 	public void Stop() {
@@ -410,6 +515,22 @@ public class VM {
 	public Boolean IsFunctionHot(Int32 funcIndex) {
 		if (funcIndex < 0 || funcIndex >= functionExecutionCounts.Count) return false;
 		return functionExecutionCounts[funcIndex] >= (UInt64)JitHotThreshold;
+	}
+
+	public Int32 GetSuperinstructionRewriteCount() {
+		return superinstructionRewriteCount;
+	}
+
+	public List<Int32> GetSuperinstructionRewritesByFunction() {
+		return superinstructionRewritesByFunction;
+	}
+
+	public List<Int32> GetHotFunctionCandidates() {
+		return hotFunctionCandidates;
+	}
+
+	public Int32 GetHotFunctionCandidateCount() {
+		return hotFunctionCandidates.Count;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
@@ -619,6 +740,9 @@ public class VM {
 		}
 
 		Value runResult = RunInner(maxCycles);
+		if (EnableJitProfiling) {
+			RefreshHotFunctionCandidates();
+		}
 		_activeVM = previousVM;
 		return runResult;
 	}
@@ -812,6 +936,105 @@ public class VM {
 						varmap_map_to_register(ReplGlobals, valC, 
 							stack,  // CPP: &stack[0],
 							baseIndex + a);
+					}
+					break;
+				}
+
+				case Opcode.SUPER_LOADI_ASSIGN_rA_iBC: {
+					// Fused LOAD immediate + ASSIGN self-to-name.
+					Byte a = BytecodeUtil.Au(instruction);
+					short bc = BytecodeUtil.BCs(instruction);
+					localStack[a] = make_int(bc);
+					if (pc < codeCount) {
+						UInt32 nextInstruction = curCode[pc];
+						if ((Opcode)BytecodeUtil.OP(nextInstruction) == Opcode.ASSIGN_rA_rB_kC
+							&& BytecodeUtil.Au(nextInstruction) == a
+							&& BytecodeUtil.Bu(nextInstruction) == a) {
+							Byte c = BytecodeUtil.Cu(nextInstruction);
+							valC = curConstants[c];
+							names[baseIndex + a] = valC;
+							if (baseIndex == 0 && !is_null(ReplGlobals)) {
+								varmap_map_to_register(ReplGlobals,
+									valC,
+									stack,  // CPP: &stack[0],
+									baseIndex + a);
+							}
+							pc++;
+						}
+					}
+					break;
+				}
+
+				case Opcode.SUPER_LOADK_ASSIGN_rA_kBC: {
+					// Fused LOAD constant + ASSIGN self-to-name.
+					Byte a = BytecodeUtil.Au(instruction);
+					UInt16 constIdx = BytecodeUtil.BCu(instruction);
+					localStack[a] = curConstants[constIdx];
+					if (pc < codeCount) {
+						UInt32 nextInstruction = curCode[pc];
+						if ((Opcode)BytecodeUtil.OP(nextInstruction) == Opcode.ASSIGN_rA_rB_kC
+							&& BytecodeUtil.Au(nextInstruction) == a
+							&& BytecodeUtil.Bu(nextInstruction) == a) {
+							Byte c = BytecodeUtil.Cu(nextInstruction);
+							valC = curConstants[c];
+							names[baseIndex + a] = valC;
+							if (baseIndex == 0 && !is_null(ReplGlobals)) {
+								varmap_map_to_register(ReplGlobals,
+									valC,
+									stack,  // CPP: &stack[0],
+									baseIndex + a);
+							}
+							pc++;
+						}
+					}
+					break;
+				}
+
+				case Opcode.SUPER_LOADNULL_ASSIGN_rA_kBC: {
+					// Fused LOADNULL + ASSIGN self-to-name.
+					Byte a = BytecodeUtil.Au(instruction);
+					localStack[a] = val_null;
+					if (pc < codeCount) {
+						UInt32 nextInstruction = curCode[pc];
+						if ((Opcode)BytecodeUtil.OP(nextInstruction) == Opcode.ASSIGN_rA_rB_kC
+							&& BytecodeUtil.Au(nextInstruction) == a
+							&& BytecodeUtil.Bu(nextInstruction) == a) {
+							Byte c = BytecodeUtil.Cu(nextInstruction);
+							valC = curConstants[c];
+							names[baseIndex + a] = valC;
+							if (baseIndex == 0 && !is_null(ReplGlobals)) {
+								varmap_map_to_register(ReplGlobals,
+									valC,
+									stack,  // CPP: &stack[0],
+									baseIndex + a);
+							}
+							pc++;
+						}
+					}
+					break;
+				}
+
+				case Opcode.SUPER_LOADR_ASSIGN_rA_rB_kC: {
+					// Fused register copy + ASSIGN self-to-name.
+					Byte a = BytecodeUtil.Au(instruction);
+					Byte b = BytecodeUtil.Bu(instruction);
+					localStack[a] = localStack[b];
+					if (pc < codeCount) {
+						UInt32 nextInstruction = curCode[pc];
+						if ((Opcode)BytecodeUtil.OP(nextInstruction) == Opcode.ASSIGN_rA_rB_kC
+							&& BytecodeUtil.Au(nextInstruction) == a
+							&& BytecodeUtil.Bu(nextInstruction) == a) {
+							Byte c = BytecodeUtil.Cu(nextInstruction);
+							valC = curConstants[c];
+							names[baseIndex + a] = valC;
+							if (baseIndex == 0 && !is_null(ReplGlobals)) {
+								varmap_map_to_register(ReplGlobals,
+									valC,
+									stack,  // CPP: &stack[0],
+									baseIndex + a);
+							}
+							pc++;
+						}
 					}
 					break;
 				}

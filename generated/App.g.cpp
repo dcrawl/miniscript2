@@ -31,8 +31,44 @@ MiniScript::App::MainProgram(args);
 
 namespace MiniScript {
 
+const Int32 App::JitTierOff = 0;
+const Int32 App::JitTierSuper = 1;
+const Int32 App::JitTierStub = 2;
 bool App::debugMode = false;
 bool App::visMode = false;
+Int32 App::jitTier = JitTierOff;
+bool App::jitProfile = false;
+Int32 App::jitHotThreshold = 100000;
+Int32 App::ParseJitTier(String text) {
+	if (String::IsNullOrEmpty(text)) return -1;
+	String normalized = text.ToLower();
+	if (normalized == "off" || normalized == "0") {
+		return JitTierOff;
+	}
+	if (normalized == "super" || normalized == "on" || normalized == "1") {
+		return JitTierSuper;
+	}
+	if (normalized == "stub" || normalized == "2") {
+		return JitTierStub;
+	}
+	return -1;
+}
+String App::JitTierName(Int32 tier) {
+	if (tier == JitTierSuper) return "super";
+	if (tier == JitTierStub) return "stub";
+	return "off";
+}
+String App::FormatCounter(UInt64 value) {
+	// Transpiler-safe display path: UInt64 formatting in C++ currently degrades.
+	if (value > 2147483647UL) return ">2.1B";
+	return StringUtils::Format("{0}", (Int32)value);
+}
+void App::ApplyRuntimeOptions(Interpreter interp) {
+	if (IsNull(interp)) return;
+	interp.set_JitTier(jitTier);
+	interp.set_EnableJitProfiling(jitProfile);
+	interp.set_JitHotThreshold(jitHotThreshold);
+}
 void App::MainProgram(List<String> args) {
 	gc_init();
 	value_init_constants();
@@ -47,6 +83,30 @@ void App::MainProgram(List<String> args) {
 			debugMode = Boolean(true);
 		} else if (args[i] == "-vis") {
 			visMode = Boolean(true);
+		} else if (args[i] == "-jit" && i + 1 < args.Count()) {
+			i = i + 1;
+			jitTier = ParseJitTier(args[i]);
+			if (jitTier < 0) {
+				IOHelper::Print(StringUtils::Format("Invalid -jit value: {0} (use off|super|stub)", args[i]));
+				return;
+			}
+		} else if (args[i].StartsWith("-jit=")) {
+			String tierText = args[i].Substring(5);
+			jitTier = ParseJitTier(tierText);
+			if (jitTier < 0) {
+				IOHelper::Print(StringUtils::Format("Invalid -jit value: {0} (use off|super|stub)", tierText));
+				return;
+			}
+		} else if (args[i] == "-jit-profile") {
+			jitProfile = Boolean(true);
+		} else if (args[i] == "-jit-hot" && i + 1 < args.Count()) {
+			i = i + 1;
+			jitHotThreshold = StringUtils::ParseInt32(args[i]);
+			if (jitHotThreshold < 1) jitHotThreshold = 1;
+		} else if (args[i].StartsWith("-jit-hot=")) {
+			String thresholdText = args[i].Substring(9);
+			jitHotThreshold = StringUtils::ParseInt32(thresholdText);
+			if (jitHotThreshold < 1) jitHotThreshold = 1;
 		} else if (args[i] == "-soak") {
 			soakMode = Boolean(true);
 		} else if (args[i].StartsWith("-soak=")) {
@@ -141,6 +201,7 @@ void App::MainProgram(List<String> args) {
 }
 Interpreter App::CreateInterpreter() {
 	Interpreter interp =  Interpreter::New();
+	ApplyRuntimeOptions(interp);
 	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
 	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
 	return interp;
@@ -259,6 +320,7 @@ bool App::RunSingleTest(List<String> inputLines,List<String> expectedLines,Int32
 
 	// Compile and run via Interpreter
 	Interpreter interp =  Interpreter::New();
+	ApplyRuntimeOptions(interp);
 	interp.set_standardOutput([](String s, Boolean) { gPrintOutput.Add(s); });
 	interp.set_errorOutput([](String s, Boolean) { gPrintOutput.Add(s); });
 	interp.Reset(source);
@@ -297,6 +359,11 @@ void App::RunInterpreter(Interpreter interp) {
 	// Debug: disassemble and print
 	if (debugMode) {
 		List<FuncDef> functions = vm.GetFunctions();
+		IOHelper::Print(StringUtils::Format("JIT tier: {0}; profiling: {1}; hot threshold: {2}",
+			JitTierName(jitTier), jitProfile, jitHotThreshold));
+		if (jitTier != JitTierOff) {
+			IOHelper::Print(StringUtils::Format("Superinstruction rewrites this reset: {0}", vm.GetSuperinstructionRewriteCount()));
+		}
 		IOHelper::Print("Disassembly:\n");
 		List<String> disassembly = Disassembler::Disassemble(functions, Boolean(true));
 		for (Int32 i = 0; i < disassembly.Count(); i++) {
@@ -360,11 +427,61 @@ void App::RunInterpreter(Interpreter interp) {
 	if (!vm.Errors().HasError()) {
 		IOHelper::Print("\nVM execution complete. Result in r0:");
 		IOHelper::Print(StringUtils::Format("\u001b[1;93m{0}\u001b[0m", result)); // (bold bright yellow)
+		if (jitProfile) {
+			List<FuncDef> functions = vm.GetFunctions();
+			List<UInt64> counts = vm.GetFunctionExecutionCounts();
+			List<Int32> selected =  List<Int32>::New();
+			IOHelper::Print(StringUtils::Format("JIT profile: total instructions = {0}",
+				FormatCounter(vm.GetTotalExecutedInstructions())));
+			if (jitTier != JitTierOff) {
+				IOHelper::Print(StringUtils::Format("JIT profile: superinstruction rewrites = {0}", vm.GetSuperinstructionRewriteCount()));
+			}
+			for (Int32 rank = 0; rank < 5; rank++) {
+				Int32 bestIdx = -1;
+				UInt64 bestCount = 0;
+				for (Int32 i = 0; i < counts.Count(); i++) {
+					UInt64 c = counts[i];
+					if (c == 0) continue;
+					bool alreadyPrinted = Boolean(false);
+					for (Int32 prior = 0; prior < selected.Count(); prior++) {
+						if (selected[prior] == i) {
+							alreadyPrinted = Boolean(true);
+							break;
+						}
+					}
+					if (alreadyPrinted) continue;
+					if (bestIdx < 0 || c > bestCount) {
+						bestIdx = i;
+						bestCount = c;
+					}
+				}
+				if (bestIdx < 0) break;
+				selected.Add(bestIdx);
+				IOHelper::Print(StringUtils::Format("  hot[{0}] {1}: {2} steps{3}",
+					rank + 1,
+					functions[bestIdx].Name(),
+					FormatCounter(bestCount),
+					vm.IsFunctionHot(bestIdx) ? " (hot)" : ""));
+			}
+
+			List<Int32> candidates = vm.GetHotFunctionCandidates();
+			if (candidates.Count() > 0) {
+				IOHelper::Print(StringUtils::Format("JIT profile: top candidate slots = {0}", candidates.Count()));
+				for (Int32 i = 0; i < candidates.Count(); i++) {
+					Int32 idx = candidates[i];
+					IOHelper::Print(StringUtils::Format("  cand[{0}] {1}: {2} steps",
+						i + 1,
+						functions[idx].Name(),
+						FormatCounter(functions[idx].JitObservedInstructions())));
+				}
+			}
+		}
 	}
 	GC_POP_SCOPE();
 }
 void App::RunREPL() {
 	Interpreter interp =  Interpreter::New();
+	ApplyRuntimeOptions(interp);
 	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
 	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
 	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s); });
