@@ -71,6 +71,11 @@ public class Interpreter {
 	/// </summary>
 	public VM vm;
 
+	// Runtime execution tuning options forwarded to the VM.
+	public VMJitTier JitTier = VMJitTier.Off;
+	public bool EnableJitProfiling = false;
+	public Int32 JitHotThreshold = 100000;
+
 	protected String source;
 	protected Parser parser;
 	protected ErrorPool errors;
@@ -79,6 +84,13 @@ public class Interpreter {
 	// REPL state
 	private String _pendingSource;       // accumulated REPL lines so far
 	private Value _replGlobals = val_null; // persistent globals VarMap
+
+	private void ApplyVMExecutionOptions() {
+		if (vm == null) return;
+		vm.JitTier = JitTier;
+		vm.EnableJitProfiling = EnableJitProfiling;
+		vm.JitHotThreshold = JitHotThreshold;
+	}
 
 	// H_WRAPPER: public: Interpreter(InterpreterStorage* p) : storage(p ? p->shared_from_this() : nullptr) {}  
   
@@ -154,6 +166,7 @@ public class Interpreter {
 
 		// Create and configure VM
 		vm = new VM();
+		ApplyVMExecutionOptions();
 		vm.Errors = errors;
 		vm.SetInterpreter(this);
 		vm.Reset(functions);
@@ -206,6 +219,7 @@ public class Interpreter {
 
 		// Create and configure VM
 		vm = new VM();
+		ApplyVMExecutionOptions();
 		vm.Errors = errors;
 		vm.SetInterpreter(this);
 		vm.Reset(compiledFunctions);
@@ -225,6 +239,7 @@ public class Interpreter {
 	public void Restart() {
 		if (vm != null && compiledFunctions != null) {
 			errors.Clear();
+			ApplyVMExecutionOptions();
 			vm.Reset(compiledFunctions);
 		}
 	}
@@ -364,6 +379,7 @@ public class Interpreter {
 
 		// Create/reset VM
 		if (vm == null) vm = new VM();
+		ApplyVMExecutionOptions();
 		vm.Errors = errors;
 		vm.SetInterpreter(this);
 		vm.Reset(functions, _replGlobals);

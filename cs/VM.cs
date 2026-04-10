@@ -29,6 +29,12 @@ namespace MiniScript {
 
 using FuncDefRef = FuncDef; // H: typedef const FuncDefStorage& FuncDefRef;
 
+public enum VMJitTier : Byte {
+	Off = 0,
+	Super = 1,
+	Stub = 2
+}
+
 // Call stack frame (return info)
 public struct CallInfo {
 	public Int32 ReturnPC;        // where to continue in caller (PC index)
@@ -73,6 +79,11 @@ public struct CallInfo {
 // VM state
 public class VM {
 	public Boolean DebugMode = false;
+	public VMJitTier JitTier = VMJitTier.Off;
+	public Boolean EnableJitProfiling = false;
+	public Int32 JitHotThreshold = 100000;
+	private UInt64 totalExecutedInstructions;
+	private List<UInt64> functionExecutionCounts;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -212,6 +223,7 @@ public class VM {
 		names = new List<Value>();
 		callStack = new List<CallInfo>();
 		functions = new List<FuncDef>();
+		functionExecutionCounts = new List<UInt64>();
 		callStackTop = 0;
 		RuntimeError = "";
 
@@ -354,6 +366,12 @@ public class VM {
 		if (DebugMode) {
 			IOHelper.Print(StringUtils.Format("VM Reset: Executing {0} out of {1} functions", mainFunc.Name, functions.Count));
 		}
+
+		totalExecutedInstructions = 0;
+		functionExecutionCounts.Clear();
+		for (Int32 i = 0; i < functions.Count; i++) {
+			functionExecutionCounts.Add(0);
+		}
 	}
 
 	public void Stop() {
@@ -379,6 +397,19 @@ public class VM {
 
 	public List<FuncDef> GetFunctions() {
 		return functions;
+	}
+
+	public UInt64 GetTotalExecutedInstructions() {
+		return totalExecutedInstructions;
+	}
+
+	public List<UInt64> GetFunctionExecutionCounts() {
+		return functionExecutionCounts;
+	}
+
+	public Boolean IsFunctionHot(Int32 funcIndex) {
+		if (funcIndex < 0 || funcIndex >= functionExecutionCounts.Count) return false;
+		return functionExecutionCounts[funcIndex] >= (UInt64)JitHotThreshold;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
@@ -645,6 +676,12 @@ public class VM {
 			}
 
 			UInt32 instruction = curCode[pc++];
+			if (EnableJitProfiling) {
+				totalExecutedInstructions++;
+				if (currentFuncIndex >= 0 && currentFuncIndex < functionExecutionCounts.Count) {
+					functionExecutionCounts[currentFuncIndex]++;
+				}
+			}
 
 			if (DebugMode) {
 				IOHelper.Print(StringUtils.Format("{0} {1}: {2}     r0:{3}, r1:{4}, r2:{5}",

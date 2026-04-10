@@ -31,6 +31,35 @@ namespace MiniScript {
 public struct App {
 	public static bool debugMode = false;
 	public static bool visMode = false;
+	public static VMJitTier jitTier = VMJitTier.Off;
+	public static bool jitProfile = false;
+	public static Int32 jitHotThreshold = 100000;
+
+	private static bool TryParseJitTier(String text, out VMJitTier parsedTier) {
+		parsedTier = VMJitTier.Off;
+		if (String.IsNullOrEmpty(text)) return false;
+		String normalized = text.ToLower();
+		if (normalized == "off" || normalized == "0") {
+			parsedTier = VMJitTier.Off;
+			return true;
+		}
+		if (normalized == "super" || normalized == "on" || normalized == "1") {
+			parsedTier = VMJitTier.Super;
+			return true;
+		}
+		if (normalized == "stub" || normalized == "2") {
+			parsedTier = VMJitTier.Stub;
+			return true;
+		}
+		return false;
+	}
+
+	private static void ApplyRuntimeOptions(Interpreter interp) {
+		if (interp == null) return;
+		interp.JitTier = jitTier;
+		interp.EnableJitProfiling = jitProfile;
+		interp.JitHotThreshold = jitHotThreshold;
+	}
 	
 	public static void MainProgram(List<String> args) {
 		// CPP: gc_init();
@@ -46,6 +75,28 @@ public struct App {
 				debugMode = true;
 			} else if (args[i] == "-vis") {
 				visMode = true;
+			} else if (args[i] == "-jit" && i + 1 < args.Count) {
+				i = i + 1;
+				if (!TryParseJitTier(args[i], out jitTier)) {
+					IOHelper.Print(StringUtils.Format("Invalid -jit value: {0} (use off|super|stub)", args[i]));
+					return;
+				}
+			} else if (args[i].StartsWith("-jit=")) {
+				String tierText = args[i].Substring(5);
+				if (!TryParseJitTier(tierText, out jitTier)) {
+					IOHelper.Print(StringUtils.Format("Invalid -jit value: {0} (use off|super|stub)", tierText));
+					return;
+				}
+			} else if (args[i] == "-jit-profile") {
+				jitProfile = true;
+			} else if (args[i] == "-jit-hot" && i + 1 < args.Count) {
+				i = i + 1;
+				jitHotThreshold = StringUtils.ParseInt32(args[i]);
+				if (jitHotThreshold < 1) jitHotThreshold = 1;
+			} else if (args[i].StartsWith("-jit-hot=")) {
+				String thresholdText = args[i].Substring(9);
+				jitHotThreshold = StringUtils.ParseInt32(thresholdText);
+				if (jitHotThreshold < 1) jitHotThreshold = 1;
 			} else if (args[i] == "-soak") {
 				soakMode = true;
 			} else if (args[i].StartsWith("-soak=")) {
@@ -144,6 +195,7 @@ public struct App {
 	// Create an Interpreter with standard output wiring
 	private static Interpreter CreateInterpreter() {
 		Interpreter interp = new Interpreter();
+		ApplyRuntimeOptions(interp);
 		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
 		// CPP: interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
 		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
@@ -270,6 +322,7 @@ public struct App {
 
 		// Compile and run via Interpreter
 		Interpreter interp = new Interpreter();
+		ApplyRuntimeOptions(interp);
 		interp.standardOutput = (String s, bool addLineBreak) => { printOutput.Add(s); }; // CPP:
 		// CPP: interp.set_standardOutput([](String s, Boolean) { gPrintOutput.Add(s); });
 		interp.errorOutput = (String s, bool eol) => { printOutput.Add(s); }; // CPP:
@@ -312,6 +365,8 @@ public struct App {
 		// Debug: disassemble and print
 		if (debugMode) {
 			List<FuncDef> functions = vm.GetFunctions();
+			IOHelper.Print(StringUtils.Format("JIT tier: {0}; profiling: {1}; hot threshold: {2}",
+				jitTier, jitProfile, jitHotThreshold));
 			IOHelper.Print("Disassembly:\n");
 			List<String> disassembly = Disassembler.Disassemble(functions, true);
 			for (Int32 i = 0; i < disassembly.Count; i++) {
@@ -371,11 +426,32 @@ public struct App {
 		if (!vm.Errors.HasError()) {
 			IOHelper.Print("\nVM execution complete. Result in r0:");
 			IOHelper.Print(StringUtils.Format("\u001b[1;93m{0}\u001b[0m", result)); // (bold bright yellow)
+			if (jitProfile) {
+				List<FuncDef> functions = vm.GetFunctions();
+				List<UInt64> counts = vm.GetFunctionExecutionCounts();
+				List<Int32> indices = new List<Int32>();
+				for (Int32 i = 0; i < counts.Count; i++) indices.Add(i);
+				List<Int32> hotIndices = indices
+					.OrderByDescending(idx => counts[idx])
+					.Where(idx => counts[idx] > 0)
+					.Take(5)
+					.ToList();
+				IOHelper.Print(StringUtils.Format("JIT profile: total instructions = {0}", vm.GetTotalExecutedInstructions()));
+				for (Int32 i = 0; i < hotIndices.Count; i++) {
+					Int32 idx = hotIndices[i];
+					IOHelper.Print(StringUtils.Format("  hot[{0}] {1}: {2} steps{3}",
+						i + 1,
+						functions[idx].Name,
+						counts[idx],
+						vm.IsFunctionHot(idx) ? " (hot)" : ""));
+				}
+			}
 		}
 	}
 
 	private static void RunREPL() {
 		Interpreter interp = new Interpreter();
+		ApplyRuntimeOptions(interp);
 		interp.standardOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
 		// CPP: interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
 		interp.errorOutput = (String s, bool eol) => { IOHelper.Print(s); }; // CPP:
