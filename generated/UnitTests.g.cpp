@@ -812,8 +812,8 @@ Boolean UnitTests::TestStubLifecycleFallbackFailure() {
 
 	FuncDef f =  FuncDef::New();
 	f.set_Name("@main");
-	f.set_MaxRegs(1);
-	f.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 42));
+	f.set_MaxRegs(2);
+	f.Code().Add(BytecodeUtil::INS_ABC(Opcode::NEW_rA_rB, 0, 1, 0));
 	f.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
 
 	VM vm =  VM::New();
@@ -844,6 +844,46 @@ Boolean UnitTests::TestStubLifecycleFallbackFailure() {
 		"Expected @main JitStubLastError to be set after failed compile attempt");
 
 	if (!ok) IOHelper::Print("TestStubLifecycleFallbackFailure FAILED");
+	return ok;
+}
+Boolean UnitTests::TestStubLifecycleExpandedSubsetCompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef f =  FuncDef::New();
+	f.set_Name("@main");
+	f.set_MaxRegs(2);
+	f.Constants().Add(make_string("x"));
+	f.Code().Add(BytecodeUtil::INS_AB(Opcode::NAME_rA_kBC, 1, 0));
+	f.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 1, 42));
+	f.Code().Add(BytecodeUtil::INS_ABC(Opcode::ASSIGN_rA_rB_kC, 1, 1, 0));
+	f.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(1);
+	vm.Reset( List<FuncDef>::New({ f }));
+	vm.Run();
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	Int32 mainIdx = -1;
+	for (Int32 i = 0; i < funcs.Count(); i++) {
+		if (funcs[i].Name() == "@main") {
+			mainIdx = i;
+			break;
+		}
+	}
+	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for expanded subset compile test");
+	if (mainIdx < 0) return Boolean(false);
+
+	ok = ok && Assert(funcs[mainIdx].JitStubState() == 2,
+		"Expected @main JitStubState to be compiled for expanded supported subset");
+	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 1);
+	ok = ok && Assert(String::IsNullOrEmpty(funcs[mainIdx].JitStubLastError()),
+		"Expected no JIT stub error for expanded supported subset");
+
+	if (!ok) IOHelper::Print("TestStubLifecycleExpandedSubsetCompile FAILED");
 	return ok;
 }
 Boolean UnitTests::TestCompiledStubRoutingHookCounter() {
@@ -877,12 +917,107 @@ Boolean UnitTests::TestCompiledStubRoutingHookCounter() {
 	ok = ok && Assert(funcs[mainIdx].JitStubState() == 2,
 		"Expected @main to be compiled before probing route hook");
 	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 0);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 0);
 
 	bool routed = vm.ProbeCompiledStubRouting(mainIdx);
-	ok = ok && Assert(!routed, "Expected ProbeCompiledStubRouting to remain interpreter-backed for now");
+	ok = ok && Assert(routed, "Expected ProbeCompiledStubRouting to execute trivial compiled backend path");
 	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
 
 	if (!ok) IOHelper::Print("TestCompiledStubRoutingHookCounter FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubFastPathOnCallf() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	// CALLF r1, #1 -- call function index 1 with argument window at r1.
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(2);
+	// Partial reset avoids intrinsic preloading so indices are deterministic.
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+
+	vm.SetFunctionStubBackendForTesting(1, 2, 2, 7);
+
+	vm.Run();
+
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(7)),
+		"Expected CALLF fast path to write integer result into r1");
+
+	List<UInt64> counts = vm.GetFunctionExecutionCounts();
+	ok = ok && Assert((Int32)counts[0] >= 2, "Expected @main to execute at least CALLF + RETURN");
+	ok = ok && AssertEqual((Int32)counts[1], 0); // callee should be bypassed
+
+	if (!ok) IOHelper::Print("TestCompiledStubFastPathOnCallf FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubFastPathConstReturnOnCallf() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Constants().Add(make_string("ok"));
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_kBC, 0, 0));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(2);
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+
+	vm.SetFunctionStubBackendForTesting(1, 2, 3, 0);
+	vm.Run();
+
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_string("ok")),
+		"Expected CALLF const fast path to write string constant result into r1");
+
+	List<UInt64> counts = vm.GetFunctionExecutionCounts();
+	ok = ok && Assert((Int32)counts[0] >= 2, "Expected @main to execute at least CALLF + RETURN in const fast path test");
+	ok = ok && AssertEqual((Int32)counts[1], 0); // callee should be bypassed
+
+	if (!ok) IOHelper::Print("TestCompiledStubFastPathConstReturnOnCallf FAILED");
 	return ok;
 }
 Boolean UnitTests::TestLexer() {
@@ -1337,7 +1472,10 @@ Boolean UnitTests::RunAll() {
 		&& TestHotFunctionCandidates()
 		&& TestStubLifecycleGroundwork()
 		&& TestStubLifecycleFallbackFailure()
+		&& TestStubLifecycleExpandedSubsetCompile()
 		&& TestCompiledStubRoutingHookCounter()
+		&& TestCompiledStubFastPathOnCallf()
+		&& TestCompiledStubFastPathConstReturnOnCallf()
 		&& TestParserNeedMoreInput()
 		&& TestIntrinsicAllowlistV1()
 		&& TestInterpreterGlobalAccess()

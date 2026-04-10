@@ -37,7 +37,13 @@ public class FuncDef {
 	public const Int32 JitStubStateCandidate = 1;
 	public const Int32 JitStubStateCompiled = 2;
 	public const Int32 JitStubStateFailed = 3;
+	public const Int32 JitStubBackendNone = 0;
+	public const Int32 JitStubBackendReturnNull = 1;
+	public const Int32 JitStubBackendReturnInt = 2;
+	public const Int32 JitStubBackendReturnConst = 3;
 	public Int32 JitStubState = 0;
+	public Int32 JitStubBackendKind = 0;
+	public Int32 JitStubBackendIntValue = 0;
 	public Int32 JitStubCompileAttempts = 0;
 	public String JitStubLastError = "";
 

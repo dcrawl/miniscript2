@@ -244,18 +244,63 @@ void VMStorage::UpdateStubLifecycleFromHotCandidates() {
 		}
 	}
 }
+bool VMStorage::IsStubCompilableOpcode(Int32 opValue) {
+	Opcode op = (Opcode)opValue;
+	if (op == Opcode::NOOP || op == Opcode::RETURN) return Boolean(true);
+	if (op == Opcode::LOAD_rA_rB || op == Opcode::LOAD_rA_iBC || op == Opcode::LOAD_rA_kBC || op == Opcode::LOADNULL_rA) return Boolean(true);
+	if (op == Opcode::ASSIGN_rA_rB_kC || op == Opcode::NAME_rA_kBC) return Boolean(true);
+	if (op == Opcode::SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode::SUPER_LOADK_ASSIGN_rA_kBC
+		|| op == Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC) return Boolean(true);
+	return Boolean(false);
+}
 String VMStorage::ValidateStubCompilableSubset(FuncDef f) {
 	if (IsNull(f)) return "missing function";
 	Int32 codeCount = f.Code().Count();
 	if (codeCount == 0) return "empty function";
 	for (Int32 i = 0; i < codeCount; i++) {
-		Opcode op = (Opcode)BytecodeUtil::OP(f.Code()[i]);
-		if (op == Opcode::NOOP || op == Opcode::RETURN) continue;
+		Int32 opValue = BytecodeUtil::OP(f.Code()[i]);
+		if (IsStubCompilableOpcode(opValue)) continue;
+		Opcode op = (Opcode)opValue;
 		return StringUtils::Format("unsupported opcode: {0}", BytecodeUtil::ToMnemonic(op));
 	}
 	Opcode lastOp = (Opcode)BytecodeUtil::OP(f.Code()[codeCount - 1]);
 	if (lastOp != Opcode::RETURN) return "missing RETURN terminator";
 	return nullptr;
+}
+void VMStorage::SelectStubBackend(FuncDef f) {
+	if (IsNull(f)) return;
+	f.set_JitStubBackendKind(0);
+	f.set_JitStubBackendIntValue(0);
+
+	Int32 codeCount = f.Code().Count();
+	if (codeCount == 0) return;
+	Opcode lastOp = (Opcode)BytecodeUtil::OP(f.Code()[codeCount - 1]);
+	if (lastOp != Opcode::RETURN) return;
+
+	if (codeCount == 2) {
+		UInt32 firstInstruction = f.Code()[0];
+		Opcode firstOp = (Opcode)BytecodeUtil::OP(firstInstruction);
+		if (firstOp == Opcode::LOAD_rA_iBC && BytecodeUtil::Au(firstInstruction) == 0) {
+			f.set_JitStubBackendKind(2);
+			f.set_JitStubBackendIntValue(BytecodeUtil::BCs(firstInstruction));
+			return;
+		}
+		if (firstOp == Opcode::LOAD_rA_kBC && BytecodeUtil::Au(firstInstruction) == 0) {
+			f.set_JitStubBackendKind(3);
+			f.set_JitStubBackendIntValue(BytecodeUtil::BCu(firstInstruction));
+			return;
+		}
+		if (firstOp == Opcode::LOADNULL_rA && BytecodeUtil::Au(firstInstruction) == 0) {
+			f.set_JitStubBackendKind(1);
+			return;
+		}
+	}
+
+	for (Int32 i = 0; i < codeCount - 1; i++) {
+		Opcode op = (Opcode)BytecodeUtil::OP(f.Code()[i]);
+		if (op != Opcode::NOOP) return;
+	}
+	f.set_JitStubBackendKind(1); // return-null fast path
 }
 bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
@@ -270,25 +315,71 @@ bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 		// Phase-2 stepping stone: mark a tiny subset as compiled, while execution
 		// still routes through the interpreter until real codegen lands.
 		f.set_JitStubState(2);
+		SelectStubBackend(f);
 		f.set_JitStubLastError("");
 		return Boolean(true);
 	}
 
 	// Hook point for future native/codegen backend.
 	f.set_JitStubState(3);
+	f.set_JitStubBackendKind(0);
+	f.set_JitStubBackendIntValue(0);
 	f.set_JitStubLastError(StringUtils::Format("Stub backend not implemented for {0}", compileReason));
 	return Boolean(false);
 }
-bool VMStorage::TryRouteCompiledStub(Int32 funcIndex) {
+bool VMStorage::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext) {
 	if (JitTier != JitTierStub) return Boolean(false);
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
 	FuncDef f = functions[funcIndex];
 	if (!IsNull(f.NativeCallback())) return Boolean(false);
 	if (f.JitStubState() != 2) return Boolean(false);
 
-	// Route hook only for now: count hits, but continue through interpreter path
-	// until a native/codegen backend exists.
+	// Route hook: count any attempted route on compiled functions.
 	jitStubCompiledRouteHitCount++;
+
+	if (f.JitStubBackendKind() == 1) {
+		if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count()) {
+			stack[absoluteResultIndex] = val_null;
+		}
+		if (consumePendingContext) {
+			hasPendingContext = Boolean(false);
+			pendingSelf = val_null;
+			pendingSuper = val_null;
+		}
+		jitStubCompiledFastExecCount++;
+		return Boolean(true);
+	}
+
+	if (f.JitStubBackendKind() == 2) {
+		if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count()) {
+			stack[absoluteResultIndex] = make_int(f.JitStubBackendIntValue());
+		}
+		if (consumePendingContext) {
+			hasPendingContext = Boolean(false);
+			pendingSelf = val_null;
+			pendingSuper = val_null;
+		}
+		jitStubCompiledFastExecCount++;
+		return Boolean(true);
+	}
+
+	if (f.JitStubBackendKind() == 3) {
+		if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count()) {
+			Int32 constIndex = f.JitStubBackendIntValue();
+			if (constIndex >= 0 && constIndex < f.Constants().Count()) {
+				stack[absoluteResultIndex] = f.Constants()[constIndex];
+			} else {
+				stack[absoluteResultIndex] = val_null;
+			}
+		}
+		if (consumePendingContext) {
+			hasPendingContext = Boolean(false);
+			pendingSelf = val_null;
+			pendingSuper = val_null;
+		}
+		jitStubCompiledFastExecCount++;
+		return Boolean(true);
+	}
 	return Boolean(false);
 }
 void VMStorage::RefreshHotFunctionCandidates() {
@@ -370,11 +461,14 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 		f.set_JitIsHotCandidate(Boolean(false));
 		f.set_JitObservedInstructions(0);
 		f.set_JitStubState(0);
+		f.set_JitStubBackendKind(0);
+		f.set_JitStubBackendIntValue(0);
 		f.set_JitStubCompileAttempts(0);
 		f.set_JitStubLastError("");
 	}
 	jitStubCompileAttemptCount = 0;
 	jitStubCompiledRouteHitCount = 0;
+	jitStubCompiledFastExecCount = 0;
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -481,8 +575,17 @@ Int32 VMStorage::GetJitStubCompileAttemptCount() {
 Int32 VMStorage::GetJitStubCompiledRouteHitCount() {
 	return jitStubCompiledRouteHitCount;
 }
+Int32 VMStorage::GetJitStubCompiledFastExecCount() {
+	return jitStubCompiledFastExecCount;
+}
 bool VMStorage::ProbeCompiledStubRouting(Int32 funcIndex) {
-	return TryRouteCompiledStub(funcIndex);
+	return TryRouteCompiledStub(funcIndex, 0, Boolean(false));
+}
+void VMStorage::SetFunctionStubBackendForTesting(Int32 funcIndex,Int32 stubState,Int32 backendKind,Int32 backendIntValue) {
+	if (funcIndex < 0 || funcIndex >= functions.Count()) return;
+	functions[funcIndex].set_JitStubState(stubState);
+	functions[funcIndex].set_JitStubBackendKind(backendKind);
+	functions[funcIndex].set_JitStubBackendIntValue(backendIntValue);
 }
 Int32 VMStorage::SelfParamOffset(FuncDefRef callee) {
 	if (hasPendingContext && callee.ParamNames.Count() > 0 && value_equal(callee.ParamNames[0], val_self)) {
@@ -605,7 +708,10 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 	}
 
 	// User function: push CallInfo and set up callee frame
-	TryRouteCompiledStub(funcIndex);
+	if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true))) {
+		GC_POP_SCOPE();
+		return -1;
+	}
 	if (callStackTop >= callStack.Count()) {
 		RaiseRuntimeError("Call stack overflow");
 		GC_POP_SCOPE();
@@ -1626,7 +1732,10 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					VM_NEXT();
 				}
 
-				TryRouteCompiledStub(funcIndex);
+				if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true))) {
+					pc = nextPC;
+					VM_NEXT();
+				}
 
 				// Now execute the CALL (step 6): push CallInfo and switch to callee
 				if (callStackTop >= callStack.Count()) {
@@ -1687,7 +1796,9 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 				callStack[callStackTop] = CallInfo(pc, baseIndex, currentFuncIndex);
 				callStackTop++;
 
-				TryRouteCompiledStub(funcIndex);
+				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(false))) {
+					VM_NEXT();
+				}
 
 				// Switch to callee frame: base slides to argument window
 				baseIndex += a;
@@ -1752,7 +1863,9 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					VM_NEXT();
 				}
 
-				TryRouteCompiledStub(funcIndex);
+				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(true))) {
+					VM_NEXT();
+				}
 
 				if (callStackTop >= callStack.Count()) {
 					RaiseRuntimeError("Call stack overflow");

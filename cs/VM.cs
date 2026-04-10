@@ -87,6 +87,7 @@ public class VM {
 	private List<Int32> hotFunctionCandidates;
 	private Int32 jitStubCompileAttemptCount;
 	private Int32 jitStubCompiledRouteHitCount;
+	private Int32 jitStubCompiledFastExecCount;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -370,18 +371,65 @@ public class VM {
 		}
 	}
 
+	private bool IsStubCompilableOpcode(Int32 opValue) {
+		Opcode op = (Opcode)opValue;
+		if (op == Opcode.NOOP || op == Opcode.RETURN) return true;
+		if (op == Opcode.LOAD_rA_rB || op == Opcode.LOAD_rA_iBC || op == Opcode.LOAD_rA_kBC || op == Opcode.LOADNULL_rA) return true;
+		if (op == Opcode.ASSIGN_rA_rB_kC || op == Opcode.NAME_rA_kBC) return true;
+		if (op == Opcode.SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode.SUPER_LOADK_ASSIGN_rA_kBC
+			|| op == Opcode.SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode.SUPER_LOADR_ASSIGN_rA_rB_kC) return true;
+		return false;
+	}
+
 	private String ValidateStubCompilableSubset(FuncDef f) {
 		if (f == null) return "missing function";
 		Int32 codeCount = f.Code.Count;
 		if (codeCount == 0) return "empty function";
 		for (Int32 i = 0; i < codeCount; i++) {
-			Opcode op = (Opcode)BytecodeUtil.OP(f.Code[i]);
-			if (op == Opcode.NOOP || op == Opcode.RETURN) continue;
+			Int32 opValue = BytecodeUtil.OP(f.Code[i]);
+			if (IsStubCompilableOpcode(opValue)) continue;
+			Opcode op = (Opcode)opValue;
 			return StringUtils.Format("unsupported opcode: {0}", BytecodeUtil.ToMnemonic(op));
 		}
 		Opcode lastOp = (Opcode)BytecodeUtil.OP(f.Code[codeCount - 1]);
 		if (lastOp != Opcode.RETURN) return "missing RETURN terminator";
 		return null;
+	}
+
+	private void SelectStubBackend(FuncDef f) {
+		if (f == null) return;
+		f.JitStubBackendKind = 0;
+		f.JitStubBackendIntValue = 0;
+
+		Int32 codeCount = f.Code.Count;
+		if (codeCount == 0) return;
+		Opcode lastOp = (Opcode)BytecodeUtil.OP(f.Code[codeCount - 1]);
+		if (lastOp != Opcode.RETURN) return;
+
+		if (codeCount == 2) {
+			UInt32 firstInstruction = f.Code[0];
+			Opcode firstOp = (Opcode)BytecodeUtil.OP(firstInstruction);
+			if (firstOp == Opcode.LOAD_rA_iBC && BytecodeUtil.Au(firstInstruction) == 0) {
+				f.JitStubBackendKind = 2;
+				f.JitStubBackendIntValue = BytecodeUtil.BCs(firstInstruction);
+				return;
+			}
+			if (firstOp == Opcode.LOAD_rA_kBC && BytecodeUtil.Au(firstInstruction) == 0) {
+				f.JitStubBackendKind = 3;
+				f.JitStubBackendIntValue = BytecodeUtil.BCu(firstInstruction);
+				return;
+			}
+			if (firstOp == Opcode.LOADNULL_rA && BytecodeUtil.Au(firstInstruction) == 0) {
+				f.JitStubBackendKind = 1;
+				return;
+			}
+		}
+
+		for (Int32 i = 0; i < codeCount - 1; i++) {
+			Opcode op = (Opcode)BytecodeUtil.OP(f.Code[i]);
+			if (op != Opcode.NOOP) return;
+		}
+		f.JitStubBackendKind = 1; // return-null fast path
 	}
 
 	private bool TryCompileStubForFunction(Int32 funcIndex) {
@@ -397,26 +445,72 @@ public class VM {
 			// Phase-2 stepping stone: mark a tiny subset as compiled, while execution
 			// still routes through the interpreter until real codegen lands.
 			f.JitStubState = 2;
+			SelectStubBackend(f);
 			f.JitStubLastError = "";
 			return true;
 		}
 
 		// Hook point for future native/codegen backend.
 		f.JitStubState = 3;
+		f.JitStubBackendKind = 0;
+		f.JitStubBackendIntValue = 0;
 		f.JitStubLastError = StringUtils.Format("Stub backend not implemented for {0}", compileReason);
 		return false;
 	}
 
-	private bool TryRouteCompiledStub(Int32 funcIndex) {
+	private bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext) {
 		if (JitTier != JitTierStub) return false;
 		if (funcIndex < 0 || funcIndex >= functions.Count) return false;
 		FuncDef f = functions[funcIndex];
 		if (f.NativeCallback != null) return false;
 		if (f.JitStubState != 2) return false;
 
-		// Route hook only for now: count hits, but continue through interpreter path
-		// until a native/codegen backend exists.
+		// Route hook: count any attempted route on compiled functions.
 		jitStubCompiledRouteHitCount++;
+
+		if (f.JitStubBackendKind == 1) {
+			if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count) {
+				stack[absoluteResultIndex] = val_null;
+			}
+			if (consumePendingContext) {
+				hasPendingContext = false;
+				pendingSelf = val_null;
+				pendingSuper = val_null;
+			}
+			jitStubCompiledFastExecCount++;
+			return true;
+		}
+
+		if (f.JitStubBackendKind == 2) {
+			if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count) {
+				stack[absoluteResultIndex] = make_int(f.JitStubBackendIntValue);
+			}
+			if (consumePendingContext) {
+				hasPendingContext = false;
+				pendingSelf = val_null;
+				pendingSuper = val_null;
+			}
+			jitStubCompiledFastExecCount++;
+			return true;
+		}
+
+		if (f.JitStubBackendKind == 3) {
+			if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count) {
+				Int32 constIndex = f.JitStubBackendIntValue;
+				if (constIndex >= 0 && constIndex < f.Constants.Count) {
+					stack[absoluteResultIndex] = f.Constants[constIndex];
+				} else {
+					stack[absoluteResultIndex] = val_null;
+				}
+			}
+			if (consumePendingContext) {
+				hasPendingContext = false;
+				pendingSelf = val_null;
+				pendingSuper = val_null;
+			}
+			jitStubCompiledFastExecCount++;
+			return true;
+		}
 		return false;
 	}
 
@@ -502,11 +596,23 @@ public class VM {
 			f.JitIsHotCandidate = false;
 			f.JitObservedInstructions = 0;
 			f.JitStubState = 0;
+			f.JitStubBackendKind = 0;
+			f.JitStubBackendIntValue = 0;
 			f.JitStubCompileAttempts = 0;
 			f.JitStubLastError = "";
 		}
 		jitStubCompileAttemptCount = 0;
 		jitStubCompiledRouteHitCount = 0;
+		jitStubCompiledFastExecCount = 0;
+
+		// Precompile entry function when it trivially matches a supported stub backend,
+		// so top-level fast paths can activate on first run in jit=stub mode.
+		if (JitTier == JitTierStub) {
+			FuncDef entryFunc = functions[mainIdx];
+			if (entryFunc.NativeCallback == null && ValidateStubCompilableSubset(entryFunc) == null) {
+				TryCompileStubForFunction(mainIdx);
+			}
+		}
 
 		/*** BEGIN CPP_ONLY ***
 		// C++ only: copy functions into functionsRaw vector for quick access
@@ -631,8 +737,19 @@ public class VM {
 		return jitStubCompiledRouteHitCount;
 	}
 
+	public Int32 GetJitStubCompiledFastExecCount() {
+		return jitStubCompiledFastExecCount;
+	}
+
 	public bool ProbeCompiledStubRouting(Int32 funcIndex) {
-		return TryRouteCompiledStub(funcIndex);
+		return TryRouteCompiledStub(funcIndex, 0, false);
+	}
+
+	public void SetFunctionStubBackendForTesting(Int32 funcIndex, Int32 stubState, Int32 backendKind, Int32 backendIntValue) {
+		if (funcIndex < 0 || funcIndex >= functions.Count) return;
+		functions[funcIndex].JitStubState = stubState;
+		functions[funcIndex].JitStubBackendKind = backendKind;
+		functions[funcIndex].JitStubBackendIntValue = backendIntValue;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
@@ -772,7 +889,9 @@ public class VM {
 		}
 
 		// User function: push CallInfo and set up callee frame
-		TryRouteCompiledStub(funcIndex);
+		if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true)) {
+			return -1;
+		}
 		if (callStackTop >= callStack.Count) {
 			RaiseRuntimeError("Call stack overflow");
 			return -1;
@@ -856,6 +975,15 @@ public class VM {
 		Int32 pc = PC;
 		Int32 baseIndex = BaseIndex;
 		Int32 currentFuncIndex = _currentFuncIndex;
+
+		if (pc == 0 && callStackTop == 0) {
+			if (TryRouteCompiledStub(currentFuncIndex, baseIndex, false)) {
+				Value fastResult = stack[baseIndex];
+				SaveState(pc, baseIndex, currentFuncIndex);
+				IsRunning = false;
+				return fastResult;
+			}
+		}
 
 		// CPP: Value* stackPtr = &stack[0];
 		// Note: CollectionsMarshal.AsSpan requires .NET 5+; not compatible with Mono.
@@ -1790,7 +1918,10 @@ public class VM {
 						break;
 					}
 
-					TryRouteCompiledStub(funcIndex);
+					if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true)) {
+						pc = nextPC;
+						break;
+					}
 
 					// Now execute the CALL (step 6): push CallInfo and switch to callee
 					if (callStackTop >= callStack.Count) {
@@ -1849,7 +1980,9 @@ public class VM {
 					callStack[callStackTop] = new CallInfo(pc, baseIndex, currentFuncIndex);
 					callStackTop++;
 
-					TryRouteCompiledStub(funcIndex);
+					if (TryRouteCompiledStub(funcIndex, baseIndex + a, false)) {
+						break;
+					}
 
 					// Switch to callee frame: base slides to argument window
 					baseIndex += a;
@@ -1915,7 +2048,9 @@ public class VM {
 						break;
 					}
 
-					TryRouteCompiledStub(funcIndex);
+					if (TryRouteCompiledStub(funcIndex, baseIndex + a, true)) {
+						break;
+					}
 
 					if (callStackTop >= callStack.Count) {
 						RaiseRuntimeError("Call stack overflow");

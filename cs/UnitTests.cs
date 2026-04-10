@@ -812,8 +812,8 @@ public static class UnitTests {
 
 		FuncDef f = new FuncDef();
 		f.Name = "@main";
-		f.MaxRegs = 1;
-		f.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 0, 42));
+		f.MaxRegs = 2;
+		f.Code.Add(BytecodeUtil.INS_ABC(Opcode.NEW_rA_rB, 0, 1, 0));
 		f.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
 
 		VM vm = new VM();
@@ -844,6 +844,47 @@ public static class UnitTests {
 			"Expected @main JitStubLastError to be set after failed compile attempt");
 
 		if (!ok) IOHelper.Print("TestStubLifecycleFallbackFailure FAILED");
+		return ok;
+	}
+
+	public static Boolean TestStubLifecycleExpandedSubsetCompile() {
+		Boolean ok = true;
+
+		FuncDef f = new FuncDef();
+		f.Name = "@main";
+		f.MaxRegs = 2;
+		f.Constants.Add(make_string("x"));
+		f.Code.Add(BytecodeUtil.INS_AB(Opcode.NAME_rA_kBC, 1, 0));
+		f.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 1, 42));
+		f.Code.Add(BytecodeUtil.INS_ABC(Opcode.ASSIGN_rA_rB_kC, 1, 1, 0));
+		f.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 1;
+		vm.Reset(new List<FuncDef> { f });
+		vm.Run();
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		Int32 mainIdx = -1;
+		for (Int32 i = 0; i < funcs.Count; i++) {
+			if (funcs[i].Name == "@main") {
+				mainIdx = i;
+				break;
+			}
+		}
+		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for expanded subset compile test");
+		if (mainIdx < 0) return false;
+
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+			"Expected @main JitStubState to be compiled for expanded supported subset");
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
+		ok = ok && Assert(String.IsNullOrEmpty(funcs[mainIdx].JitStubLastError),
+			"Expected no JIT stub error for expanded supported subset");
+
+		if (!ok) IOHelper.Print("TestStubLifecycleExpandedSubsetCompile FAILED");
 		return ok;
 	}
 
@@ -878,12 +919,188 @@ public static class UnitTests {
 		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
 			"Expected @main to be compiled before probing route hook");
 		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 0);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 0);
 
 		bool routed = vm.ProbeCompiledStubRouting(mainIdx);
-		ok = ok && Assert(!routed, "Expected ProbeCompiledStubRouting to remain interpreter-backed for now");
+		ok = ok && Assert(routed, "Expected ProbeCompiledStubRouting to execute trivial compiled backend path");
 		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
 
 		if (!ok) IOHelper.Print("TestCompiledStubRoutingHookCounter FAILED");
+		return ok;
+	}
+
+	public static Boolean TestCompiledStubFastPathOnCallf() {
+		Boolean ok = true;
+
+		FuncDef main = new FuncDef();
+		main.Name = "@main";
+		main.MaxRegs = 3;
+		// CALLF r1, #1 -- call function index 1 with argument window at r1.
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.CALLF_iA_iBC, 1, 1));
+		main.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		FuncDef callee = new FuncDef();
+		callee.Name = "@callee";
+		callee.MaxRegs = 1;
+		callee.Code.Add(BytecodeUtil.INS(Opcode.NOOP));
+		callee.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 2;
+		// Partial reset avoids intrinsic preloading so indices are deterministic.
+		List<FuncDef> testFuncs = new List<FuncDef>();
+		testFuncs.Add(main);
+		testFuncs.Add(callee);
+		vm.Reset(testFuncs, make_map(4));
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		ok = ok && AssertEqual(funcs.Count, 2);
+		if (funcs.Count != 2) return false;
+
+		vm.SetFunctionStubBackendForTesting(1, 2, 2, 7);
+
+		vm.Run();
+
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+		ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(7)),
+			"Expected CALLF fast path to write integer result into r1");
+
+		List<UInt64> counts = vm.GetFunctionExecutionCounts();
+		ok = ok && Assert((Int32)counts[0] >= 2, "Expected @main to execute at least CALLF + RETURN");
+		ok = ok && AssertEqual((Int32)counts[1], 0); // callee should be bypassed
+
+		if (!ok) IOHelper.Print("TestCompiledStubFastPathOnCallf FAILED");
+		return ok;
+	}
+
+	public static Boolean TestCompiledStubFastPathConstReturnOnCallf() {
+		Boolean ok = true;
+
+		FuncDef main = new FuncDef();
+		main.Name = "@main";
+		main.MaxRegs = 3;
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.CALLF_iA_iBC, 1, 1));
+		main.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		FuncDef callee = new FuncDef();
+		callee.Name = "@callee";
+		callee.MaxRegs = 1;
+		callee.Constants.Add(make_string("ok"));
+		callee.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_kBC, 0, 0));
+		callee.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 2;
+
+		List<FuncDef> testFuncs = new List<FuncDef>();
+		testFuncs.Add(main);
+		testFuncs.Add(callee);
+		vm.Reset(testFuncs, make_map(4));
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		ok = ok && AssertEqual(funcs.Count, 2);
+		if (funcs.Count != 2) return false;
+
+		vm.SetFunctionStubBackendForTesting(1, 2, 3, 0);
+		vm.Run();
+
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+		ok = ok && Assert(value_equal(vm.GetStackValue(1), make_string("ok")),
+			"Expected CALLF const fast path to write string constant result into r1");
+
+		List<UInt64> counts = vm.GetFunctionExecutionCounts();
+		ok = ok && Assert((Int32)counts[0] >= 2, "Expected @main to execute at least CALLF + RETURN in const fast path test");
+		ok = ok && AssertEqual((Int32)counts[1], 0); // callee should be bypassed
+
+		if (!ok) IOHelper.Print("TestCompiledStubFastPathConstReturnOnCallf FAILED");
+		return ok;
+	}
+
+	public static Boolean TestCompiledStubFastPathAtTopLevel() {
+		Boolean ok = true;
+
+		FuncDef main = new FuncDef();
+		main.Name = "@main";
+		main.MaxRegs = 1;
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 0, 9));
+		main.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 1;
+
+		List<FuncDef> testFuncs = new List<FuncDef>();
+		testFuncs.Add(main);
+		vm.Reset(testFuncs, make_map(4));
+		vm.SetFunctionStubBackendForTesting(0, 2, 2, 9);
+
+		Value result = vm.Run();
+
+		ok = ok && Assert(value_equal(result, make_int(9)),
+			"Expected top-level fast path to return 9");
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+		ok = ok && Assert(!vm.IsRunning, "Expected VM to stop after top-level fast path");
+
+		List<UInt64> counts = vm.GetFunctionExecutionCounts();
+		ok = ok && AssertEqual((Int32)counts[0], 0); // no bytecode loop execution
+
+		if (!ok) IOHelper.Print("TestCompiledStubFastPathAtTopLevel FAILED");
+		return ok;
+	}
+
+	public static Boolean TestCompiledStubPrecompileMainAtReset() {
+		Boolean ok = true;
+
+		FuncDef main = new FuncDef();
+		main.Name = "@main";
+		main.MaxRegs = 1;
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 0, 11));
+		main.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = false; // prove first-run fast path without profiling pass
+
+		List<FuncDef> testFuncs = new List<FuncDef>();
+		testFuncs.Add(main);
+		vm.Reset(testFuncs, make_map(4));
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		Int32 mainIdx = -1;
+		for (Int32 i = 0; i < funcs.Count; i++) {
+			if (funcs[i].Name == "@main") {
+				mainIdx = i;
+				break;
+			}
+		}
+		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for precompile-reset test");
+		if (mainIdx < 0) return false;
+
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubState, 2);
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
+
+		Value result = vm.Run();
+		ok = ok && Assert(value_equal(result, make_int(11)),
+			"Expected precompiled @main to return 11 via top-level fast path");
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+		List<UInt64> counts = vm.GetFunctionExecutionCounts();
+		ok = ok && AssertEqual((Int32)counts[mainIdx], 0); // no interpreter loop execution for @main
+
+		if (!ok) IOHelper.Print("TestCompiledStubPrecompileMainAtReset FAILED");
 		return ok;
 	}
 
@@ -1451,7 +1668,12 @@ public static class UnitTests {
 			&& TestHotFunctionCandidates()
 			&& TestStubLifecycleGroundwork()
 			&& TestStubLifecycleFallbackFailure()
+			&& TestStubLifecycleExpandedSubsetCompile()
 			&& TestCompiledStubRoutingHookCounter()
+			&& TestCompiledStubFastPathOnCallf()
+			&& TestCompiledStubFastPathConstReturnOnCallf()
+			&& TestCompiledStubFastPathAtTopLevel()
+			&& TestCompiledStubPrecompileMainAtReset()
 			&& TestParserNeedMoreInput()
 			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()

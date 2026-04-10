@@ -50,6 +50,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: List<Int32> hotFunctionCandidates;
 	private: Int32 jitStubCompileAttemptCount;
 	private: Int32 jitStubCompiledRouteHitCount;
+	private: Int32 jitStubCompiledFastExecCount;
 	private: List<Value> stack;
 	private: List<Value> names; // Variable names parallel to stack (null if unnamed)
 	private: InterpreterStorage* interpreter;
@@ -151,11 +152,15 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	private: void UpdateStubLifecycleFromHotCandidates();
 
+	private: bool IsStubCompilableOpcode(Int32 opValue);
+
 	private: String ValidateStubCompilableSubset(FuncDef f);
+
+	private: void SelectStubBackend(FuncDef f);
 
 	private: bool TryCompileStubForFunction(Int32 funcIndex);
 
-	private: bool TryRouteCompiledStub(Int32 funcIndex);
+	private: bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext);
 
 	private: void RefreshHotFunctionCandidates();
 
@@ -193,7 +198,11 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	public: Int32 GetJitStubCompiledRouteHitCount();
 
+	public: Int32 GetJitStubCompiledFastExecCount();
+
 	public: bool ProbeCompiledStubRouting(Int32 funcIndex);
+
+	public: void SetFunctionStubBackendForTesting(Int32 funcIndex, Int32 stubState, Int32 backendKind, Int32 backendIntValue);
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -294,6 +303,8 @@ struct VM {
 	private: void set_jitStubCompileAttemptCount(Int32 _v);
 	private: Int32 jitStubCompiledRouteHitCount();
 	private: void set_jitStubCompiledRouteHitCount(Int32 _v);
+	private: Int32 jitStubCompiledFastExecCount();
+	private: void set_jitStubCompiledFastExecCount(Int32 _v);
 	private: List<Value> stack();
 	private: void set_stack(List<Value> _v);
 	private: List<Value> names(); // Variable names parallel to stack (null if unnamed)
@@ -416,11 +427,15 @@ struct VM {
 
 	private: inline void UpdateStubLifecycleFromHotCandidates();
 
+	private: inline bool IsStubCompilableOpcode(Int32 opValue);
+
 	private: inline String ValidateStubCompilableSubset(FuncDef f);
+
+	private: inline void SelectStubBackend(FuncDef f);
 
 	private: inline bool TryCompileStubForFunction(Int32 funcIndex);
 
-	private: inline bool TryRouteCompiledStub(Int32 funcIndex);
+	private: inline bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext);
 
 	private: inline void RefreshHotFunctionCandidates();
 
@@ -458,7 +473,11 @@ struct VM {
 
 	public: inline Int32 GetJitStubCompiledRouteHitCount();
 
+	public: inline Int32 GetJitStubCompiledFastExecCount();
+
 	public: inline bool ProbeCompiledStubRouting(Int32 funcIndex);
+
+	public: inline void SetFunctionStubBackendForTesting(Int32 funcIndex, Int32 stubState, Int32 backendKind, Int32 backendIntValue);
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -550,6 +569,8 @@ inline Int32 VM::jitStubCompileAttemptCount() { return get()->jitStubCompileAtte
 inline void VM::set_jitStubCompileAttemptCount(Int32 _v) { get()->jitStubCompileAttemptCount = _v; }
 inline Int32 VM::jitStubCompiledRouteHitCount() { return get()->jitStubCompiledRouteHitCount; }
 inline void VM::set_jitStubCompiledRouteHitCount(Int32 _v) { get()->jitStubCompiledRouteHitCount = _v; }
+inline Int32 VM::jitStubCompiledFastExecCount() { return get()->jitStubCompiledFastExecCount; }
+inline void VM::set_jitStubCompiledFastExecCount(Int32 _v) { get()->jitStubCompiledFastExecCount = _v; }
 inline List<Value> VM::stack() { return get()->stack; }
 inline void VM::set_stack(List<Value> _v) { get()->stack = _v; }
 inline List<Value> VM::names() { return get()->names; } // Variable names parallel to stack (null if unnamed)
@@ -613,9 +634,11 @@ inline void VM::RegisterFunction(FuncDef funcDef) { return get()->RegisterFuncti
 inline void VM::ApplySuperinstructions() { return get()->ApplySuperinstructions(); }
 inline void VM::ClearHotFunctionCandidates() { return get()->ClearHotFunctionCandidates(); }
 inline void VM::UpdateStubLifecycleFromHotCandidates() { return get()->UpdateStubLifecycleFromHotCandidates(); }
+inline bool VM::IsStubCompilableOpcode(Int32 opValue) { return get()->IsStubCompilableOpcode(opValue); }
 inline String VM::ValidateStubCompilableSubset(FuncDef f) { return get()->ValidateStubCompilableSubset(f); }
+inline void VM::SelectStubBackend(FuncDef f) { return get()->SelectStubBackend(f); }
 inline bool VM::TryCompileStubForFunction(Int32 funcIndex) { return get()->TryCompileStubForFunction(funcIndex); }
-inline bool VM::TryRouteCompiledStub(Int32 funcIndex) { return get()->TryRouteCompiledStub(funcIndex); }
+inline bool VM::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext) { return get()->TryRouteCompiledStub(funcIndex, absoluteResultIndex, consumePendingContext); }
 inline void VM::RefreshHotFunctionCandidates() { return get()->RefreshHotFunctionCandidates(); }
 inline void VM::Reset(List<FuncDef> allFunctions) { return get()->Reset(allFunctions); }
 inline void VM::Reset(List<FuncDef> allFunctions,Value replGlobals) { return get()->Reset(allFunctions, replGlobals); }
@@ -634,7 +657,9 @@ inline Int32 VM::GetHotFunctionCandidateCount() { return get()->GetHotFunctionCa
 inline Int32 VM::GetJitStubStateCount(Int32 stubState) { return get()->GetJitStubStateCount(stubState); }
 inline Int32 VM::GetJitStubCompileAttemptCount() { return get()->GetJitStubCompileAttemptCount(); }
 inline Int32 VM::GetJitStubCompiledRouteHitCount() { return get()->GetJitStubCompiledRouteHitCount(); }
+inline Int32 VM::GetJitStubCompiledFastExecCount() { return get()->GetJitStubCompiledFastExecCount(); }
 inline bool VM::ProbeCompiledStubRouting(Int32 funcIndex) { return get()->ProbeCompiledStubRouting(funcIndex); }
+inline void VM::SetFunctionStubBackendForTesting(Int32 funcIndex,Int32 stubState,Int32 backendKind,Int32 backendIntValue) { return get()->SetFunctionStubBackendForTesting(funcIndex, stubState, backendKind, backendIntValue); }
 inline Int32 VM::SelfParamOffset(FuncDefRef callee) { return get()->SelfParamOffset(callee); }
 inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDefRef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
 inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDefRef callee) { return get()->ApplyPendingContext(calleeBase, callee); }

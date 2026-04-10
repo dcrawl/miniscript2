@@ -12,6 +12,10 @@ const Int32 FuncDefStorage::JitStubStateNone = 0;
 const Int32 FuncDefStorage::JitStubStateCandidate = 1;
 const Int32 FuncDefStorage::JitStubStateCompiled = 2;
 const Int32 FuncDefStorage::JitStubStateFailed = 3;
+const Int32 FuncDefStorage::JitStubBackendNone = 0;
+const Int32 FuncDefStorage::JitStubBackendReturnNull = 1;
+const Int32 FuncDefStorage::JitStubBackendReturnInt = 2;
+const Int32 FuncDefStorage::JitStubBackendReturnConst = 3;
 FuncDefStorage::FuncDefStorage() {
 }
 void FuncDefStorage::ReserveRegister(Int32 registerNumber) {

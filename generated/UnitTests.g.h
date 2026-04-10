@@ -56,7 +56,13 @@ class UnitTests {
 
 	public: static Boolean TestStubLifecycleFallbackFailure();
 
+	public: static Boolean TestStubLifecycleExpandedSubsetCompile();
+
 	public: static Boolean TestCompiledStubRoutingHookCounter();
+
+	public: static Boolean TestCompiledStubFastPathOnCallf();
+
+	public: static Boolean TestCompiledStubFastPathConstReturnOnCallf();
 
 	public: static Boolean TestLexer();
 

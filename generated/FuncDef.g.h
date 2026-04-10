@@ -30,7 +30,13 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	public: static const Int32 JitStubStateCandidate;
 	public: static const Int32 JitStubStateCompiled;
 	public: static const Int32 JitStubStateFailed;
+	public: static const Int32 JitStubBackendNone;
+	public: static const Int32 JitStubBackendReturnNull;
+	public: static const Int32 JitStubBackendReturnInt;
+	public: static const Int32 JitStubBackendReturnConst;
 	public: Int32 JitStubState = 0;
+	public: Int32 JitStubBackendKind = 0;
+	public: Int32 JitStubBackendIntValue = 0;
 	public: Int32 JitStubCompileAttempts = 0;
 	public: String JitStubLastError = "";
 	public: NativeCallbackDelegate NativeCallback = null;
@@ -92,8 +98,16 @@ struct FuncDef {
 	public: Int32 JitStubStateCandidate();
 	public: Int32 JitStubStateCompiled();
 	public: Int32 JitStubStateFailed();
+	public: Int32 JitStubBackendNone();
+	public: Int32 JitStubBackendReturnNull();
+	public: Int32 JitStubBackendReturnInt();
+	public: Int32 JitStubBackendReturnConst();
 	public: Int32 JitStubState();
 	public: void set_JitStubState(Int32 _v);
+	public: Int32 JitStubBackendKind();
+	public: void set_JitStubBackendKind(Int32 _v);
+	public: Int32 JitStubBackendIntValue();
+	public: void set_JitStubBackendIntValue(Int32 _v);
 	public: Int32 JitStubCompileAttempts();
 	public: void set_JitStubCompileAttempts(Int32 _v);
 	public: String JitStubLastError();
@@ -150,8 +164,16 @@ inline Int32 FuncDef::JitStubStateNone() { return get()->JitStubStateNone; }
 inline Int32 FuncDef::JitStubStateCandidate() { return get()->JitStubStateCandidate; }
 inline Int32 FuncDef::JitStubStateCompiled() { return get()->JitStubStateCompiled; }
 inline Int32 FuncDef::JitStubStateFailed() { return get()->JitStubStateFailed; }
+inline Int32 FuncDef::JitStubBackendNone() { return get()->JitStubBackendNone; }
+inline Int32 FuncDef::JitStubBackendReturnNull() { return get()->JitStubBackendReturnNull; }
+inline Int32 FuncDef::JitStubBackendReturnInt() { return get()->JitStubBackendReturnInt; }
+inline Int32 FuncDef::JitStubBackendReturnConst() { return get()->JitStubBackendReturnConst; }
 inline Int32 FuncDef::JitStubState() { return get()->JitStubState; }
 inline void FuncDef::set_JitStubState(Int32 _v) { get()->JitStubState = _v; }
+inline Int32 FuncDef::JitStubBackendKind() { return get()->JitStubBackendKind; }
+inline void FuncDef::set_JitStubBackendKind(Int32 _v) { get()->JitStubBackendKind = _v; }
+inline Int32 FuncDef::JitStubBackendIntValue() { return get()->JitStubBackendIntValue; }
+inline void FuncDef::set_JitStubBackendIntValue(Int32 _v) { get()->JitStubBackendIntValue = _v; }
 inline Int32 FuncDef::JitStubCompileAttempts() { return get()->JitStubCompileAttempts; }
 inline void FuncDef::set_JitStubCompileAttempts(Int32 _v) { get()->JitStubCompileAttempts = _v; }
 inline String FuncDef::JitStubLastError() { return get()->JitStubLastError; }

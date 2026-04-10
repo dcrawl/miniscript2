@@ -485,12 +485,13 @@ void App::RunInterpreter(Interpreter interp) {
 
 			if (jitTier == JitTierStub) {
 				IOHelper::Print(StringUtils::Format(
-					"JIT stub lifecycle: candidate={0}, compiled={1}, failed={2}, attempts={3}, compiled-routes={4}",
+					"JIT stub lifecycle: candidate={0}, compiled={1}, failed={2}, attempts={3}, compiled-routes={4}, compiled-fast={5}",
 					vm.GetJitStubStateCount(1),
 					vm.GetJitStubStateCount(2),
 					vm.GetJitStubStateCount(3),
 					vm.GetJitStubCompileAttemptCount(),
-					vm.GetJitStubCompiledRouteHitCount()));
+					vm.GetJitStubCompiledRouteHitCount(),
+					vm.GetJitStubCompiledFastExecCount()));
 				for (Int32 i = 0; i < functions.Count(); i++) {
 					if (functions[i].JitStubState() == 3 && !String::IsNullOrEmpty(functions[i].JitStubLastError())) {
 						IOHelper::Print(StringUtils::Format("  stub-failed {0}: {1}",
