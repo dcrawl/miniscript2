@@ -279,6 +279,18 @@ bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 	f.set_JitStubLastError(StringUtils::Format("Stub backend not implemented for {0}", compileReason));
 	return Boolean(false);
 }
+bool VMStorage::TryRouteCompiledStub(Int32 funcIndex) {
+	if (JitTier != JitTierStub) return Boolean(false);
+	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
+	FuncDef f = functions[funcIndex];
+	if (!IsNull(f.NativeCallback())) return Boolean(false);
+	if (f.JitStubState() != 2) return Boolean(false);
+
+	// Route hook only for now: count hits, but continue through interpreter path
+	// until a native/codegen backend exists.
+	jitStubCompiledRouteHitCount++;
+	return Boolean(false);
+}
 void VMStorage::RefreshHotFunctionCandidates() {
 	ClearHotFunctionCandidates();
 	if (!EnableJitProfiling) return;
@@ -362,6 +374,7 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 		f.set_JitStubLastError("");
 	}
 	jitStubCompileAttemptCount = 0;
+	jitStubCompiledRouteHitCount = 0;
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -464,6 +477,12 @@ Int32 VMStorage::GetJitStubStateCount(Int32 stubState) {
 }
 Int32 VMStorage::GetJitStubCompileAttemptCount() {
 	return jitStubCompileAttemptCount;
+}
+Int32 VMStorage::GetJitStubCompiledRouteHitCount() {
+	return jitStubCompiledRouteHitCount;
+}
+bool VMStorage::ProbeCompiledStubRouting(Int32 funcIndex) {
+	return TryRouteCompiledStub(funcIndex);
 }
 Int32 VMStorage::SelfParamOffset(FuncDefRef callee) {
 	if (hasPendingContext && callee.ParamNames.Count() > 0 && value_equal(callee.ParamNames[0], val_self)) {
@@ -586,6 +605,7 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 	}
 
 	// User function: push CallInfo and set up callee frame
+	TryRouteCompiledStub(funcIndex);
 	if (callStackTop >= callStack.Count()) {
 		RaiseRuntimeError("Call stack overflow");
 		GC_POP_SCOPE();
@@ -1606,6 +1626,8 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					VM_NEXT();
 				}
 
+				TryRouteCompiledStub(funcIndex);
+
 				// Now execute the CALL (step 6): push CallInfo and switch to callee
 				if (callStackTop >= callStack.Count()) {
 					RaiseRuntimeError("Call stack overflow");
@@ -1664,6 +1686,8 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 				}
 				callStack[callStackTop] = CallInfo(pc, baseIndex, currentFuncIndex);
 				callStackTop++;
+
+				TryRouteCompiledStub(funcIndex);
 
 				// Switch to callee frame: base slides to argument window
 				baseIndex += a;
@@ -1727,6 +1751,8 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					}
 					VM_NEXT();
 				}
+
+				TryRouteCompiledStub(funcIndex);
 
 				if (callStackTop >= callStack.Count()) {
 					RaiseRuntimeError("Call stack overflow");

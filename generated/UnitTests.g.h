@@ -56,6 +56,8 @@ class UnitTests {
 
 	public: static Boolean TestStubLifecycleFallbackFailure();
 
+	public: static Boolean TestCompiledStubRoutingHookCounter();
+
 	public: static Boolean TestLexer();
 
 	// Helper: run a sequence of REPL inputs and collect all printed output.

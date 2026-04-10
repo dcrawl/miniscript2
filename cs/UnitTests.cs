@@ -847,6 +847,46 @@ public static class UnitTests {
 		return ok;
 	}
 
+	public static Boolean TestCompiledStubRoutingHookCounter() {
+		Boolean ok = true;
+
+		FuncDef f = new FuncDef();
+		f.Name = "@main";
+		f.MaxRegs = 1;
+		f.Code.Add(BytecodeUtil.INS(Opcode.NOOP));
+		f.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 1;
+		vm.Reset(new List<FuncDef> { f });
+		vm.Run();
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		Int32 mainIdx = -1;
+		for (Int32 i = 0; i < funcs.Count; i++) {
+			if (funcs[i].Name == "@main") {
+				mainIdx = i;
+				break;
+			}
+		}
+		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for route hook test");
+		if (mainIdx < 0) return false;
+
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+			"Expected @main to be compiled before probing route hook");
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 0);
+
+		bool routed = vm.ProbeCompiledStubRouting(mainIdx);
+		ok = ok && Assert(!routed, "Expected ProbeCompiledStubRouting to remain interpreter-backed for now");
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+
+		if (!ok) IOHelper.Print("TestCompiledStubRoutingHookCounter FAILED");
+		return ok;
+	}
+
 	public static Boolean TestLexer() {
 		//IOHelper.Print("  Testing lexer...");
 		Boolean ok = true;
@@ -1411,6 +1451,7 @@ public static class UnitTests {
 			&& TestHotFunctionCandidates()
 			&& TestStubLifecycleGroundwork()
 			&& TestStubLifecycleFallbackFailure()
+			&& TestCompiledStubRoutingHookCounter()
 			&& TestParserNeedMoreInput()
 			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()

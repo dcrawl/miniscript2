@@ -86,6 +86,7 @@ public class VM {
 	private List<Int32> superinstructionRewritesByFunction;
 	private List<Int32> hotFunctionCandidates;
 	private Int32 jitStubCompileAttemptCount;
+	private Int32 jitStubCompiledRouteHitCount;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -406,6 +407,19 @@ public class VM {
 		return false;
 	}
 
+	private bool TryRouteCompiledStub(Int32 funcIndex) {
+		if (JitTier != JitTierStub) return false;
+		if (funcIndex < 0 || funcIndex >= functions.Count) return false;
+		FuncDef f = functions[funcIndex];
+		if (f.NativeCallback != null) return false;
+		if (f.JitStubState != 2) return false;
+
+		// Route hook only for now: count hits, but continue through interpreter path
+		// until a native/codegen backend exists.
+		jitStubCompiledRouteHitCount++;
+		return false;
+	}
+
 	private void RefreshHotFunctionCandidates() {
 		ClearHotFunctionCandidates();
 		if (!EnableJitProfiling) return;
@@ -492,6 +506,7 @@ public class VM {
 			f.JitStubLastError = "";
 		}
 		jitStubCompileAttemptCount = 0;
+		jitStubCompiledRouteHitCount = 0;
 
 		/*** BEGIN CPP_ONLY ***
 		// C++ only: copy functions into functionsRaw vector for quick access
@@ -610,6 +625,14 @@ public class VM {
 
 	public Int32 GetJitStubCompileAttemptCount() {
 		return jitStubCompileAttemptCount;
+	}
+
+	public Int32 GetJitStubCompiledRouteHitCount() {
+		return jitStubCompiledRouteHitCount;
+	}
+
+	public bool ProbeCompiledStubRouting(Int32 funcIndex) {
+		return TryRouteCompiledStub(funcIndex);
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
@@ -749,6 +772,7 @@ public class VM {
 		}
 
 		// User function: push CallInfo and set up callee frame
+		TryRouteCompiledStub(funcIndex);
 		if (callStackTop >= callStack.Count) {
 			RaiseRuntimeError("Call stack overflow");
 			return -1;
@@ -1766,6 +1790,8 @@ public class VM {
 						break;
 					}
 
+					TryRouteCompiledStub(funcIndex);
+
 					// Now execute the CALL (step 6): push CallInfo and switch to callee
 					if (callStackTop >= callStack.Count) {
 						RaiseRuntimeError("Call stack overflow");
@@ -1822,6 +1848,8 @@ public class VM {
 					}
 					callStack[callStackTop] = new CallInfo(pc, baseIndex, currentFuncIndex);
 					callStackTop++;
+
+					TryRouteCompiledStub(funcIndex);
 
 					// Switch to callee frame: base slides to argument window
 					baseIndex += a;
@@ -1886,6 +1914,8 @@ public class VM {
 						}
 						break;
 					}
+
+					TryRouteCompiledStub(funcIndex);
 
 					if (callStackTop >= callStack.Count) {
 						RaiseRuntimeError("Call stack overflow");
