@@ -25,6 +25,8 @@ struct App {
 
 	private: static String FormatCounter(UInt64 value);
 
+	private: static String StubStateName(Int32 state);
+
 	private: static void ApplyRuntimeOptions(Interpreter interp);
 	
 	public: static void MainProgram(List<String> args);

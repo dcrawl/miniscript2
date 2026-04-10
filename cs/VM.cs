@@ -348,6 +348,23 @@ public class VM {
 		}
 	}
 
+	private void UpdateStubLifecycleFromHotCandidates() {
+		if (JitTier != JitTierStub) return;
+		for (Int32 i = 0; i < functions.Count; i++) {
+			FuncDef f = functions[i];
+			if (f.NativeCallback != null) continue;
+			if (f.JitIsHotCandidate) {
+				if (f.JitStubState == 0) {
+					f.JitStubState = 1; // candidate
+				}
+			} else {
+				if (f.JitStubState == 1) {
+					f.JitStubState = 0; // none
+				}
+			}
+		}
+	}
+
 	private void RefreshHotFunctionCandidates() {
 		ClearHotFunctionCandidates();
 		if (!EnableJitProfiling) return;
@@ -425,6 +442,14 @@ public class VM {
 		}
 
 		ApplySuperinstructions();
+		for (Int32 i = 0; i < functions.Count; i++) {
+			FuncDef f = functions[i];
+			f.JitIsHotCandidate = false;
+			f.JitObservedInstructions = 0;
+			f.JitStubState = 0;
+			f.JitStubCompileAttempts = 0;
+			f.JitStubLastError = "";
+		}
 
 		/*** BEGIN CPP_ONLY ***
 		// C++ only: copy functions into functionsRaw vector for quick access
@@ -531,6 +556,14 @@ public class VM {
 
 	public Int32 GetHotFunctionCandidateCount() {
 		return hotFunctionCandidates.Count;
+	}
+
+	public Int32 GetJitStubStateCount(Int32 stubState) {
+		Int32 count = 0;
+		for (Int32 i = 0; i < functions.Count; i++) {
+			if (functions[i].JitStubState == stubState) count++;
+		}
+		return count;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
@@ -742,6 +775,7 @@ public class VM {
 		Value runResult = RunInner(maxCycles);
 		if (EnableJitProfiling) {
 			RefreshHotFunctionCandidates();
+			UpdateStubLifecycleFromHotCandidates();
 		}
 		_activeVM = previousVM;
 		return runResult;

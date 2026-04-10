@@ -63,6 +63,12 @@ String App::FormatCounter(UInt64 value) {
 	if (value > 2147483647UL) return ">2.1B";
 	return StringUtils::Format("{0}", (Int32)value);
 }
+String App::StubStateName(Int32 state) {
+	if (state == 1) return "candidate";
+	if (state == 2) return "compiled";
+	if (state == 3) return "failed";
+	return "none";
+}
 void App::ApplyRuntimeOptions(Interpreter interp) {
 	if (IsNull(interp)) return;
 	interp.set_JitTier(jitTier);
@@ -469,11 +475,20 @@ void App::RunInterpreter(Interpreter interp) {
 				IOHelper::Print(StringUtils::Format("JIT profile: top candidate slots = {0}", candidates.Count()));
 				for (Int32 i = 0; i < candidates.Count(); i++) {
 					Int32 idx = candidates[i];
-					IOHelper::Print(StringUtils::Format("  cand[{0}] {1}: {2} steps",
+					IOHelper::Print(StringUtils::Format("  cand[{0}] {1}: {2} steps, state={3}",
 						i + 1,
 						functions[idx].Name(),
-						FormatCounter(functions[idx].JitObservedInstructions())));
+						FormatCounter(functions[idx].JitObservedInstructions()),
+						StubStateName(functions[idx].JitStubState())));
 				}
+			}
+
+			if (jitTier == JitTierStub) {
+				IOHelper::Print(StringUtils::Format(
+					"JIT stub lifecycle: candidate={0}, compiled={1}, failed={2}",
+					vm.GetJitStubStateCount(1),
+					vm.GetJitStubStateCount(2),
+					vm.GetJitStubStateCount(3)));
 			}
 		}
 	}

@@ -65,6 +65,13 @@ public struct App {
 		return StringUtils.Format("{0}", (Int32)value);
 	}
 
+	private static String StubStateName(Int32 state) {
+		if (state == 1) return "candidate";
+		if (state == 2) return "compiled";
+		if (state == 3) return "failed";
+		return "none";
+	}
+
 	private static void ApplyRuntimeOptions(Interpreter interp) {
 		if (interp == null) return;
 		interp.JitTier = jitTier;
@@ -484,11 +491,20 @@ public struct App {
 					IOHelper.Print(StringUtils.Format("JIT profile: top candidate slots = {0}", candidates.Count));
 					for (Int32 i = 0; i < candidates.Count; i++) {
 						Int32 idx = candidates[i];
-						IOHelper.Print(StringUtils.Format("  cand[{0}] {1}: {2} steps",
+						IOHelper.Print(StringUtils.Format("  cand[{0}] {1}: {2} steps, state={3}",
 							i + 1,
 							functions[idx].Name,
-							FormatCounter(functions[idx].JitObservedInstructions)));
+							FormatCounter(functions[idx].JitObservedInstructions),
+							StubStateName(functions[idx].JitStubState)));
 					}
+				}
+
+				if (jitTier == JitTierStub) {
+					IOHelper.Print(StringUtils.Format(
+						"JIT stub lifecycle: candidate={0}, compiled={1}, failed={2}",
+						vm.GetJitStubStateCount(1),
+						vm.GetJitStubStateCount(2),
+						vm.GetJitStubStateCount(3)));
 				}
 			}
 		}

@@ -26,9 +26,18 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	public: Int16 SuperReg = -1; // register for 'super' (-1 if not used)
 	public: bool JitIsHotCandidate = false;
 	public: UInt64 JitObservedInstructions = 0;
+	public: static const Int32 JitStubStateNone;
+	public: static const Int32 JitStubStateCandidate;
+	public: static const Int32 JitStubStateCompiled;
+	public: static const Int32 JitStubStateFailed;
+	public: Int32 JitStubState = 0;
+	public: Int32 JitStubCompileAttempts = 0;
+	public: String JitStubLastError = "";
 	public: NativeCallbackDelegate NativeCallback = null;
 
 	// Tier-2 JIT groundwork: runtime hot-function candidate metadata.
+
+	// Tier-2 stub lifecycle groundwork.
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
@@ -79,10 +88,22 @@ struct FuncDef {
 	public: void set_JitIsHotCandidate(bool _v);
 	public: UInt64 JitObservedInstructions();
 	public: void set_JitObservedInstructions(UInt64 _v);
+	public: Int32 JitStubStateNone();
+	public: Int32 JitStubStateCandidate();
+	public: Int32 JitStubStateCompiled();
+	public: Int32 JitStubStateFailed();
+	public: Int32 JitStubState();
+	public: void set_JitStubState(Int32 _v);
+	public: Int32 JitStubCompileAttempts();
+	public: void set_JitStubCompileAttempts(Int32 _v);
+	public: String JitStubLastError();
+	public: void set_JitStubLastError(String _v);
 	public: NativeCallbackDelegate NativeCallback();
 	public: void set_NativeCallback(NativeCallbackDelegate _v);
 
 	// Tier-2 JIT groundwork: runtime hot-function candidate metadata.
+
+	// Tier-2 stub lifecycle groundwork.
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
@@ -125,6 +146,16 @@ inline bool FuncDef::JitIsHotCandidate() { return get()->JitIsHotCandidate; }
 inline void FuncDef::set_JitIsHotCandidate(bool _v) { get()->JitIsHotCandidate = _v; }
 inline UInt64 FuncDef::JitObservedInstructions() { return get()->JitObservedInstructions; }
 inline void FuncDef::set_JitObservedInstructions(UInt64 _v) { get()->JitObservedInstructions = _v; }
+inline Int32 FuncDef::JitStubStateNone() { return get()->JitStubStateNone; }
+inline Int32 FuncDef::JitStubStateCandidate() { return get()->JitStubStateCandidate; }
+inline Int32 FuncDef::JitStubStateCompiled() { return get()->JitStubStateCompiled; }
+inline Int32 FuncDef::JitStubStateFailed() { return get()->JitStubStateFailed; }
+inline Int32 FuncDef::JitStubState() { return get()->JitStubState; }
+inline void FuncDef::set_JitStubState(Int32 _v) { get()->JitStubState = _v; }
+inline Int32 FuncDef::JitStubCompileAttempts() { return get()->JitStubCompileAttempts; }
+inline void FuncDef::set_JitStubCompileAttempts(Int32 _v) { get()->JitStubCompileAttempts = _v; }
+inline String FuncDef::JitStubLastError() { return get()->JitStubLastError; }
+inline void FuncDef::set_JitStubLastError(String _v) { get()->JitStubLastError = _v; }
 inline NativeCallbackDelegate FuncDef::NativeCallback() { return get()->NativeCallback; }
 inline void FuncDef::set_NativeCallback(NativeCallbackDelegate _v) { get()->NativeCallback = _v; }
 inline void FuncDef::ReserveRegister(Int32 registerNumber) { return get()->ReserveRegister(registerNumber); }

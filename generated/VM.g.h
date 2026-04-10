@@ -147,6 +147,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	private: void ClearHotFunctionCandidates();
 
+	private: void UpdateStubLifecycleFromHotCandidates();
+
 	private: void RefreshHotFunctionCandidates();
 
 	public: void Reset(List<FuncDef> allFunctions);
@@ -176,6 +178,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	public: List<Int32> GetHotFunctionCandidates();
 
 	public: Int32 GetHotFunctionCandidateCount();
+
+	public: Int32 GetJitStubStateCount(Int32 stubState);
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -392,6 +396,8 @@ struct VM {
 
 	private: inline void ClearHotFunctionCandidates();
 
+	private: inline void UpdateStubLifecycleFromHotCandidates();
+
 	private: inline void RefreshHotFunctionCandidates();
 
 	public: inline void Reset(List<FuncDef> allFunctions);
@@ -421,6 +427,8 @@ struct VM {
 	public: inline List<Int32> GetHotFunctionCandidates();
 
 	public: inline Int32 GetHotFunctionCandidateCount();
+
+	public: inline Int32 GetJitStubStateCount(Int32 stubState);
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):
 	// Process ARG instructions, validate argument count, and set up parameter registers.
@@ -570,6 +578,7 @@ inline void VM::CleanupVM() { return get()->CleanupVM(); }
 inline void VM::RegisterFunction(FuncDef funcDef) { return get()->RegisterFunction(funcDef); }
 inline void VM::ApplySuperinstructions() { return get()->ApplySuperinstructions(); }
 inline void VM::ClearHotFunctionCandidates() { return get()->ClearHotFunctionCandidates(); }
+inline void VM::UpdateStubLifecycleFromHotCandidates() { return get()->UpdateStubLifecycleFromHotCandidates(); }
 inline void VM::RefreshHotFunctionCandidates() { return get()->RefreshHotFunctionCandidates(); }
 inline void VM::Reset(List<FuncDef> allFunctions) { return get()->Reset(allFunctions); }
 inline void VM::Reset(List<FuncDef> allFunctions,Value replGlobals) { return get()->Reset(allFunctions, replGlobals); }
@@ -585,6 +594,7 @@ inline Int32 VM::GetSuperinstructionRewriteCount() { return get()->GetSuperinstr
 inline List<Int32> VM::GetSuperinstructionRewritesByFunction() { return get()->GetSuperinstructionRewritesByFunction(); }
 inline List<Int32> VM::GetHotFunctionCandidates() { return get()->GetHotFunctionCandidates(); }
 inline Int32 VM::GetHotFunctionCandidateCount() { return get()->GetHotFunctionCandidateCount(); }
+inline Int32 VM::GetJitStubStateCount(Int32 stubState) { return get()->GetJitStubStateCount(stubState); }
 inline Int32 VM::SelfParamOffset(FuncDefRef callee) { return get()->SelfParamOffset(callee); }
 inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDefRef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
 inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDefRef callee) { return get()->ApplyPendingContext(calleeBase, callee); }

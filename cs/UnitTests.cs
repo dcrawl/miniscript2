@@ -767,6 +767,42 @@ public static class UnitTests {
 		return ok;
 	}
 
+	public static Boolean TestStubLifecycleGroundwork() {
+		Boolean ok = true;
+
+		FuncDef f = new FuncDef();
+		f.Name = "@main";
+		f.MaxRegs = 1;
+		f.Code.Add(BytecodeUtil.INS(Opcode.NOOP));
+		f.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = true;
+		vm.JitHotThreshold = 1;
+		vm.JitHotFunctionLimit = 1;
+		vm.Reset(new List<FuncDef> { f });
+		vm.Run();
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		Int32 mainIdx = -1;
+		for (Int32 i = 0; i < funcs.Count; i++) {
+			if (funcs[i].Name == "@main") {
+				mainIdx = i;
+				break;
+			}
+		}
+		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
+		if (mainIdx < 0) return false;
+
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 1,
+			"Expected @main JitStubState to be candidate in jit=stub mode");
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 0);
+
+		if (!ok) IOHelper.Print("TestStubLifecycleGroundwork FAILED");
+		return ok;
+	}
+
 	public static Boolean TestLexer() {
 		//IOHelper.Print("  Testing lexer...");
 		Boolean ok = true;
@@ -1329,6 +1365,7 @@ public static class UnitTests {
 			&& TestEmitPatternValidation()
 			&& TestSuperinstructionFusion()
 			&& TestHotFunctionCandidates()
+			&& TestStubLifecycleGroundwork()
 			&& TestParserNeedMoreInput()
 			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()

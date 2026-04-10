@@ -225,6 +225,22 @@ void VMStorage::ClearHotFunctionCandidates() {
 		functions[i].set_JitObservedInstructions(0);
 	}
 }
+void VMStorage::UpdateStubLifecycleFromHotCandidates() {
+	if (JitTier != JitTierStub) return;
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		FuncDef f = functions[i];
+		if (!IsNull(f.NativeCallback())) continue;
+		if (f.JitIsHotCandidate()) {
+			if (f.JitStubState() == 0) {
+				f.set_JitStubState(1); // candidate
+			}
+		} else {
+			if (f.JitStubState() == 1) {
+				f.set_JitStubState(0); // none
+			}
+		}
+	}
+}
 void VMStorage::RefreshHotFunctionCandidates() {
 	ClearHotFunctionCandidates();
 	if (!EnableJitProfiling) return;
@@ -299,6 +315,14 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 	}
 
 	ApplySuperinstructions();
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		FuncDef f = functions[i];
+		f.set_JitIsHotCandidate(Boolean(false));
+		f.set_JitObservedInstructions(0);
+		f.set_JitStubState(0);
+		f.set_JitStubCompileAttempts(0);
+		f.set_JitStubLastError("");
+	}
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -391,6 +415,13 @@ List<Int32> VMStorage::GetHotFunctionCandidates() {
 }
 Int32 VMStorage::GetHotFunctionCandidateCount() {
 	return hotFunctionCandidates.Count();
+}
+Int32 VMStorage::GetJitStubStateCount(Int32 stubState) {
+	Int32 count = 0;
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		if (functions[i].JitStubState() == stubState) count++;
+	}
+	return count;
 }
 Int32 VMStorage::SelfParamOffset(FuncDefRef callee) {
 	if (hasPendingContext && callee.ParamNames.Count() > 0 && value_equal(callee.ParamNames[0], val_self)) {
@@ -582,6 +613,7 @@ Value VMStorage::Run(UInt32 maxCycles) {
 	Value runResult = RunInner(maxCycles); GC_PROTECT(&runResult);
 	if (EnableJitProfiling) {
 		RefreshHotFunctionCandidates();
+		UpdateStubLifecycleFromHotCandidates();
 	}
 	_activeVM = previousVM;
 	GC_POP_SCOPE();

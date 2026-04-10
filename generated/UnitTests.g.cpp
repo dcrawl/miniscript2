@@ -768,6 +768,41 @@ Boolean UnitTests::TestHotFunctionCandidates() {
 	if (!ok) IOHelper::Print("TestHotFunctionCandidates FAILED");
 	return ok;
 }
+Boolean UnitTests::TestStubLifecycleGroundwork() {
+	Boolean ok = Boolean(true);
+
+	FuncDef f =  FuncDef::New();
+	f.set_Name("@main");
+	f.set_MaxRegs(1);
+	f.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	f.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(1);
+	vm.Reset( List<FuncDef>::New({ f }));
+	vm.Run();
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	Int32 mainIdx = -1;
+	for (Int32 i = 0; i < funcs.Count(); i++) {
+		if (funcs[i].Name() == "@main") {
+			mainIdx = i;
+			break;
+		}
+	}
+	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
+	if (mainIdx < 0) return Boolean(false);
+
+	ok = ok && Assert(funcs[mainIdx].JitStubState() == 1,
+		"Expected @main JitStubState to be candidate in jit=stub mode");
+	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 0);
+
+	if (!ok) IOHelper::Print("TestStubLifecycleGroundwork FAILED");
+	return ok;
+}
 Boolean UnitTests::TestLexer() {
 	//IOHelper.Print("  Testing lexer...");
 	Boolean ok = Boolean(true);
@@ -1218,6 +1253,7 @@ Boolean UnitTests::RunAll() {
 		&& TestEmitPatternValidation()
 		&& TestSuperinstructionFusion()
 		&& TestHotFunctionCandidates()
+		&& TestStubLifecycleGroundwork()
 		&& TestParserNeedMoreInput()
 		&& TestIntrinsicAllowlistV1()
 		&& TestInterpreterGlobalAccess()

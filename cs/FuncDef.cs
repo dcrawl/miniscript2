@@ -32,6 +32,15 @@ public class FuncDef {
 	public bool JitIsHotCandidate = false;
 	public UInt64 JitObservedInstructions = 0;
 
+	// Tier-2 stub lifecycle groundwork.
+	public const Int32 JitStubStateNone = 0;
+	public const Int32 JitStubStateCandidate = 1;
+	public const Int32 JitStubStateCompiled = 2;
+	public const Int32 JitStubStateFailed = 3;
+	public Int32 JitStubState = 0;
+	public Int32 JitStubCompileAttempts = 0;
+	public String JitStubLastError = "";
+
 	// Native callback for intrinsic functions. When non-null, this FuncDef
 	// represents a built-in function: CALL invokes the callback directly
 	// instead of executing bytecode.  Parameters are in stack[baseIndex+1..].
