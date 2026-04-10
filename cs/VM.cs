@@ -85,6 +85,7 @@ public class VM {
 	private Int32 superinstructionRewriteCount;
 	private List<Int32> superinstructionRewritesByFunction;
 	private List<Int32> hotFunctionCandidates;
+	private Int32 jitStubCompileAttemptCount;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -357,12 +358,28 @@ public class VM {
 				if (f.JitStubState == 0) {
 					f.JitStubState = 1; // candidate
 				}
+				if (f.JitStubState == 1 && f.JitStubCompileAttempts == 0) {
+					TryCompileStubForFunction(i);
+				}
 			} else {
 				if (f.JitStubState == 1) {
 					f.JitStubState = 0; // none
 				}
 			}
 		}
+	}
+
+	private bool TryCompileStubForFunction(Int32 funcIndex) {
+		if (funcIndex < 0 || funcIndex >= functions.Count) return false;
+		FuncDef f = functions[funcIndex];
+		if (f.NativeCallback != null) return false;
+
+		// Hook point for future native/codegen backend.
+		f.JitStubCompileAttempts = f.JitStubCompileAttempts + 1;
+		jitStubCompileAttemptCount++;
+		f.JitStubState = 3;
+		f.JitStubLastError = "Stub backend not implemented yet";
+		return false;
 	}
 
 	private void RefreshHotFunctionCandidates() {
@@ -450,6 +467,7 @@ public class VM {
 			f.JitStubCompileAttempts = 0;
 			f.JitStubLastError = "";
 		}
+		jitStubCompileAttemptCount = 0;
 
 		/*** BEGIN CPP_ONLY ***
 		// C++ only: copy functions into functionsRaw vector for quick access
@@ -564,6 +582,10 @@ public class VM {
 			if (functions[i].JitStubState == stubState) count++;
 		}
 		return count;
+	}
+
+	public Int32 GetJitStubCompileAttemptCount() {
+		return jitStubCompileAttemptCount;
 	}
 
 	// Helper for argument processing (FUNCTION_CALLS.md steps 1-3):

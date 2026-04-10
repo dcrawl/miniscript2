@@ -795,9 +795,13 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 1,
-			"Expected @main JitStubState to be candidate in jit=stub mode");
-		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 0);
+		ok = ok && Assert(funcs[mainIdx].JitStubState == 3,
+			"Expected @main JitStubState to be failed after fallback compile attempt in jit=stub mode");
+		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
+		ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
+			"Expected at least one VM-level stub compile attempt");
+		ok = ok && Assert(!String.IsNullOrEmpty(funcs[mainIdx].JitStubLastError),
+			"Expected @main JitStubLastError to be set after failed compile attempt");
 
 		if (!ok) IOHelper.Print("TestStubLifecycleGroundwork FAILED");
 		return ok;

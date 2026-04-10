@@ -234,12 +234,27 @@ void VMStorage::UpdateStubLifecycleFromHotCandidates() {
 			if (f.JitStubState() == 0) {
 				f.set_JitStubState(1); // candidate
 			}
+			if (f.JitStubState() == 1 && f.JitStubCompileAttempts() == 0) {
+				TryCompileStubForFunction(i);
+			}
 		} else {
 			if (f.JitStubState() == 1) {
 				f.set_JitStubState(0); // none
 			}
 		}
 	}
+}
+bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
+	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
+	FuncDef f = functions[funcIndex];
+	if (!IsNull(f.NativeCallback())) return Boolean(false);
+
+	// Hook point for future native/codegen backend.
+	f.set_JitStubCompileAttempts(f.JitStubCompileAttempts() + 1);
+	jitStubCompileAttemptCount++;
+	f.set_JitStubState(3);
+	f.set_JitStubLastError("Stub backend not implemented yet");
+	return Boolean(false);
 }
 void VMStorage::RefreshHotFunctionCandidates() {
 	ClearHotFunctionCandidates();
@@ -323,6 +338,7 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 		f.set_JitStubCompileAttempts(0);
 		f.set_JitStubLastError("");
 	}
+	jitStubCompileAttemptCount = 0;
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -422,6 +438,9 @@ Int32 VMStorage::GetJitStubStateCount(Int32 stubState) {
 		if (functions[i].JitStubState() == stubState) count++;
 	}
 	return count;
+}
+Int32 VMStorage::GetJitStubCompileAttemptCount() {
+	return jitStubCompileAttemptCount;
 }
 Int32 VMStorage::SelfParamOffset(FuncDefRef callee) {
 	if (hasPendingContext && callee.ParamNames.Count() > 0 && value_equal(callee.ParamNames[0], val_self)) {
