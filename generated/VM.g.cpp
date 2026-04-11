@@ -248,6 +248,7 @@ bool VMStorage::IsStubCompilableOpcode(Int32 opValue) {
 	Opcode op = (Opcode)opValue;
 	if (op == Opcode::NOOP || op == Opcode::RETURN) return Boolean(true);
 	if (op == Opcode::LOAD_rA_rB || op == Opcode::LOAD_rA_iBC || op == Opcode::LOAD_rA_kBC || op == Opcode::LOADNULL_rA) return Boolean(true);
+	if (op == Opcode::LOADV_rA_rB_kC) return Boolean(true);
 	if (op == Opcode::ASSIGN_rA_rB_kC || op == Opcode::NAME_rA_kBC) return Boolean(true);
 	if (op == Opcode::SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode::SUPER_LOADK_ASSIGN_rA_kBC
 		|| op == Opcode::SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode::SUPER_LOADR_ASSIGN_rA_rB_kC) return Boolean(true);
@@ -277,30 +278,45 @@ void VMStorage::SelectStubBackend(FuncDef f) {
 	Opcode lastOp = (Opcode)BytecodeUtil::OP(f.Code()[codeCount - 1]);
 	if (lastOp != Opcode::RETURN) return;
 
-	if (codeCount == 2) {
-		UInt32 firstInstruction = f.Code()[0];
-		Opcode firstOp = (Opcode)BytecodeUtil::OP(firstInstruction);
-		if (firstOp == Opcode::LOAD_rA_iBC && BytecodeUtil::Au(firstInstruction) == 0) {
-			f.set_JitStubBackendKind(2);
-			f.set_JitStubBackendIntValue(BytecodeUtil::BCs(firstInstruction));
-			return;
-		}
-		if (firstOp == Opcode::LOAD_rA_kBC && BytecodeUtil::Au(firstInstruction) == 0) {
-			f.set_JitStubBackendKind(3);
-			f.set_JitStubBackendIntValue(BytecodeUtil::BCu(firstInstruction));
-			return;
-		}
-		if (firstOp == Opcode::LOADNULL_rA && BytecodeUtil::Au(firstInstruction) == 0) {
-			f.set_JitStubBackendKind(1);
-			return;
-		}
+	Int32 activeIndex = -1;
+	UInt32 activeInstruction = 0;
+	Opcode activeOp = Opcode::NOOP;
+	for (Int32 i = 0; i < codeCount - 1; i++) {
+		UInt32 ins = f.Code()[i];
+		Opcode op = (Opcode)BytecodeUtil::OP(ins);
+		if (op == Opcode::NOOP) continue;
+		if (activeIndex >= 0) return; // More than one non-NOOP op is not a trivial backend.
+		activeIndex = i;
+		activeInstruction = ins;
+		activeOp = op;
 	}
 
-	for (Int32 i = 0; i < codeCount - 1; i++) {
-		Opcode op = (Opcode)BytecodeUtil::OP(f.Code()[i]);
-		if (op != Opcode::NOOP) return;
+	if (activeIndex < 0) {
+		f.set_JitStubBackendKind(1); // NOOP...RETURN => return-null fast path
+		return;
 	}
-	f.set_JitStubBackendKind(1); // return-null fast path
+
+	if (activeOp == Opcode::LOAD_rA_iBC && BytecodeUtil::Au(activeInstruction) == 0) {
+		f.set_JitStubBackendKind(2);
+		f.set_JitStubBackendIntValue(BytecodeUtil::BCs(activeInstruction));
+		return;
+	}
+	if (activeOp == Opcode::LOAD_rA_kBC && BytecodeUtil::Au(activeInstruction) == 0) {
+		f.set_JitStubBackendKind(3);
+		f.set_JitStubBackendIntValue(BytecodeUtil::BCu(activeInstruction));
+		return;
+	}
+	if (activeOp == Opcode::LOADNULL_rA && BytecodeUtil::Au(activeInstruction) == 0) {
+		f.set_JitStubBackendKind(1);
+		return;
+	}
+	if (activeOp == Opcode::LOADV_rA_rB_kC && BytecodeUtil::Au(activeInstruction) == 0) {
+		Int32 b = BytecodeUtil::Bu(activeInstruction);
+		Int32 c = BytecodeUtil::Cu(activeInstruction);
+		f.set_JitStubBackendKind(4);
+		f.set_JitStubBackendIntValue((b << 16) | c);
+		return;
+	}
 }
 bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
@@ -327,7 +343,7 @@ bool VMStorage::TryCompileStubForFunction(Int32 funcIndex) {
 	f.set_JitStubLastError(StringUtils::Format("Stub backend not implemented for {0}", compileReason));
 	return Boolean(false);
 }
-bool VMStorage::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext) {
+bool VMStorage::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext,Int32 absoluteCalleeBase) {
 	if (JitTier != JitTierStub) return Boolean(false);
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return Boolean(false);
 	FuncDef f = functions[funcIndex];
@@ -370,6 +386,34 @@ bool VMStorage::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,b
 				stack[absoluteResultIndex] = f.Constants()[constIndex];
 			} else {
 				stack[absoluteResultIndex] = val_null;
+			}
+		}
+		if (consumePendingContext) {
+			hasPendingContext = Boolean(false);
+			pendingSelf = val_null;
+			pendingSuper = val_null;
+		}
+		jitStubCompiledFastExecCount++;
+		return Boolean(true);
+	}
+
+	if (f.JitStubBackendKind() == 4) {
+		if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count()) {
+			Int32 packed = f.JitStubBackendIntValue();
+			Int32 b = (packed >> 16) & 0xFF;
+			Int32 c = packed & 0xFF;
+			Int32 sourceAbsIndex = absoluteCalleeBase + b;
+			if (c >= 0 && c < f.Constants().Count()
+				&& sourceAbsIndex >= 0 && sourceAbsIndex < names.Count()
+				&& sourceAbsIndex >= 0 && sourceAbsIndex < stack.Count()
+				&& value_identical(f.Constants()[c], names[sourceAbsIndex])) {
+				stack[absoluteResultIndex] = stack[sourceAbsIndex];
+			} else {
+				if (c >= 0 && c < f.Constants().Count()) {
+					stack[absoluteResultIndex] = LookupVariable(f.Constants()[c]);
+				} else {
+					stack[absoluteResultIndex] = val_null;
+				}
 			}
 		}
 		if (consumePendingContext) {
@@ -463,12 +507,29 @@ void VMStorage::Reset(List<FuncDef> allFunctions,Value replGlobals) {
 		f.set_JitStubState(0);
 		f.set_JitStubBackendKind(0);
 		f.set_JitStubBackendIntValue(0);
+		f.set_JitResetPrecompiled(Boolean(false));
 		f.set_JitStubCompileAttempts(0);
 		f.set_JitStubLastError("");
 	}
 	jitStubCompileAttemptCount = 0;
 	jitStubCompiledRouteHitCount = 0;
 	jitStubCompiledFastExecCount = 0;
+	JitStubResetPrecompileCount = 0;
+
+	// Precompile trivially eligible non-native functions during reset in
+	// jit=stub mode, so fast paths can activate on first run.
+	if (JitTier == JitTierStub) {
+		for (Int32 i = 0; i < functions.Count(); i++) {
+			FuncDef precompileFunc = functions[i];
+			if (!IsNull(precompileFunc.NativeCallback())) continue;
+			String precompileReason = ValidateStubCompilableSubset(precompileFunc);
+			if (!IsNull(precompileReason)) continue;
+			if (TryCompileStubForFunction(i)) {
+				JitStubResetPrecompileCount++;
+				functions[i].set_JitResetPrecompiled(Boolean(true));
+			}
+		}
+	}
 
 	// C++ only: copy functions into functionsRaw vector for quick access
 	functionsRaw.clear();
@@ -578,8 +639,22 @@ Int32 VMStorage::GetJitStubCompiledRouteHitCount() {
 Int32 VMStorage::GetJitStubCompiledFastExecCount() {
 	return jitStubCompiledFastExecCount;
 }
+Int32 VMStorage::GetJitStubResetPrecompileCount() {
+	return JitStubResetPrecompileCount;
+}
+Int32 VMStorage::ResetPrecompileCount() {
+	return JitStubResetPrecompileCount;
+}
+Int32 VMStorage::GetFunctionJitStubState(Int32 funcIndex) {
+	if (funcIndex < 0 || funcIndex >= functions.Count()) return -1;
+	return functions[funcIndex].JitStubState();
+}
+Int32 VMStorage::GetFunctionJitStubBackendKind(Int32 funcIndex) {
+	if (funcIndex < 0 || funcIndex >= functions.Count()) return -1;
+	return functions[funcIndex].JitStubBackendKind();
+}
 bool VMStorage::ProbeCompiledStubRouting(Int32 funcIndex) {
-	return TryRouteCompiledStub(funcIndex, 0, Boolean(false));
+	return TryRouteCompiledStub(funcIndex, 0, Boolean(false), 0);
 }
 void VMStorage::SetFunctionStubBackendForTesting(Int32 funcIndex,Int32 stubState,Int32 backendKind,Int32 backendIntValue) {
 	if (funcIndex < 0 || funcIndex >= functions.Count()) return;
@@ -708,7 +783,7 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 	}
 
 	// User function: push CallInfo and set up callee frame
-	if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true))) {
+	if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true), calleeBase)) {
 		GC_POP_SCOPE();
 		return -1;
 	}
@@ -792,6 +867,14 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 	Int32 pc = PC;
 	Int32 baseIndex = BaseIndex;
 	Int32 currentFuncIndex = _currentFuncIndex;
+
+	if (pc == 0 && callStackTop == 0) {
+		if (TryRouteCompiledStub(currentFuncIndex, baseIndex, Boolean(false), baseIndex)) {
+			SaveState(pc, baseIndex, currentFuncIndex);
+			IsRunning = Boolean(false);
+			return stack[baseIndex];
+		}
+	}
 
 	Value* stackPtr = &stack[0];
 	// Note: CollectionsMarshal.AsSpan requires .NET 5+; not compatible with Mono.
@@ -1732,7 +1815,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					VM_NEXT();
 				}
 
-				if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true))) {
+				if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, Boolean(true), calleeBase)) {
 					pc = nextPC;
 					VM_NEXT();
 				}
@@ -1796,7 +1879,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 				callStack[callStackTop] = CallInfo(pc, baseIndex, currentFuncIndex);
 				callStackTop++;
 
-				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(false))) {
+				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(false), baseIndex + a)) {
 					VM_NEXT();
 				}
 
@@ -1863,7 +1946,7 @@ Value VMStorage::RunInner(UInt32 maxCycles) {
 					VM_NEXT();
 				}
 
-				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(true))) {
+				if (TryRouteCompiledStub(funcIndex, baseIndex + a, Boolean(true), calleeBase)) {
 					VM_NEXT();
 				}
 

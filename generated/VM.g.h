@@ -51,6 +51,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	private: Int32 jitStubCompileAttemptCount;
 	private: Int32 jitStubCompiledRouteHitCount;
 	private: Int32 jitStubCompiledFastExecCount;
+	public: Int32 JitStubResetPrecompileCount = 0;
 	private: List<Value> stack;
 	private: List<Value> names; // Variable names parallel to stack (null if unnamed)
 	private: InterpreterStorage* interpreter;
@@ -160,7 +161,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	private: bool TryCompileStubForFunction(Int32 funcIndex);
 
-	private: bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext);
+	private: bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext, Int32 absoluteCalleeBase);
 
 	private: void RefreshHotFunctionCandidates();
 
@@ -199,6 +200,14 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	public: Int32 GetJitStubCompiledRouteHitCount();
 
 	public: Int32 GetJitStubCompiledFastExecCount();
+
+	public: Int32 GetJitStubResetPrecompileCount();
+
+	public: Int32 ResetPrecompileCount();
+
+	public: Int32 GetFunctionJitStubState(Int32 funcIndex);
+
+	public: Int32 GetFunctionJitStubBackendKind(Int32 funcIndex);
 
 	public: bool ProbeCompiledStubRouting(Int32 funcIndex);
 
@@ -305,6 +314,8 @@ struct VM {
 	private: void set_jitStubCompiledRouteHitCount(Int32 _v);
 	private: Int32 jitStubCompiledFastExecCount();
 	private: void set_jitStubCompiledFastExecCount(Int32 _v);
+	public: Int32 JitStubResetPrecompileCount();
+	public: void set_JitStubResetPrecompileCount(Int32 _v);
 	private: List<Value> stack();
 	private: void set_stack(List<Value> _v);
 	private: List<Value> names(); // Variable names parallel to stack (null if unnamed)
@@ -435,7 +446,7 @@ struct VM {
 
 	private: inline bool TryCompileStubForFunction(Int32 funcIndex);
 
-	private: inline bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext);
+	private: inline bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext, Int32 absoluteCalleeBase);
 
 	private: inline void RefreshHotFunctionCandidates();
 
@@ -474,6 +485,14 @@ struct VM {
 	public: inline Int32 GetJitStubCompiledRouteHitCount();
 
 	public: inline Int32 GetJitStubCompiledFastExecCount();
+
+	public: inline Int32 GetJitStubResetPrecompileCount();
+
+	public: inline Int32 ResetPrecompileCount();
+
+	public: inline Int32 GetFunctionJitStubState(Int32 funcIndex);
+
+	public: inline Int32 GetFunctionJitStubBackendKind(Int32 funcIndex);
 
 	public: inline bool ProbeCompiledStubRouting(Int32 funcIndex);
 
@@ -571,6 +590,8 @@ inline Int32 VM::jitStubCompiledRouteHitCount() { return get()->jitStubCompiledR
 inline void VM::set_jitStubCompiledRouteHitCount(Int32 _v) { get()->jitStubCompiledRouteHitCount = _v; }
 inline Int32 VM::jitStubCompiledFastExecCount() { return get()->jitStubCompiledFastExecCount; }
 inline void VM::set_jitStubCompiledFastExecCount(Int32 _v) { get()->jitStubCompiledFastExecCount = _v; }
+inline Int32 VM::JitStubResetPrecompileCount() { return get()->JitStubResetPrecompileCount; }
+inline void VM::set_JitStubResetPrecompileCount(Int32 _v) { get()->JitStubResetPrecompileCount = _v; }
 inline List<Value> VM::stack() { return get()->stack; }
 inline void VM::set_stack(List<Value> _v) { get()->stack = _v; }
 inline List<Value> VM::names() { return get()->names; } // Variable names parallel to stack (null if unnamed)
@@ -638,7 +659,7 @@ inline bool VM::IsStubCompilableOpcode(Int32 opValue) { return get()->IsStubComp
 inline String VM::ValidateStubCompilableSubset(FuncDef f) { return get()->ValidateStubCompilableSubset(f); }
 inline void VM::SelectStubBackend(FuncDef f) { return get()->SelectStubBackend(f); }
 inline bool VM::TryCompileStubForFunction(Int32 funcIndex) { return get()->TryCompileStubForFunction(funcIndex); }
-inline bool VM::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext) { return get()->TryRouteCompiledStub(funcIndex, absoluteResultIndex, consumePendingContext); }
+inline bool VM::TryRouteCompiledStub(Int32 funcIndex,Int32 absoluteResultIndex,bool consumePendingContext,Int32 absoluteCalleeBase) { return get()->TryRouteCompiledStub(funcIndex, absoluteResultIndex, consumePendingContext, absoluteCalleeBase); }
 inline void VM::RefreshHotFunctionCandidates() { return get()->RefreshHotFunctionCandidates(); }
 inline void VM::Reset(List<FuncDef> allFunctions) { return get()->Reset(allFunctions); }
 inline void VM::Reset(List<FuncDef> allFunctions,Value replGlobals) { return get()->Reset(allFunctions, replGlobals); }
@@ -658,6 +679,10 @@ inline Int32 VM::GetJitStubStateCount(Int32 stubState) { return get()->GetJitStu
 inline Int32 VM::GetJitStubCompileAttemptCount() { return get()->GetJitStubCompileAttemptCount(); }
 inline Int32 VM::GetJitStubCompiledRouteHitCount() { return get()->GetJitStubCompiledRouteHitCount(); }
 inline Int32 VM::GetJitStubCompiledFastExecCount() { return get()->GetJitStubCompiledFastExecCount(); }
+inline Int32 VM::GetJitStubResetPrecompileCount() { return get()->GetJitStubResetPrecompileCount(); }
+inline Int32 VM::ResetPrecompileCount() { return get()->ResetPrecompileCount(); }
+inline Int32 VM::GetFunctionJitStubState(Int32 funcIndex) { return get()->GetFunctionJitStubState(funcIndex); }
+inline Int32 VM::GetFunctionJitStubBackendKind(Int32 funcIndex) { return get()->GetFunctionJitStubBackendKind(funcIndex); }
 inline bool VM::ProbeCompiledStubRouting(Int32 funcIndex) { return get()->ProbeCompiledStubRouting(funcIndex); }
 inline void VM::SetFunctionStubBackendForTesting(Int32 funcIndex,Int32 stubState,Int32 backendKind,Int32 backendIntValue) { return get()->SetFunctionStubBackendForTesting(funcIndex, stubState, backendKind, backendIntValue); }
 inline Int32 VM::SelfParamOffset(FuncDefRef callee) { return get()->SelfParamOffset(callee); }

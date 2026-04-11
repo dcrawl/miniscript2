@@ -795,7 +795,7 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+		ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 			"Expected @main JitStubState to be compiled for tiny supported stub subset");
 		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
 		ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
@@ -835,7 +835,7 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for fallback stub lifecycle test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 3,
+		ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 3,
 			"Expected @main JitStubState to be failed for unsupported stub subset");
 		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
 		ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
@@ -878,7 +878,7 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for expanded subset compile test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+		ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 			"Expected @main JitStubState to be compiled for expanded supported subset");
 		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
 		ok = ok && Assert(String.IsNullOrEmpty(funcs[mainIdx].JitStubLastError),
@@ -916,7 +916,7 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for route hook test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && Assert(funcs[mainIdx].JitStubState == 2,
+		ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 			"Expected @main to be compiled before probing route hook");
 		Int32 routeBefore = vm.GetJitStubCompiledRouteHitCount();
 		Int32 fastBefore = vm.GetJitStubCompiledFastExecCount();
@@ -1088,7 +1088,7 @@ public static class UnitTests {
 		ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for precompile-reset test");
 		if (mainIdx < 0) return false;
 
-		ok = ok && AssertEqual(funcs[mainIdx].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(mainIdx), 2);
 		ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts, 1);
 
 		Value result = vm.Run();
@@ -1134,8 +1134,8 @@ public static class UnitTests {
 
 		ok = ok && AssertEqual(vm.GetJitStubResetPrecompileCount(), 2);
 		ok = ok && AssertEqual(vm.GetJitStubCompileAttemptCount(), 2);
-		ok = ok && AssertEqual(funcs[0].JitStubState, 2);
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(0), 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		if (!ok) IOHelper.Print("TestCompiledStubResetPrecompileMultipleFunctions FAILED");
 		return ok;
@@ -1168,7 +1168,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		vm.Run();
 
@@ -1209,7 +1209,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		vm.Run();
 
@@ -1250,7 +1250,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		Value result = vm.Run();
 
@@ -1292,7 +1292,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		Value result = vm.Run();
 
@@ -1335,7 +1335,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		Value result = vm.Run();
 
@@ -1379,7 +1379,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		Value result = vm.Run();
 
@@ -1420,7 +1420,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		vm.Run();
 
@@ -1463,7 +1463,7 @@ public static class UnitTests {
 		List<FuncDef> funcs = vm.GetFunctions();
 		ok = ok && AssertEqual(funcs.Count, 2);
 		if (funcs.Count != 2) return false;
-		ok = ok && AssertEqual(funcs[1].JitStubState, 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
 
 		Value result = vm.Run();
 
@@ -1473,6 +1473,51 @@ public static class UnitTests {
 		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
 
 		if (!ok) IOHelper.Print("TestCompiledStubAutoConstFastPathNoopPrefixOnCall FAILED");
+		return ok;
+	}
+
+	public static Boolean TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile() {
+		Boolean ok = true;
+
+		FuncDef main = new FuncDef();
+		main.Name = "@main";
+		main.MaxRegs = 3;
+		main.Constants.Add(make_string("x"));
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.LOAD_rA_iBC, 1, 42));
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.NAME_rA_kBC, 1, 0));
+		main.Code.Add(BytecodeUtil.INS_AB(Opcode.CALLF_iA_iBC, 1, 1));
+		main.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		FuncDef callee = new FuncDef();
+		callee.Name = "@callee";
+		callee.MaxRegs = 1;
+		callee.Constants.Add(make_string("x"));
+		callee.Code.Add(BytecodeUtil.INS_ABC(Opcode.LOADV_rA_rB_kC, 0, 0, 0));
+		callee.Code.Add(BytecodeUtil.INS(Opcode.RETURN));
+
+		VM vm = new VM();
+		vm.JitTier = 2; // stub
+		vm.EnableJitProfiling = false;
+
+		List<FuncDef> testFuncs = new List<FuncDef>();
+		testFuncs.Add(main);
+		testFuncs.Add(callee);
+		vm.Reset(testFuncs, make_map(4));
+
+		List<FuncDef> funcs = vm.GetFunctions();
+		ok = ok && AssertEqual(funcs.Count, 2);
+		if (funcs.Count != 2) return false;
+		ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+		ok = ok && AssertEqual(vm.GetFunctionJitStubBackendKind(1), 4);
+
+		vm.Run();
+
+		ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(42)),
+			"Expected LOADV trivial callee to fast-route and return named register value");
+		ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+		ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+		if (!ok) IOHelper.Print("TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile FAILED");
 		return ok;
 	}
 
@@ -2055,6 +2100,7 @@ public static class UnitTests {
 			&& TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile()
 			&& TestCompiledStubAutoFastPathNoopPrefixOnCallf()
 			&& TestCompiledStubAutoConstFastPathNoopPrefixOnCall()
+			&& TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile()
 			&& TestParserNeedMoreInput()
 			&& TestIntrinsicAllowlistV1()
 			&& TestInterpreterGlobalAccess()

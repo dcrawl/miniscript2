@@ -64,6 +64,30 @@ class UnitTests {
 
 	public: static Boolean TestCompiledStubFastPathConstReturnOnCallf();
 
+	public: static Boolean TestCompiledStubFastPathAtTopLevel();
+
+	public: static Boolean TestCompiledStubPrecompileMainAtReset();
+
+	public: static Boolean TestCompiledStubResetPrecompileMultipleFunctions();
+
+	public: static Boolean TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoFastPathOnCallAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile();
+
+	public: static Boolean TestCompiledStubAutoFastPathNoopPrefixOnCallf();
+
+	public: static Boolean TestCompiledStubAutoConstFastPathNoopPrefixOnCall();
+
+	public: static Boolean TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile();
+
 	public: static Boolean TestLexer();
 
 	// Helper: run a sequence of REPL inputs and collect all printed output.

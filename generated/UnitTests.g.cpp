@@ -796,7 +796,7 @@ Boolean UnitTests::TestStubLifecycleGroundwork() {
 	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for stub lifecycle test");
 	if (mainIdx < 0) return Boolean(false);
 
-	ok = ok && Assert(funcs[mainIdx].JitStubState() == 2,
+	ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 		"Expected @main JitStubState to be compiled for tiny supported stub subset");
 	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 1);
 	ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
@@ -835,7 +835,7 @@ Boolean UnitTests::TestStubLifecycleFallbackFailure() {
 	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for fallback stub lifecycle test");
 	if (mainIdx < 0) return Boolean(false);
 
-	ok = ok && Assert(funcs[mainIdx].JitStubState() == 3,
+	ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 3,
 		"Expected @main JitStubState to be failed for unsupported stub subset");
 	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 1);
 	ok = ok && Assert(vm.GetJitStubCompileAttemptCount() >= 1,
@@ -877,7 +877,7 @@ Boolean UnitTests::TestStubLifecycleExpandedSubsetCompile() {
 	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for expanded subset compile test");
 	if (mainIdx < 0) return Boolean(false);
 
-	ok = ok && Assert(funcs[mainIdx].JitStubState() == 2,
+	ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 		"Expected @main JitStubState to be compiled for expanded supported subset");
 	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 1);
 	ok = ok && Assert(String::IsNullOrEmpty(funcs[mainIdx].JitStubLastError()),
@@ -914,15 +914,15 @@ Boolean UnitTests::TestCompiledStubRoutingHookCounter() {
 	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for route hook test");
 	if (mainIdx < 0) return Boolean(false);
 
-	ok = ok && Assert(funcs[mainIdx].JitStubState() == 2,
+	ok = ok && Assert(vm.GetFunctionJitStubState(mainIdx) == 2,
 		"Expected @main to be compiled before probing route hook");
-	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 0);
-	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 0);
+	Int32 routeBefore = vm.GetJitStubCompiledRouteHitCount();
+	Int32 fastBefore = vm.GetJitStubCompiledFastExecCount();
 
 	bool routed = vm.ProbeCompiledStubRouting(mainIdx);
 	ok = ok && Assert(routed, "Expected ProbeCompiledStubRouting to execute trivial compiled backend path");
-	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
-	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), routeBefore + 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), fastBefore + 1);
 
 	if (!ok) IOHelper::Print("TestCompiledStubRoutingHookCounter FAILED");
 	return ok;
@@ -1018,6 +1018,504 @@ Boolean UnitTests::TestCompiledStubFastPathConstReturnOnCallf() {
 	ok = ok && AssertEqual((Int32)counts[1], 0); // callee should be bypassed
 
 	if (!ok) IOHelper::Print("TestCompiledStubFastPathConstReturnOnCallf FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubFastPathAtTopLevel() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(1);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 9));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(true));
+	vm.set_JitHotThreshold(1);
+	vm.set_JitHotFunctionLimit(1);
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	vm.Reset(testFuncs, make_map(4));
+	vm.SetFunctionStubBackendForTesting(0, 2, 2, 9);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_int(9)),
+		"Expected top-level fast path to return 9");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+	ok = ok && Assert(!vm.IsRunning(), "Expected VM to stop after top-level fast path");
+
+	List<UInt64> counts = vm.GetFunctionExecutionCounts();
+	ok = ok && AssertEqual((Int32)counts[0], 0); // no bytecode loop execution
+
+	if (!ok) IOHelper::Print("TestCompiledStubFastPathAtTopLevel FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubPrecompileMainAtReset() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(1);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 11));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove first-run fast path without profiling pass
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	Int32 mainIdx = -1;
+	for (Int32 i = 0; i < funcs.Count(); i++) {
+		if (funcs[i].Name() == "@main") {
+			mainIdx = i;
+			break;
+		}
+	}
+	ok = ok && Assert(mainIdx >= 0, "Expected @main function in VM for precompile-reset test");
+	if (mainIdx < 0) return Boolean(false);
+
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(mainIdx), 2);
+	ok = ok && AssertEqual(funcs[mainIdx].JitStubCompileAttempts(), 1);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+	ok = ok && Assert(value_equal(result, make_int(11)),
+		"Expected precompiled @main to return 11 via top-level fast path");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	List<UInt64> counts = vm.GetFunctionExecutionCounts();
+	ok = ok && AssertEqual((Int32)counts[mainIdx], 0); // no interpreter loop execution for @main
+
+	if (!ok) IOHelper::Print("TestCompiledStubPrecompileMainAtReset FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubResetPrecompileMultipleFunctions() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(1);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef helper =  FuncDef::New();
+	helper.set_Name("@helper");
+	helper.set_MaxRegs(1);
+	helper.Code().Add(BytecodeUtil::INS(Opcode::LOADNULL_rA));
+	helper.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false));
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(helper);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+
+	ok = ok && AssertEqual(vm.GetJitStubResetPrecompileCount(), 2);
+	ok = ok && AssertEqual(vm.GetJitStubCompileAttemptCount(), 2);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(0), 2);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	if (!ok) IOHelper::Print("TestCompiledStubResetPrecompileMultipleFunctions FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 13));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	vm.Run();
+
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(13)),
+		"Expected CALLF to receive auto-precompiled fast integer result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Constants().Add(make_string("auto"));
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_kBC, 0, 0));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	vm.Run();
+
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_string("auto")),
+		"Expected CALLF to receive auto-precompiled fast constant result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoFastPathOnCallAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(4);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::FUNCREF_iA_iBC, 2, 1));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::CALL_rA_rB_rC, 0, 1, 2));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 21));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_int(21)),
+		"Expected CALL to receive auto-precompiled fast integer result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoFastPathOnCallAfterResetPrecompile FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(4);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::FUNCREF_iA_iBC, 2, 1));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::CALL_rA_rB_rC, 0, 1, 2));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Constants().Add(make_string("viaCall"));
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_kBC, 0, 0));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_string("viaCall")),
+		"Expected CALL to receive auto-precompiled fast constant result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Constants().Add(make_string("f"));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::FUNCREF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::ASSIGN_rA_rB_kC, 1, 1, 0));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::LOADC_rA_rB_kC, 0, 1, 0));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 33));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_int(33)),
+		"Expected LOADC auto-invoke to receive auto-precompiled fast integer result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(4);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::LOADNULL_rA, 1, 0));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::SETSELF_rA, 1, 0));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::FUNCREF_iA_iBC, 2, 1));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLIFREF_rA, 2, 0));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::LOAD_rA_rB, 0, 2, 0));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 55));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false)); // prove precompile + fast path without profiling refresh
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_int(55)),
+		"Expected CALLIFREF auto-invoke to receive auto-precompiled fast integer result");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoFastPathNoopPrefixOnCallf() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 0, 77));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false));
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	vm.Run();
+
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(77)),
+		"Expected NOOP-prefixed trivial callee to fast-route through CALLF");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoFastPathNoopPrefixOnCallf FAILED");
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoConstFastPathNoopPrefixOnCall() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(4);
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::FUNCREF_iA_iBC, 2, 1));
+	main.Code().Add(BytecodeUtil::INS_ABC(Opcode::CALL_rA_rB_rC, 0, 1, 2));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Constants().Add(make_string("npConst"));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::NOOP));
+	callee.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_kBC, 0, 0));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false));
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+
+	GC_PUSH_SCOPE();
+	Value result = vm.Run(); GC_PROTECT(&result);
+
+	ok = ok && Assert(value_equal(result, make_string("npConst")),
+		"Expected NOOP-prefixed constant callee to fast-route through CALL");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoConstFastPathNoopPrefixOnCall FAILED");
+	GC_POP_SCOPE();
+	return ok;
+}
+Boolean UnitTests::TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile() {
+	Boolean ok = Boolean(true);
+
+	FuncDef main =  FuncDef::New();
+	main.set_Name("@main");
+	main.set_MaxRegs(3);
+	main.Constants().Add(make_string("x"));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::LOAD_rA_iBC, 1, 42));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::NAME_rA_kBC, 1, 0));
+	main.Code().Add(BytecodeUtil::INS_AB(Opcode::CALLF_iA_iBC, 1, 1));
+	main.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	FuncDef callee =  FuncDef::New();
+	callee.set_Name("@callee");
+	callee.set_MaxRegs(1);
+	callee.Constants().Add(make_string("x"));
+	callee.Code().Add(BytecodeUtil::INS_ABC(Opcode::LOADV_rA_rB_kC, 0, 0, 0));
+	callee.Code().Add(BytecodeUtil::INS(Opcode::RETURN));
+
+	VM vm =  VM::New();
+	vm.set_JitTier(2); // stub
+	vm.set_EnableJitProfiling(Boolean(false));
+
+	List<FuncDef> testFuncs =  List<FuncDef>::New();
+	testFuncs.Add(main);
+	testFuncs.Add(callee);
+	vm.Reset(testFuncs, make_map(4));
+
+	List<FuncDef> funcs = vm.GetFunctions();
+	ok = ok && AssertEqual(funcs.Count(), 2);
+	if (funcs.Count() != 2) return Boolean(false);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubState(1), 2);
+	ok = ok && AssertEqual(vm.GetFunctionJitStubBackendKind(1), 4);
+
+	vm.Run();
+
+	ok = ok && Assert(value_equal(vm.GetStackValue(1), make_int(42)),
+		"Expected LOADV trivial callee to fast-route and return named register value");
+	ok = ok && AssertEqual(vm.GetJitStubCompiledRouteHitCount(), 1);
+	ok = ok && AssertEqual(vm.GetJitStubCompiledFastExecCount(), 1);
+
+	if (!ok) IOHelper::Print("TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile FAILED");
 	return ok;
 }
 Boolean UnitTests::TestLexer() {
@@ -1476,6 +1974,18 @@ Boolean UnitTests::RunAll() {
 		&& TestCompiledStubRoutingHookCounter()
 		&& TestCompiledStubFastPathOnCallf()
 		&& TestCompiledStubFastPathConstReturnOnCallf()
+		&& TestCompiledStubFastPathAtTopLevel()
+		&& TestCompiledStubPrecompileMainAtReset()
+		&& TestCompiledStubResetPrecompileMultipleFunctions()
+		&& TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile()
+		&& TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile()
+		&& TestCompiledStubAutoFastPathOnCallAfterResetPrecompile()
+		&& TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile()
+		&& TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile()
+		&& TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile()
+		&& TestCompiledStubAutoFastPathNoopPrefixOnCallf()
+		&& TestCompiledStubAutoConstFastPathNoopPrefixOnCall()
+		&& TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile()
 		&& TestParserNeedMoreInput()
 		&& TestIntrinsicAllowlistV1()
 		&& TestInterpreterGlobalAccess()

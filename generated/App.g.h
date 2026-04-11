@@ -27,6 +27,8 @@ struct App {
 
 	private: static String StubStateName(Int32 state);
 
+	private: static Int32 CountResetPrecompiled(List<FuncDef> functions);
+
 	private: static void ApplyRuntimeOptions(Interpreter interp);
 	
 	public: static void MainProgram(List<String> args);

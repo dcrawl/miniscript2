@@ -37,6 +37,7 @@ class FuncDefStorage : public std::enable_shared_from_this<FuncDefStorage> {
 	public: Int32 JitStubState = 0;
 	public: Int32 JitStubBackendKind = 0;
 	public: Int32 JitStubBackendIntValue = 0;
+	public: bool JitResetPrecompiled = false;
 	public: Int32 JitStubCompileAttempts = 0;
 	public: String JitStubLastError = "";
 	public: NativeCallbackDelegate NativeCallback = null;
@@ -108,6 +109,8 @@ struct FuncDef {
 	public: void set_JitStubBackendKind(Int32 _v);
 	public: Int32 JitStubBackendIntValue();
 	public: void set_JitStubBackendIntValue(Int32 _v);
+	public: bool JitResetPrecompiled();
+	public: void set_JitResetPrecompiled(bool _v);
 	public: Int32 JitStubCompileAttempts();
 	public: void set_JitStubCompileAttempts(Int32 _v);
 	public: String JitStubLastError();
@@ -174,6 +177,8 @@ inline Int32 FuncDef::JitStubBackendKind() { return get()->JitStubBackendKind; }
 inline void FuncDef::set_JitStubBackendKind(Int32 _v) { get()->JitStubBackendKind = _v; }
 inline Int32 FuncDef::JitStubBackendIntValue() { return get()->JitStubBackendIntValue; }
 inline void FuncDef::set_JitStubBackendIntValue(Int32 _v) { get()->JitStubBackendIntValue = _v; }
+inline bool FuncDef::JitResetPrecompiled() { return get()->JitResetPrecompiled; }
+inline void FuncDef::set_JitResetPrecompiled(bool _v) { get()->JitResetPrecompiled = _v; }
 inline Int32 FuncDef::JitStubCompileAttempts() { return get()->JitStubCompileAttempts; }
 inline void FuncDef::set_JitStubCompileAttempts(Int32 _v) { get()->JitStubCompileAttempts = _v; }
 inline String FuncDef::JitStubLastError() { return get()->JitStubLastError; }

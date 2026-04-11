@@ -376,6 +376,7 @@ public class VM {
 		Opcode op = (Opcode)opValue;
 		if (op == Opcode.NOOP || op == Opcode.RETURN) return true;
 		if (op == Opcode.LOAD_rA_rB || op == Opcode.LOAD_rA_iBC || op == Opcode.LOAD_rA_kBC || op == Opcode.LOADNULL_rA) return true;
+		if (op == Opcode.LOADV_rA_rB_kC) return true;
 		if (op == Opcode.ASSIGN_rA_rB_kC || op == Opcode.NAME_rA_kBC) return true;
 		if (op == Opcode.SUPER_LOADI_ASSIGN_rA_iBC || op == Opcode.SUPER_LOADK_ASSIGN_rA_kBC
 			|| op == Opcode.SUPER_LOADNULL_ASSIGN_rA_kBC || op == Opcode.SUPER_LOADR_ASSIGN_rA_rB_kC) return true;
@@ -439,6 +440,13 @@ public class VM {
 			f.JitStubBackendKind = 1;
 			return;
 		}
+		if (activeOp == Opcode.LOADV_rA_rB_kC && BytecodeUtil.Au(activeInstruction) == 0) {
+			Int32 b = BytecodeUtil.Bu(activeInstruction);
+			Int32 c = BytecodeUtil.Cu(activeInstruction);
+			f.JitStubBackendKind = 4;
+			f.JitStubBackendIntValue = (b << 16) | c;
+			return;
+		}
 	}
 
 	private bool TryCompileStubForFunction(Int32 funcIndex) {
@@ -467,7 +475,7 @@ public class VM {
 		return false;
 	}
 
-	private bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext) {
+	private bool TryRouteCompiledStub(Int32 funcIndex, Int32 absoluteResultIndex, bool consumePendingContext, Int32 absoluteCalleeBase) {
 		if (JitTier != JitTierStub) return false;
 		if (funcIndex < 0 || funcIndex >= functions.Count) return false;
 		FuncDef f = functions[funcIndex];
@@ -510,6 +518,34 @@ public class VM {
 					stack[absoluteResultIndex] = f.Constants[constIndex];
 				} else {
 					stack[absoluteResultIndex] = val_null;
+				}
+			}
+			if (consumePendingContext) {
+				hasPendingContext = false;
+				pendingSelf = val_null;
+				pendingSuper = val_null;
+			}
+			jitStubCompiledFastExecCount++;
+			return true;
+		}
+
+		if (f.JitStubBackendKind == 4) {
+			if (absoluteResultIndex >= 0 && absoluteResultIndex < stack.Count) {
+				Int32 packed = f.JitStubBackendIntValue;
+				Int32 b = (packed >> 16) & 0xFF;
+				Int32 c = packed & 0xFF;
+				Int32 sourceAbsIndex = absoluteCalleeBase + b;
+				if (c >= 0 && c < f.Constants.Count
+					&& sourceAbsIndex >= 0 && sourceAbsIndex < names.Count
+					&& sourceAbsIndex >= 0 && sourceAbsIndex < stack.Count
+					&& value_identical(f.Constants[c], names[sourceAbsIndex])) {
+					stack[absoluteResultIndex] = stack[sourceAbsIndex];
+				} else {
+					if (c >= 0 && c < f.Constants.Count) {
+						stack[absoluteResultIndex] = LookupVariable(f.Constants[c]);
+					} else {
+						stack[absoluteResultIndex] = val_null;
+					}
 				}
 			}
 			if (consumePendingContext) {
@@ -622,7 +658,8 @@ public class VM {
 			for (Int32 i = 0; i < functions.Count; i++) {
 				FuncDef precompileFunc = functions[i];
 				if (precompileFunc.NativeCallback != null) continue;
-				if (ValidateStubCompilableSubset(precompileFunc) != null) continue;
+				String precompileReason = ValidateStubCompilableSubset(precompileFunc);
+				if (precompileReason != null) continue;
 				if (TryCompileStubForFunction(i)) {
 					JitStubResetPrecompileCount++;
 					functions[i].JitResetPrecompiled = true;
@@ -765,8 +802,18 @@ public class VM {
 		return JitStubResetPrecompileCount;
 	}
 
+	public Int32 GetFunctionJitStubState(Int32 funcIndex) {
+		if (funcIndex < 0 || funcIndex >= functions.Count) return -1;
+		return functions[funcIndex].JitStubState;
+	}
+
+	public Int32 GetFunctionJitStubBackendKind(Int32 funcIndex) {
+		if (funcIndex < 0 || funcIndex >= functions.Count) return -1;
+		return functions[funcIndex].JitStubBackendKind;
+	}
+
 	public bool ProbeCompiledStubRouting(Int32 funcIndex) {
-		return TryRouteCompiledStub(funcIndex, 0, false);
+		return TryRouteCompiledStub(funcIndex, 0, false, 0);
 	}
 
 	public void SetFunctionStubBackendForTesting(Int32 funcIndex, Int32 stubState, Int32 backendKind, Int32 backendIntValue) {
@@ -913,7 +960,7 @@ public class VM {
 		}
 
 		// User function: push CallInfo and set up callee frame
-		if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true)) {
+		if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true, calleeBase)) {
 			return -1;
 		}
 		if (callStackTop >= callStack.Count) {
@@ -1001,11 +1048,10 @@ public class VM {
 		Int32 currentFuncIndex = _currentFuncIndex;
 
 		if (pc == 0 && callStackTop == 0) {
-			if (TryRouteCompiledStub(currentFuncIndex, baseIndex, false)) {
-				Value fastResult = stack[baseIndex];
+			if (TryRouteCompiledStub(currentFuncIndex, baseIndex, false, baseIndex)) {
 				SaveState(pc, baseIndex, currentFuncIndex);
 				IsRunning = false;
-				return fastResult;
+				return stack[baseIndex];
 			}
 		}
 
@@ -1942,7 +1988,7 @@ public class VM {
 						break;
 					}
 
-					if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true)) {
+					if (TryRouteCompiledStub(funcIndex, baseIndex + resultReg, true, calleeBase)) {
 						pc = nextPC;
 						break;
 					}
@@ -2004,7 +2050,7 @@ public class VM {
 					callStack[callStackTop] = new CallInfo(pc, baseIndex, currentFuncIndex);
 					callStackTop++;
 
-					if (TryRouteCompiledStub(funcIndex, baseIndex + a, false)) {
+					if (TryRouteCompiledStub(funcIndex, baseIndex + a, false, baseIndex + a)) {
 						break;
 					}
 
@@ -2072,7 +2118,7 @@ public class VM {
 						break;
 					}
 
-					if (TryRouteCompiledStub(funcIndex, baseIndex + a, true)) {
+					if (TryRouteCompiledStub(funcIndex, baseIndex + a, true, calleeBase)) {
 						break;
 					}
 

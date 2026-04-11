@@ -69,6 +69,13 @@ String App::StubStateName(Int32 state) {
 	if (state == 3) return "failed";
 	return "none";
 }
+Int32 App::CountResetPrecompiled(List<FuncDef> functions) {
+	Int32 count = 0;
+	for (Int32 i = 0; i < functions.Count(); i++) {
+		if (functions[i].JitResetPrecompiled()) count++;
+	}
+	return count;
+}
 void App::ApplyRuntimeOptions(Interpreter interp) {
 	if (IsNull(interp)) return;
 	interp.set_JitTier(jitTier);
@@ -492,6 +499,8 @@ void App::RunInterpreter(Interpreter interp) {
 					vm.GetJitStubCompileAttemptCount(),
 					vm.GetJitStubCompiledRouteHitCount(),
 					vm.GetJitStubCompiledFastExecCount()));
+				IOHelper::Print(StringUtils::Format("JIT stub reset-precompiled: {0}",
+					CountResetPrecompiled(functions)));
 				for (Int32 i = 0; i < functions.Count(); i++) {
 					if (functions[i].JitStubState() == 3 && !String::IsNullOrEmpty(functions[i].JitStubLastError())) {
 						IOHelper::Print(StringUtils::Format("  stub-failed {0}: {1}",
