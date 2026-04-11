@@ -44,6 +44,7 @@ public class FuncDef {
 	public Int32 JitStubState = 0;
 	public Int32 JitStubBackendKind = 0;
 	public Int32 JitStubBackendIntValue = 0;
+	public bool JitResetPrecompiled = false;
 	public Int32 JitStubCompileAttempts = 0;
 	public String JitStubLastError = "";
 

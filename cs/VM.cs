@@ -88,6 +88,7 @@ public class VM {
 	private Int32 jitStubCompileAttemptCount;
 	private Int32 jitStubCompiledRouteHitCount;
 	private Int32 jitStubCompiledFastExecCount;
+	public Int32 JitStubResetPrecompileCount = 0;
 	private List<Value> stack;
 	private List<Value> names;		// Variable names parallel to stack (null if unnamed)
 
@@ -406,30 +407,38 @@ public class VM {
 		Opcode lastOp = (Opcode)BytecodeUtil.OP(f.Code[codeCount - 1]);
 		if (lastOp != Opcode.RETURN) return;
 
-		if (codeCount == 2) {
-			UInt32 firstInstruction = f.Code[0];
-			Opcode firstOp = (Opcode)BytecodeUtil.OP(firstInstruction);
-			if (firstOp == Opcode.LOAD_rA_iBC && BytecodeUtil.Au(firstInstruction) == 0) {
-				f.JitStubBackendKind = 2;
-				f.JitStubBackendIntValue = BytecodeUtil.BCs(firstInstruction);
-				return;
-			}
-			if (firstOp == Opcode.LOAD_rA_kBC && BytecodeUtil.Au(firstInstruction) == 0) {
-				f.JitStubBackendKind = 3;
-				f.JitStubBackendIntValue = BytecodeUtil.BCu(firstInstruction);
-				return;
-			}
-			if (firstOp == Opcode.LOADNULL_rA && BytecodeUtil.Au(firstInstruction) == 0) {
-				f.JitStubBackendKind = 1;
-				return;
-			}
+		Int32 activeIndex = -1;
+		UInt32 activeInstruction = 0;
+		Opcode activeOp = Opcode.NOOP;
+		for (Int32 i = 0; i < codeCount - 1; i++) {
+			UInt32 ins = f.Code[i];
+			Opcode op = (Opcode)BytecodeUtil.OP(ins);
+			if (op == Opcode.NOOP) continue;
+			if (activeIndex >= 0) return; // More than one non-NOOP op is not a trivial backend.
+			activeIndex = i;
+			activeInstruction = ins;
+			activeOp = op;
 		}
 
-		for (Int32 i = 0; i < codeCount - 1; i++) {
-			Opcode op = (Opcode)BytecodeUtil.OP(f.Code[i]);
-			if (op != Opcode.NOOP) return;
+		if (activeIndex < 0) {
+			f.JitStubBackendKind = 1; // NOOP...RETURN => return-null fast path
+			return;
 		}
-		f.JitStubBackendKind = 1; // return-null fast path
+
+		if (activeOp == Opcode.LOAD_rA_iBC && BytecodeUtil.Au(activeInstruction) == 0) {
+			f.JitStubBackendKind = 2;
+			f.JitStubBackendIntValue = BytecodeUtil.BCs(activeInstruction);
+			return;
+		}
+		if (activeOp == Opcode.LOAD_rA_kBC && BytecodeUtil.Au(activeInstruction) == 0) {
+			f.JitStubBackendKind = 3;
+			f.JitStubBackendIntValue = BytecodeUtil.BCu(activeInstruction);
+			return;
+		}
+		if (activeOp == Opcode.LOADNULL_rA && BytecodeUtil.Au(activeInstruction) == 0) {
+			f.JitStubBackendKind = 1;
+			return;
+		}
 	}
 
 	private bool TryCompileStubForFunction(Int32 funcIndex) {
@@ -598,19 +607,26 @@ public class VM {
 			f.JitStubState = 0;
 			f.JitStubBackendKind = 0;
 			f.JitStubBackendIntValue = 0;
+			f.JitResetPrecompiled = false;
 			f.JitStubCompileAttempts = 0;
 			f.JitStubLastError = "";
 		}
 		jitStubCompileAttemptCount = 0;
 		jitStubCompiledRouteHitCount = 0;
 		jitStubCompiledFastExecCount = 0;
+		JitStubResetPrecompileCount = 0;
 
-		// Precompile entry function when it trivially matches a supported stub backend,
-		// so top-level fast paths can activate on first run in jit=stub mode.
+		// Precompile trivially eligible non-native functions during reset in
+		// jit=stub mode, so fast paths can activate on first run.
 		if (JitTier == JitTierStub) {
-			FuncDef entryFunc = functions[mainIdx];
-			if (entryFunc.NativeCallback == null && ValidateStubCompilableSubset(entryFunc) == null) {
-				TryCompileStubForFunction(mainIdx);
+			for (Int32 i = 0; i < functions.Count; i++) {
+				FuncDef precompileFunc = functions[i];
+				if (precompileFunc.NativeCallback != null) continue;
+				if (ValidateStubCompilableSubset(precompileFunc) != null) continue;
+				if (TryCompileStubForFunction(i)) {
+					JitStubResetPrecompileCount++;
+					functions[i].JitResetPrecompiled = true;
+				}
 			}
 		}
 
@@ -739,6 +755,14 @@ public class VM {
 
 	public Int32 GetJitStubCompiledFastExecCount() {
 		return jitStubCompiledFastExecCount;
+	}
+
+	public Int32 GetJitStubResetPrecompileCount() {
+		return JitStubResetPrecompileCount;
+	}
+
+	public Int32 ResetPrecompileCount() {
+		return JitStubResetPrecompileCount;
 	}
 
 	public bool ProbeCompiledStubRouting(Int32 funcIndex) {

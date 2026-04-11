@@ -72,6 +72,14 @@ public struct App {
 		return "none";
 	}
 
+	private static Int32 CountResetPrecompiled(List<FuncDef> functions) {
+		Int32 count = 0;
+		for (Int32 i = 0; i < functions.Count; i++) {
+			if (functions[i].JitResetPrecompiled) count++;
+		}
+		return count;
+	}
+
 	private static void ApplyRuntimeOptions(Interpreter interp) {
 		if (interp == null) return;
 		interp.JitTier = jitTier;
@@ -508,6 +516,8 @@ public struct App {
 						vm.GetJitStubCompileAttemptCount(),
 						vm.GetJitStubCompiledRouteHitCount(),
 						vm.GetJitStubCompiledFastExecCount()));
+					IOHelper.Print(StringUtils.Format("JIT stub reset-precompiled: {0}",
+						CountResetPrecompiled(functions)));
 					for (Int32 i = 0; i < functions.Count; i++) {
 						if (functions[i].JitStubState == 3 && !String.IsNullOrEmpty(functions[i].JitStubLastError)) {
 							IOHelper.Print(StringUtils.Format("  stub-failed {0}: {1}",
