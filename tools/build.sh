@@ -106,7 +106,20 @@ case "$TARGET" in
                 ;;
         esac
 
+        # Prevent stale binaries when toggling dispatch/build modes.
+        mkdir -p build/cpp
+        CPP_BUILD_SIGNATURE="mode=$BUILD_MODE;goto=$CPP_GOTO_MODE"
+        CPP_BUILD_SIGNATURE_FILE="build/cpp/.last_cpp_build_signature"
+        if [ -f "$CPP_BUILD_SIGNATURE_FILE" ]; then
+            LAST_CPP_BUILD_SIGNATURE="$(cat "$CPP_BUILD_SIGNATURE_FILE")"
+            if [ "$LAST_CPP_BUILD_SIGNATURE" != "$CPP_BUILD_SIGNATURE" ]; then
+                echo "C++ build mode changed ($LAST_CPP_BUILD_SIGNATURE -> $CPP_BUILD_SIGNATURE); cleaning C++ objects..."
+                make -C cpp clean
+            fi
+        fi
+
         make -C cpp $MAKE_ARGS
+        echo "$CPP_BUILD_SIGNATURE" > "$CPP_BUILD_SIGNATURE_FILE"
         echo "C++ build complete."
         ;;
     

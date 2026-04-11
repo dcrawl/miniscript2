@@ -160,14 +160,6 @@ public struct App {
 			if (!UnitTests.RunAll()) return;
 			IOHelper.Print("Unit tests complete.");
 
-			Int32 leakedScopeDepth = 0; // CPP: Int32 leakedScopeDepth = gc_get_scope_depth();
-			if (leakedScopeDepth > 0) {
-				IOHelper.Print(StringUtils.Format("GC scope depth after unit tests: {0} (draining before integration)", leakedScopeDepth));
-				/*** BEGIN CPP_ONLY ***
-				while (gc_get_scope_depth() > 0) gc_pop_scope();
-				*** END CPP_ONLY ***/
-			}
-
 			IOHelper.Print("Running integration tests...");
 			if (!RunIntegrationTests("tests/testSuite.txt")) {
 				IOHelper.Print("Some integration tests failed.");

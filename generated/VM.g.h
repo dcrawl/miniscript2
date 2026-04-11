@@ -704,18 +704,13 @@ inline void VMStorage::EnsureFrame(Int32 baseIndex,UInt16 neededRegs) {
 inline Value VM::GetGlobalsVarMap() { return get()->GetGlobalsVarMap(); }
 inline Value VM::GetCurrentLocalVarMap(Int32 baseIndex,UInt16 maxRegs) { return get()->GetCurrentLocalVarMap(baseIndex, maxRegs); }
 inline Value VMStorage::GetCurrentLocalVarMap(Int32 baseIndex,UInt16 maxRegs) {
-	GC_PUSH_SCOPE();
-	Value result; GC_PROTECT(&result);
 	if (callStackTop > 0) {
 		CallInfo frame = callStack[callStackTop - 1];
-		result = frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
+		frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 		callStack[callStackTop - 1] = frame;  // write back (CallInfo is a struct)
-		GC_POP_SCOPE();
-		return result;
-	} else {
-		return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
+		return frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 	}
-	GC_POP_SCOPE();
+	return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
 }
 inline void VM::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) { return get()->SaveState(pc, baseIndex, currentFuncIndex); }
 inline void VMStorage::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) {

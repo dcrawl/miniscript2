@@ -940,6 +940,9 @@ public static class CoreIntrinsics {
 			return IntrinsicResult.Null;
 		};
 
+		// Balance the explicit GC_PUSH_SCOPE hack at the top of Init.
+		// CPP: GC_POP_SCOPE();
+
 	}
 
 	public static void InvalidateTypeMaps() {

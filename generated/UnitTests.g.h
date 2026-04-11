@@ -12,6 +12,13 @@ namespace MiniScript {
 // DECLARATIONS
 
 class UnitTests {
+	private: static Int32 _runAllScopeBaseline;
+
+	private: static Int32 CurrentGCScopeDepth();
+
+	private: static Boolean CheckTestWithScope(String testName, Boolean testResult);
+
+	private: static Boolean CheckDepthStable(String label, Int32 baseline);
 
 	public: static Boolean Assert(bool condition, String message);
 	

@@ -993,6 +993,9 @@ void CoreIntrinsics::Init() {
 		return IntrinsicResult::Null;
 	});
 
+	// Balance the explicit GC_PUSH_SCOPE hack at the top of Init.
+	GC_POP_SCOPE();
+
 }
 void CoreIntrinsics::InvalidateTypeMaps() {
 	_listType = val_null;

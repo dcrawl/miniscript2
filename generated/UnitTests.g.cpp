@@ -18,6 +18,33 @@
 
 namespace MiniScript {
 
+Int32 UnitTests::_runAllScopeBaseline = 0;
+Int32 UnitTests::CurrentGCScopeDepth() {
+	Int32 depth = 0;
+	depth = gc_get_scope_depth();
+	return depth;
+}
+Boolean UnitTests::CheckTestWithScope(String testName,Boolean testResult) {
+	if (!testResult) return Boolean(false);
+	Int32 depth = CurrentGCScopeDepth();
+	if (depth != _runAllScopeBaseline) {
+		IOHelper::Print(StringUtils::Format(
+			"GC scope depth drift after {0}: baseline={1}, current={2}",
+			testName, _runAllScopeBaseline, depth));
+		return Boolean(false);
+	}
+	return Boolean(true);
+}
+Boolean UnitTests::CheckDepthStable(String label,Int32 baseline) {
+	Int32 depth = CurrentGCScopeDepth();
+	if (depth != baseline) {
+		IOHelper::Print(StringUtils::Format(
+			"GC scope drift at {0}: baseline={1}, current={2}",
+			label, baseline, depth));
+		return Boolean(false);
+	}
+	return Boolean(true);
+}
 Boolean UnitTests::Assert(bool condition,String message) {
 	if (condition) return Boolean(true);
 	IOHelper::Print( String::New("Unit test failure: ") + message);
@@ -680,16 +707,22 @@ FuncDef UnitTests::MakeSuperinstructionFusionCandidate() {
 }
 Boolean UnitTests::TestSuperinstructionFusion() {
 	Boolean ok = Boolean(true);
+	Int32 depthBaseline = CurrentGCScopeDepth();
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.start", depthBaseline);
 
 	// Baseline: JIT tier off should not rewrite bytecode.
 	VM vmOff =  VM::New();
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterVmOffNew", depthBaseline);
 	vmOff.set_JitTier(0);
 	List<FuncDef> funcsOffInput =  List<FuncDef>::New({ MakeSuperinstructionFusionCandidate() });
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterFuncsOffInput", depthBaseline);
 	vmOff.Reset(funcsOffInput);
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterVmOffReset", depthBaseline);
 	ok = ok && AssertEqual(vmOff.GetSuperinstructionRewriteCount(), 0);
 
 	Int32 superCountOff = 0;
 	List<FuncDef> funcsOff = vmOff.GetFunctions();
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterGetFunctionsOff", depthBaseline);
 	for (Int32 i = 0; i < funcsOff.Count(); i++) {
 		if (funcsOff[i].Name() != "@main") continue;
 		for (Int32 j = 0; j < funcsOff[i].Code().Count(); j++) {
@@ -704,14 +737,18 @@ Boolean UnitTests::TestSuperinstructionFusion() {
 
 	// Super tier: should rewrite at least one eligible pair in @main.
 	VM vmSuper =  VM::New();
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterVmSuperNew", depthBaseline);
 	vmSuper.set_JitTier(1);
 	List<FuncDef> funcsSuperInput =  List<FuncDef>::New({ MakeSuperinstructionFusionCandidate() });
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterFuncsSuperInput", depthBaseline);
 	vmSuper.Reset(funcsSuperInput);
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterVmSuperReset", depthBaseline);
 	ok = ok && Assert(vmSuper.GetSuperinstructionRewriteCount() >= 3,
 		"Expected VM superinstruction rewrite counter to report at least 3 rewrites");
 
 	Int32 superCountOn = 0;
 	List<FuncDef> funcsSuper = vmSuper.GetFunctions();
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.afterGetFunctionsSuper", depthBaseline);
 	for (Int32 i = 0; i < funcsSuper.Count(); i++) {
 		if (funcsSuper[i].Name() != "@main") continue;
 		for (Int32 j = 0; j < funcsSuper[i].Code().Count(); j++) {
@@ -723,6 +760,7 @@ Boolean UnitTests::TestSuperinstructionFusion() {
 		}
 	}
 	ok = ok && Assert(superCountOn >= 3, "Expected fused opcodes for three candidate pairs with JIT super tier");
+	ok = ok && CheckDepthStable("TestSuperinstructionFusion.end", depthBaseline);
 
 	if (!ok) IOHelper::Print("TestSuperinstructionFusion FAILED");
 	return ok;
@@ -1957,40 +1995,41 @@ Boolean UnitTests::TestIntrinsicAllowlistV1() {
 }
 Boolean UnitTests::RunAll() {
 	Boolean scriptInstanceTestsOK = Boolean(true);
+	_runAllScopeBaseline = CurrentGCScopeDepth();
 
-	return TestStringUtils()
-		&& TestDisassembler()
-		&& TestAssembler()
-		&& TestValueMap()
-		&& TestLexer()
-		&& TestParser()
-		&& TestCodeGenerator()
-		&& TestEmitPatternValidation()
-		&& TestSuperinstructionFusion()
-		&& TestHotFunctionCandidates()
-		&& TestStubLifecycleGroundwork()
-		&& TestStubLifecycleFallbackFailure()
-		&& TestStubLifecycleExpandedSubsetCompile()
-		&& TestCompiledStubRoutingHookCounter()
-		&& TestCompiledStubFastPathOnCallf()
-		&& TestCompiledStubFastPathConstReturnOnCallf()
-		&& TestCompiledStubFastPathAtTopLevel()
-		&& TestCompiledStubPrecompileMainAtReset()
-		&& TestCompiledStubResetPrecompileMultipleFunctions()
-		&& TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile()
-		&& TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile()
-		&& TestCompiledStubAutoFastPathOnCallAfterResetPrecompile()
-		&& TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile()
-		&& TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile()
-		&& TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile()
-		&& TestCompiledStubAutoFastPathNoopPrefixOnCallf()
-		&& TestCompiledStubAutoConstFastPathNoopPrefixOnCall()
-		&& TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile()
-		&& TestParserNeedMoreInput()
-		&& TestIntrinsicAllowlistV1()
-		&& TestInterpreterGlobalAccess()
-		&& scriptInstanceTestsOK
-		&& TestREPL();
+	return CheckTestWithScope("TestStringUtils", TestStringUtils())
+		&& CheckTestWithScope("TestDisassembler", TestDisassembler())
+		&& CheckTestWithScope("TestAssembler", TestAssembler())
+		&& CheckTestWithScope("TestValueMap", TestValueMap())
+		&& CheckTestWithScope("TestLexer", TestLexer())
+		&& CheckTestWithScope("TestParser", TestParser())
+		&& CheckTestWithScope("TestCodeGenerator", TestCodeGenerator())
+		&& CheckTestWithScope("TestEmitPatternValidation", TestEmitPatternValidation())
+		&& CheckTestWithScope("TestSuperinstructionFusion", TestSuperinstructionFusion())
+		&& CheckTestWithScope("TestHotFunctionCandidates", TestHotFunctionCandidates())
+		&& CheckTestWithScope("TestStubLifecycleGroundwork", TestStubLifecycleGroundwork())
+		&& CheckTestWithScope("TestStubLifecycleFallbackFailure", TestStubLifecycleFallbackFailure())
+		&& CheckTestWithScope("TestStubLifecycleExpandedSubsetCompile", TestStubLifecycleExpandedSubsetCompile())
+		&& CheckTestWithScope("TestCompiledStubRoutingHookCounter", TestCompiledStubRoutingHookCounter())
+		&& CheckTestWithScope("TestCompiledStubFastPathOnCallf", TestCompiledStubFastPathOnCallf())
+		&& CheckTestWithScope("TestCompiledStubFastPathConstReturnOnCallf", TestCompiledStubFastPathConstReturnOnCallf())
+		&& CheckTestWithScope("TestCompiledStubFastPathAtTopLevel", TestCompiledStubFastPathAtTopLevel())
+		&& CheckTestWithScope("TestCompiledStubPrecompileMainAtReset", TestCompiledStubPrecompileMainAtReset())
+		&& CheckTestWithScope("TestCompiledStubResetPrecompileMultipleFunctions", TestCompiledStubResetPrecompileMultipleFunctions())
+		&& CheckTestWithScope("TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile", TestCompiledStubAutoFastPathOnCallfAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile", TestCompiledStubAutoConstFastPathOnCallfAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoFastPathOnCallAfterResetPrecompile", TestCompiledStubAutoFastPathOnCallAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile", TestCompiledStubAutoConstFastPathOnCallAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile", TestCompiledStubAutoFastPathOnLoadcAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile", TestCompiledStubAutoFastPathOnCallifrefAfterResetPrecompile())
+		&& CheckTestWithScope("TestCompiledStubAutoFastPathNoopPrefixOnCallf", TestCompiledStubAutoFastPathNoopPrefixOnCallf())
+		&& CheckTestWithScope("TestCompiledStubAutoConstFastPathNoopPrefixOnCall", TestCompiledStubAutoConstFastPathNoopPrefixOnCall())
+		&& CheckTestWithScope("TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile", TestCompiledStubAutoLoadvFastPathOnCallfAfterResetPrecompile())
+		&& CheckTestWithScope("TestParserNeedMoreInput", TestParserNeedMoreInput())
+		&& CheckTestWithScope("TestIntrinsicAllowlistV1", TestIntrinsicAllowlistV1())
+		&& CheckTestWithScope("TestInterpreterGlobalAccess", TestInterpreterGlobalAccess())
+		&& CheckTestWithScope("scriptInstanceTestsOK", scriptInstanceTestsOK)
+		&& CheckTestWithScope("TestREPL", TestREPL());
 }
 
 } // end of namespace MiniScript

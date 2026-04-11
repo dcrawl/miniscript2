@@ -2425,15 +2425,13 @@ public class VM {
 	// At global scope (callStackTop == 0), creates a VarMap directly.
 	[MethodImpl(AggressiveInlining)]
 	private Value GetCurrentLocalVarMap(Int32 baseIndex, UInt16 maxRegs) {
-		Value result;
 		if (callStackTop > 0) {
 			CallInfo frame = callStack[callStackTop - 1];
-			result = frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
+			frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 			callStack[callStackTop - 1] = frame;  // write back (CallInfo is a struct)
-			return result;
-		} else {
-			return make_varmap(stack, names, baseIndex, maxRegs); // CPP: return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
+			return frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 		}
+		return make_varmap(stack, names, baseIndex, maxRegs); // CPP: return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
 	}
 
 	[MethodImpl(AggressiveInlining)]
