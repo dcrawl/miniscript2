@@ -118,6 +118,8 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 
 	public: String GetFunctionName(Int32 funcIndex);
 
+	public: FuncDef GetFuncDef(Int32 funcIndex);
+
 	public: VMStorage(Int32 stackSlots=1024, Int32 callSlots=256);
 
 	private: void InitVM(Int32 stackSlots, Int32 callSlots);
@@ -319,6 +321,8 @@ struct VM {
 
 	public: inline String GetFunctionName(Int32 funcIndex);
 
+	public: inline FuncDef GetFuncDef(Int32 funcIndex);
+
 	public: static VM New(Int32 stackSlots=1024, Int32 callSlots=256) {
 		return VM(std::make_shared<VMStorage>(stackSlots, callSlots));
 	}
@@ -465,6 +469,7 @@ inline Value VM::GetGlobalValue(String varName) { return get()->GetGlobalValue(v
 inline void VM::SetGlobalValue(String varName,Value value) { return get()->SetGlobalValue(varName, value); }
 inline CallInfo VM::GetCallStackFrame(Int32 index) { return get()->GetCallStackFrame(index); }
 inline String VM::GetFunctionName(Int32 funcIndex) { return get()->GetFunctionName(funcIndex); }
+inline FuncDef VM::GetFuncDef(Int32 funcIndex) { return get()->GetFuncDef(funcIndex); }
 inline void VM::InitVM(Int32 stackSlots,Int32 callSlots) { return get()->InitVM(stackSlots, callSlots); }
 inline void VM::CleanupVM() { return get()->CleanupVM(); }
 inline void VM::RegisterFunction(FuncDef funcDef) { return get()->RegisterFunction(funcDef); }
@@ -500,12 +505,11 @@ inline Value VMStorage::GetCurrentLocalVarMap(Int32 baseIndex,UInt16 maxRegs) {
 		CallInfo frame = callStack[callStackTop - 1];
 		result = frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 		callStack[callStackTop - 1] = frame;  // write back (CallInfo is a struct)
-		GC_POP_SCOPE();
-		return result;
 	} else {
-		return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
+		result = make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
 	}
 	GC_POP_SCOPE();
+	return result;
 }
 inline void VM::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) { return get()->SaveState(pc, baseIndex, currentFuncIndex); }
 inline void VMStorage::SaveState(Int32 pc,Int32 baseIndex,Int32 currentFuncIndex) {

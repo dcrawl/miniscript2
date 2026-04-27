@@ -203,6 +203,11 @@ public class VM {
 		return functions[funcIndex].Name;
 	}
 
+	public FuncDef GetFuncDef(Int32 funcIndex) {
+		if (funcIndex < 0 || funcIndex >= functions.Count) return new FuncDef();
+		return functions[funcIndex];
+	}
+
 	public VM(Int32 stackSlots=1024, Int32 callSlots=256) {
 		InitVM(stackSlots, callSlots);
 	}
@@ -1855,10 +1860,10 @@ public class VM {
 			CallInfo frame = callStack[callStackTop - 1];
 			result = frame.GetLocalVarMap(stack, names, baseIndex, maxRegs);
 			callStack[callStackTop - 1] = frame;  // write back (CallInfo is a struct)
-			return result;
 		} else {
-			return make_varmap(stack, names, baseIndex, maxRegs); // CPP: return make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
+			result = make_varmap(stack, names, baseIndex, maxRegs); // CPP: result = make_varmap(&stack[0], &names[0], baseIndex, maxRegs);
 		}
+		return result;
 	}
 
 	[MethodImpl(AggressiveInlining)]

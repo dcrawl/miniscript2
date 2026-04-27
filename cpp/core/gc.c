@@ -17,8 +17,8 @@
 #error "gc.c (Layer 2A - runtime) cannot depend on B-side layers (2B, 3B)"
 #endif
 
-// #define GC_DEBUG 1
-// #define GC_AGGRESSIVE 1  // Collect on every allocation (for testing)
+//#define GC_DEBUG 1
+//#define GC_AGGRESSIVE 1  // Collect on every allocation (for testing)
 
 // GC Object header - minimal overhead
 typedef struct GCObject {
@@ -154,6 +154,16 @@ void gc_pop_scope(void) {
 
     // Unprotect everything added in this scope - just reset count directly
     gc.root_set.count = start;
+}
+
+void gc_push_scope_debug(const char* file, int line) {
+    fprintf(stderr, "GC_PUSH_SCOPE depth=%d at %s:%d\n", gc.scope_count, file, line);
+    gc_push_scope();
+}
+
+void gc_pop_scope_debug(const char* file, int line) {
+    fprintf(stderr, "GC_POP_SCOPE  depth=%d at %s:%d\n", gc.scope_count, file, line);
+    gc_pop_scope();
 }
 
 void gc_disable(void) {
@@ -323,6 +333,26 @@ void gc_mark_map(ValueMap* map) {
             }
         }
     }
+
+    // Mark VarMapData and its sub-arrays (if this is a VarMap)
+    if (map->varmap_data) {
+        VarMapData* vdata = map->varmap_data;
+        GCObject* vdata_obj = (GCObject*)((char*)vdata - sizeof(GCObject));
+        if (!vdata_obj->marked) {
+            vdata_obj->marked = true;
+            if (vdata->reg_map_keys) {
+                GCObject* keys_obj = (GCObject*)((char*)vdata->reg_map_keys - sizeof(GCObject));
+                keys_obj->marked = true;
+                for (int i = 0; i < vdata->reg_map_count; i++) {
+                    gc_mark_value(vdata->reg_map_keys[i]);
+                }
+            }
+            if (vdata->reg_map_indices) {
+                GCObject* indices_obj = (GCObject*)((char*)vdata->reg_map_indices - sizeof(GCObject));
+                indices_obj->marked = true;
+            }
+        }
+    }
 }
 
 void gc_mark_phase(void) {
@@ -375,21 +405,24 @@ void gc_collect(void) {
     if (gc.disable_count > 0) return;
     
     gc.collections_count++;
+#ifdef GC_DEBUG
     size_t before = gc.bytes_allocated;
-    
+#endif
+
     // Mark & Sweep
     gc_mark_phase();
     gc_sweep_phase();
     
-    // Adjust threshold based on how much we freed
-    size_t freed = before - gc.bytes_allocated;
-    if (freed < gc.gc_threshold / 4) {
-        // Didn't free much, increase threshold
-        gc.gc_threshold *= 2;
-    }
-    
+    // Set threshold to 2x live bytes, with a minimum of 1MB.
+    // This scales naturally with the program's live data size.
+    size_t live = gc.bytes_allocated;
+    size_t new_threshold = live * 2;
+    if (new_threshold < 1024 * 1024) new_threshold = 1024 * 1024;
+    gc.gc_threshold = new_threshold;
+
 #ifdef GC_DEBUG
-    printf("GC: freed %zu bytes, %zu bytes remaining, threshold now %zu\n", 
+    size_t freed = before - live;
+    printf("GC: freed %zu bytes, %zu bytes remaining, threshold now %zu\n",
            freed, gc.bytes_allocated, gc.gc_threshold);
 #endif
 }

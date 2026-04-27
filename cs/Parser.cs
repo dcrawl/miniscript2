@@ -54,7 +54,7 @@ public class Parser : IParser {
 		// Unary operators
 		RegisterPrefix(TokenType.MINUS, new UnaryOpParselet(Op.MINUS, Precedence.UNARY_MINUS));
 		RegisterPrefix(TokenType.NOT, new UnaryOpParselet(Op.NOT, Precedence.NOT));
-		RegisterPrefix(TokenType.ADDRESS_OF, new UnaryOpParselet(Op.ADDRESS_OF, Precedence.ADDRESS_OF));
+		RegisterPrefix(TokenType.ADDRESS_OF, new AddressOfParselet());
 		RegisterPrefix(TokenType.NEW, new UnaryOpParselet(Op.NEW, Precedence.UNARY_MINUS));
 		RegisterPrefix(TokenType.SELF, new SelfParselet());
 		RegisterPrefix(TokenType.SUPER, new SuperParselet());
@@ -126,6 +126,11 @@ public class Parser : IParser {
 			_current = _lexer.NextToken();
 		} while (_current.Type == TokenType.COMMENT
 			|| (_current.Type == TokenType.EOL && AllowsLineContinuation(_previousType)));
+		// If the last meaningful token allows line continuation and we've run out
+		// of input (with or without a trailing EOL), we need more input.
+		if (_current.Type == TokenType.END_OF_INPUT && AllowsLineContinuation(_previousType)) {
+			_needMoreInput = true;
+		}
 	}
 
 	// Return true if the given token type allows a line continuation after it.
@@ -256,7 +261,9 @@ public class Parser : IParser {
 		// Look up the prefix parselet for this token
 		PrefixParselet prefix = null;
 		if (!_prefixParselets.TryGetValue(token.Type, out prefix)) {
-			ReportError($"Unexpected token: {TokenDescription(token)}");
+			// If we already know we need more input (e.g. trailing binary operator
+			// at end of REPL line), don't also emit an error.
+			if (!_needMoreInput) ReportError($"Unexpected token: {TokenDescription(token)}");
 			return new NumberNode(0);
 		}
 
@@ -383,7 +390,8 @@ public class Parser : IParser {
 				if (compoundOp != null) {
 					value = new BinaryOpNode(compoundOp, new IndexNode(idxNode.Target, idxNode.Index), value);
 				}
-				return new IndexedAssignmentNode(idxNode.Target, idxNode.Index, value);
+				String lhsName = idxNode.Target.ToStr() + "[" + idxNode.Index.ToStr() + "]";
+				return new IndexedAssignmentNode(idxNode.Target, idxNode.Index, value, lhsName);
 			}
 
 			// Check for member assignment: expr.member = value (or compound: expr.member += value)
@@ -396,7 +404,8 @@ public class Parser : IParser {
 				if (compoundOp != null) {
 					value = new BinaryOpNode(compoundOp, new IndexNode(memNode.Target, index), value);
 				}
-				return new IndexedAssignmentNode(memNode.Target, index, value);
+				String lhsName = memNode.Target.ToStr() + "." + memNode.Member;
+				return new IndexedAssignmentNode(memNode.Target, index, value, lhsName);
 			}
 
 			// Check for no-parens call on an expression result, e.g. funcs[0] 10
@@ -422,7 +431,8 @@ public class Parser : IParser {
 			if (compoundOp2 != null) {
 				value = new BinaryOpNode(compoundOp2, new IndexNode(idxNode2.Target, idxNode2.Index), value);
 			}
-			return new IndexedAssignmentNode(idxNode2.Target, idxNode2.Index, value);
+			String lhsName2 = idxNode2.Target.ToStr() + "[" + idxNode2.Index.ToStr() + "]";
+			return new IndexedAssignmentNode(idxNode2.Target, idxNode2.Index, value, lhsName2);
 		}
 		MemberNode memNode2 = expr2 as MemberNode;
 		if (memNode2 != null && IsAssignOp(_current.Type)) {
@@ -433,7 +443,8 @@ public class Parser : IParser {
 			if (compoundOp2 != null) {
 				value = new BinaryOpNode(compoundOp2, new IndexNode(memNode2.Target, index), value);
 			}
-			return new IndexedAssignmentNode(memNode2.Target, index, value);
+			String lhsName2 = memNode2.Target.ToStr() + "." + memNode2.Member;
+			return new IndexedAssignmentNode(memNode2.Target, index, value, lhsName2);
 		}
 		return expr2;
 	}

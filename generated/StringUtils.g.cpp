@@ -3,6 +3,7 @@
 
 #include "StringUtils.g.h"
 #include <cctype>
+#include <cmath>
 #include "IOHelper.g.h"
 
 namespace MiniScript {

@@ -162,9 +162,61 @@ void CoreIntrinsics::Init() {
 		return IntrinsicResult(make_string(result));
 	});
 
+	// info(ref)
+	f = Intrinsic::Create("info");
+	f.AddParam("ref");
+	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
+		GC_PUSH_SCOPE();
+		Value arg = ctx.GetArg(0); GC_PROTECT(&arg);
+		if (is_null(arg)) {
+			// ToDo: return an error
+			GC_POP_SCOPE();
+			return IntrinsicResult::Null;
+		}
+		Value result = make_map(8); GC_PROTECT(&result);
+		Value parameters = val_null; GC_PROTECT(&parameters);
+		Value pinfo = val_null; GC_PROTECT(&pinfo);
+		if (is_funcref(arg)) {
+			map_set(result, make_string("type"), make_string("funcRef"));
+			Int32 funcIndex = funcref_index(arg);
+			map_set(result, make_string("__idx"), make_int(funcIndex));
+			FuncDef func = ctx.vm.GetFuncDef(funcIndex);
+			map_set(result, make_string("name"), make_string(func.Name()));
+			map_set(result, make_string("note"), make_string(func.Note()));
+			parameters = make_list(func.ParamNames().Count());
+			for (int i=0; i < func.ParamNames().Count(); i++) {
+				pinfo = make_map(2);
+				map_set(pinfo, make_string("name"), func.ParamNames()[i]);
+				map_set(pinfo, make_string("default"), func.ParamDefaults()[i]);
+				list_push(parameters, pinfo);
+			}
+			map_set(result, make_string("params"), parameters);
+			if (is_null(funcref_outer_vars(arg))) {
+				map_set(result, make_string("closure"), val_zero);
+			} else {
+				map_set(result, make_string("closure"), val_one);
+			}
+		} else if (is_string(arg)) {
+			map_set(result, make_string("type"), make_string("string"));
+		} else if (is_number(arg)) {
+			map_set(result, make_string("type"), make_string("number"));
+		} else if (is_list(arg)) {
+			map_set(result, make_string("type"), make_string("list"));
+		} else if (is_map(arg)) {
+			map_set(result, make_string("type"), make_string("map"));
+		} else if (is_null(arg)) {
+			map_set(result, make_string("type"), make_string("null"));
+		} else {
+			map_set(result, make_string("type"), make_string("unknown"));
+		}
+		freeze_value(result);
+		GC_POP_SCOPE();
+		return IntrinsicResult(result);
+	});
+
 	// val(self=0)
 	f = Intrinsic::Create("val");
-	f.AddParam("self", make_int(0));
+	f.AddParam("self", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		GC_PUSH_SCOPE();
 		Value v = ctx.GetArg(0); GC_PROTECT(&v);
@@ -284,29 +336,29 @@ void CoreIntrinsics::Init() {
 
 	// abs(x=0)
 	f = Intrinsic::Create("abs");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Abs(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// acos(x=0)
 	f = Intrinsic::Create("acos");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Acos(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// asin(x=0)
 	f = Intrinsic::Create("asin");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Asin(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// atan(y=0, x=1)
 	f = Intrinsic::Create("atan");
-	f.AddParam("y", make_int(0));
-	f.AddParam("x", make_int(1));
+	f.AddParam("y", val_zero);
+	f.AddParam("x", val_one);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		double y = numeric_val(ctx.GetArg(0));
 		double x = numeric_val(ctx.GetArg(1));
@@ -316,28 +368,28 @@ void CoreIntrinsics::Init() {
 
 	// ceil(x=0)
 	f = Intrinsic::Create("ceil");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Ceiling(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// cos(radians=0)
 	f = Intrinsic::Create("cos");
-	f.AddParam("radians", make_int(0));
+	f.AddParam("radians", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Cos(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// floor(x=0)
 	f = Intrinsic::Create("floor");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Floor(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// log(x=0, base=10)
 	f = Intrinsic::Create("log");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.AddParam("base", make_int(10));
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		double x = numeric_val(ctx.GetArg(0));
@@ -356,8 +408,8 @@ void CoreIntrinsics::Init() {
 
 	// round(x=0, decimalPlaces=0)
 	f = Intrinsic::Create("round");
-	f.AddParam("x", make_int(0));
-	f.AddParam("decimalPlaces", make_int(0));
+	f.AddParam("x", val_zero);
+	f.AddParam("decimalPlaces", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		double num = numeric_val(ctx.GetArg(0));
 		int decimalPlaces = (int)numeric_val(ctx.GetArg(1));
@@ -383,28 +435,28 @@ void CoreIntrinsics::Init() {
 
 	// sign(x=0)
 	f = Intrinsic::Create("sign");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_int(Math::Sign(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// sin(radians=0)
 	f = Intrinsic::Create("sin");
-	f.AddParam("radians", make_int(0));
+	f.AddParam("radians", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Sin(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// sqrt(x=0)
 	f = Intrinsic::Create("sqrt");
-	f.AddParam("x", make_int(0));
+	f.AddParam("x", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Sqrt(numeric_val(ctx.GetArg(0)))));
 	});
 
 	// tan(radians=0)
 	f = Intrinsic::Create("tan");
-	f.AddParam("radians", make_int(0));
+	f.AddParam("radians", val_zero);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		return IntrinsicResult(make_double(Math::Tan(numeric_val(ctx.GetArg(0)))));
 	});
@@ -421,7 +473,7 @@ void CoreIntrinsics::Init() {
 			GC_POP_SCOPE();
 			return IntrinsicResult(self);
 		} else if (is_map(self)) {
-			map_set(self, value, make_int(1));
+			map_set(self, value, val_one);
 			GC_POP_SCOPE();
 			return IntrinsicResult(self);
 		}
@@ -556,7 +608,7 @@ void CoreIntrinsics::Init() {
 	f = Intrinsic::Create("sort");
 	f.AddParam("self");
 	f.AddParam("byKey");
-	f.AddParam("ascending", make_int(1));
+	f.AddParam("ascending", val_one);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		GC_PUSH_SCOPE();
 		Value self = ctx.GetArg(0); GC_PROTECT(&self);
@@ -737,7 +789,7 @@ void CoreIntrinsics::Init() {
 			}
 		} else {
 			GC_POP_SCOPE();
-			return IntrinsicResult(make_int(0));
+			return IntrinsicResult(val_zero);
 		}
 		if (total == (int)total && total >= Int32MinValue && total <= Int32MaxValue) {
 			GC_POP_SCOPE();
@@ -750,7 +802,7 @@ void CoreIntrinsics::Init() {
 	// slice(seq, from=0, to=null)
 	f = Intrinsic::Create("slice");
 	f.AddParam("seq");
-	f.AddParam("from", make_int(0));
+	f.AddParam("from", val_zero);
 	f.AddParam("to");
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		GC_PUSH_SCOPE();
@@ -817,7 +869,7 @@ void CoreIntrinsics::Init() {
 		if (is_list(self)) {
 			if (!is_number(index))  {
 				GC_POP_SCOPE();
-				return IntrinsicResult(make_int(0));
+				return IntrinsicResult(val_zero);
 			}
 			int i = (int)numeric_val(index);
 			int count = list_count(self);
@@ -826,7 +878,7 @@ void CoreIntrinsics::Init() {
 		} else if (is_string(self)) {
 			if (!is_number(index))  {
 				GC_POP_SCOPE();
-				return IntrinsicResult(make_int(0));
+				return IntrinsicResult(val_zero);
 			}
 			int i = (int)numeric_val(index);
 			int slen = string_length(self);
@@ -867,8 +919,8 @@ void CoreIntrinsics::Init() {
 
 	// range(from=0, to=0, step=null)
 	f = Intrinsic::Create("range");
-	f.AddParam("from", make_int(0));
-	f.AddParam("to", make_int(0));
+	f.AddParam("from", val_zero);
+	f.AddParam("to", val_zero);
 	f.AddParam("step");
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		double fromVal = numeric_val(ctx.GetArg(0));
@@ -968,7 +1020,7 @@ void CoreIntrinsics::Init() {
 	// seconds (default 1.0): how many seconds to wait
 	// See also: time, yield
 	f = Intrinsic::Create("wait");
-	f.AddParam("seconds", make_int(1));
+	f.AddParam("seconds", val_one);
 	f.set_Code([](Context ctx, IntrinsicResult partialResult) -> IntrinsicResult {
 		double now = ctx.vm.ElapsedTime();
 		if (partialResult.done) {

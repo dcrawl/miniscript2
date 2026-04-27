@@ -51,7 +51,7 @@ struct IntrinsicResult {
 	public: Boolean done; // set to true if done, false if there is pending work
 	public: Value result; // final result if done; in-progress data if not done
 
-	public: IntrinsicResult(Value result, Boolean done = true);
+	public: IntrinsicResult(Value result, Boolean done = Boolean(true));
 
 	// For backwards compatibility with 1.x:
 	public: Boolean Done();

@@ -20,11 +20,11 @@ class Disassembler {
 
 	// Disassemble the given function.  If detailed=true, include extra
 	// details for debugging, like line numbers and instruction hex code.
-	public: static void Disassemble(FuncDef funcDef, List<String> output, Boolean detailed=true);
+	public: static void Disassemble(FuncDef funcDef, List<String> output, Boolean detailed=Boolean(true));
 
 	// Disassemble the whole program (list of functions).  If detailed=true, include 
 	// extra details for debugging, like line numbers and instruction hex code.
-	public: static List<String> Disassemble(List<FuncDef> functions, Boolean detailed=true);
+	public: static List<String> Disassemble(List<FuncDef> functions, Boolean detailed=Boolean(true));
 
 }; // end of struct Disassembler
 

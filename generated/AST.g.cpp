@@ -88,16 +88,17 @@ Int32 AssignmentNodeStorage::Accept(IASTVisitor& visitor) {
 	return visitor.Visit(_this);
 }
 
-IndexedAssignmentNodeStorage::IndexedAssignmentNodeStorage(ASTNode target,ASTNode index,ASTNode value) {
+IndexedAssignmentNodeStorage::IndexedAssignmentNodeStorage(ASTNode target,ASTNode index,ASTNode value,String lhsName) {
 	Target = target;
 	Index = index;
 	Value = value;
+	LHSName = lhsName;
 }
 String IndexedAssignmentNodeStorage::ToStr() {
 	return Target.ToStr() + "[" + Index.ToStr() + "] = " + Value.ToStr();
 }
 ASTNode IndexedAssignmentNodeStorage::Simplify() {
-	return  IndexedAssignmentNode::New(Target.Simplify(), Index.Simplify(), Value.Simplify());
+	return  IndexedAssignmentNode::New(Target.Simplify(), Index.Simplify(), Value.Simplify(), LHSName);
 }
 Int32 IndexedAssignmentNodeStorage::Accept(IASTVisitor& visitor) {
 	IndexedAssignmentNode _this(std::static_pointer_cast<IndexedAssignmentNodeStorage>(shared_from_this()));
@@ -185,6 +186,30 @@ ASTNode BinaryOpNodeStorage::Simplify() {
 			Double b = rightNum.Value();
 			return  NumberNode::New(AbsClamp01(a + b - a * b));
 		}
+	}
+
+	// String constant folding
+	StringNode leftStr = As<StringNode, StringNodeStorage>(simplifiedLeft);
+	StringNode rightStr = As<StringNode, StringNodeStorage>(simplifiedRight);
+	if (!IsNull(leftStr) && !IsNull(rightStr) && Op == MiniScript::Op::PLUS) {
+		return  StringNode::New(leftStr.Value() + rightStr.Value());
+	}
+	if (!IsNull(leftStr) && !IsNull(rightStr) && Op == MiniScript::Op::MINUS) {
+		if (rightStr.Value().Length() > 0 && leftStr.Value().EndsWith(rightStr.Value())) {
+			return  StringNode::New(leftStr.Value().Substring(0, leftStr.Value().Length() - rightStr.Value().Length()));
+		}
+		return leftStr;
+	}
+	// string * number: repeat the string (mirrors Value.Multiply logic)
+	if (!IsNull(leftStr) && !IsNull(rightNum) && Op == MiniScript::Op::TIMES) {
+		double factor = rightNum.Value();
+		if (StringUtils::IsNaN(factor) || StringUtils::IsInfinity(factor) || factor <= 0) return  StringNode::New("");
+		int repeats = (int)factor;
+		int extraChars = (int)(leftStr.Value().Length() * (factor - repeats));
+		String result = "";
+		for (int i = 0; i < repeats; i++) result = result + leftStr.Value();
+		if (extraChars > 0) result = result + leftStr.Value().Substring(0, extraChars);
+		return  StringNode::New(result);
 	}
 
 	// Otherwise return binary op with simplified operands

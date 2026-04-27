@@ -65,14 +65,15 @@ void App::MainProgram(List<String> args) {
 		}
 	}
 	
-	IOHelper::Print("MiniScript 2.0");
+	IOHelper::Print("MiniScript 2.0", TextStyle::Strong);
 	#if VM_USE_COMPUTED_GOTO
 	#define VARIANT "(goto)"
 	#else
 	#define VARIANT "(switch)"
 	#endif
 	IOHelper::Print(
-		"Build: C++ " VARIANT " version"
+		"Build: C++ " VARIANT " version",
+		TextStyle::Subdued
 	);
 	
 	if (debugMode) {
@@ -156,6 +157,7 @@ List<FuncDef> App::AssembleFile(String filePath) {
 
 	if (debugMode) IOHelper::Print(StringUtils::Format("Assembling {0} lines...", lines.Count()));
 	Assembler assembler =  Assembler::New();
+	assembler.SetFunctionIndexOffset(Intrinsic::Count());
 
 	// Assemble the code
 	assembler.Assemble(lines);
@@ -365,12 +367,13 @@ void App::RunInterpreter(Interpreter interp) {
 }
 void App::RunREPL() {
 	Interpreter interp =  Interpreter::New();
-	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s); });
-	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s); });
-	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s); });
+	interp.set_standardOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+	interp.set_implicitOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Strong); });
+	interp.set_errorOutput([](String s, Boolean) { IOHelper::Print(s, TextStyle::Error); });
+	
 	while (Boolean(true)) {
 		String prompt = interp.NeedMoreInput() ? ">>> " : "> ";
-		String line = IOHelper::Input(prompt);
+		String line = IOHelper::Input(prompt, TextStyle::Subdued, TextStyle::Normal);
 		if (IsNull(line)) break;
 		interp.REPL(line, 60);
 	}

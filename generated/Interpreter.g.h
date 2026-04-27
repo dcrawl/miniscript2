@@ -79,14 +79,14 @@ class InterpreterStorage : public std::enable_shared_from_this<InterpreterStorag
 	/// <summary>
 	/// Constructor taking some MiniScript source code, and the output delegates.
 	/// </summary>
-	public: InterpreterStorage(String source=null, TextOutputMethod standardOutput=null, TextOutputMethod errorOutput=null);
+	public: InterpreterStorage(String source=nullptr, TextOutputMethod standardOutput=nullptr, TextOutputMethod errorOutput=nullptr);
 	
 	private: void Init(String _source, TextOutputMethod _standardOutput, TextOutputMethod _errorOutput);
 
 	/// <summary>
 	/// Constructor taking source code in the form of a list of strings.
 	/// </summary>
-	public: InterpreterStorage(List<String> sourceList, TextOutputMethod standardOutput=null, TextOutputMethod errorOutput=null);
+	public: InterpreterStorage(List<String> sourceList, TextOutputMethod standardOutput=nullptr, TextOutputMethod errorOutput=nullptr);
 	public: virtual ~InterpreterStorage() = default;
 	
 	
@@ -138,7 +138,7 @@ class InterpreterStorage : public std::enable_shared_from_this<InterpreterStorag
 	/// </summary>
 	/// <param name="timeLimit">maximum amount of time to run before returning, in seconds</param>
 	/// <param name="returnEarly">if true, return as soon as the VM yields</param>
-	public: void RunUntilDone(double timeLimit=60, bool returnEarly=true);
+	public: void RunUntilDone(double timeLimit=60, bool returnEarly=Boolean(true));
 
 	/// <summary>
 	/// Run one step (small batch) of the virtual machine.  This method is not
@@ -276,7 +276,7 @@ struct Interpreter {
 	/// <summary>
 	/// Constructor taking some MiniScript source code, and the output delegates.
 	/// </summary>
-	public: static Interpreter New(String source=null, TextOutputMethod standardOutput=null, TextOutputMethod errorOutput=null) {
+	public: static Interpreter New(String source=nullptr, TextOutputMethod standardOutput=nullptr, TextOutputMethod errorOutput=nullptr) {
 		return Interpreter(std::make_shared<InterpreterStorage>(source, standardOutput, errorOutput));
 	}
 	
@@ -285,7 +285,7 @@ struct Interpreter {
 	/// <summary>
 	/// Constructor taking source code in the form of a list of strings.
 	/// </summary>
-	public: static Interpreter New(List<String> sourceList, TextOutputMethod standardOutput=null, TextOutputMethod errorOutput=null) {
+	public: static Interpreter New(List<String> sourceList, TextOutputMethod standardOutput=nullptr, TextOutputMethod errorOutput=nullptr) {
 		return Interpreter(std::make_shared<InterpreterStorage>(sourceList, standardOutput, errorOutput));
 	}
 	public: InterpreterStorage* get_storage() const { return storage.get(); }
@@ -339,7 +339,7 @@ struct Interpreter {
 	/// </summary>
 	/// <param name="timeLimit">maximum amount of time to run before returning, in seconds</param>
 	/// <param name="returnEarly">if true, return as soon as the VM yields</param>
-	public: inline void RunUntilDone(double timeLimit=60, bool returnEarly=true);
+	public: inline void RunUntilDone(double timeLimit=60, bool returnEarly=Boolean(true));
 
 	/// <summary>
 	/// Run one step (small batch) of the virtual machine.  This method is not

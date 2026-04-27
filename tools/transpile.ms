@@ -484,7 +484,7 @@ Transpiler.transformStatement = function(trimmedLine)
 	// non-identifier string.
 	tokens = roughTokenize(trimmedLine)
 	
-	deepDebug = false // trimmedLine.contains("yielding")
+	deepDebug = trimmedLine.contains("TextStyle");
 	ddprint = function(s); if deepDebug then print "====> " + s; end function
 	summarize = function(obj)
 		if obj == null then return "<null>"
@@ -721,6 +721,8 @@ Transpiler.transformParams = function(paramStr)
 			// C too (see map_try_get), which doesn't support reference parameters.
 			result.push "≤type≥* ≤whatever≥".fill(m)
 			continue
+		else
+			part = self.transformStatement(part)
 		end if
 		result.push part
 	end for
@@ -1182,6 +1184,7 @@ Transpiler.updateStateCLASS = function
 
 		// static field with default value
 		else if self.match("≤scope:w≥ static ≤type:w≥ ≤name:w≥ = ≤value≥;") then
+			self.m.value = self.transformStatement(self.m.value)
 			if self.curClass.type == ClassType.CLASS then
 				self.curClass.storageLines.push self.fill("	≤scope≥: static ≤type≥ ≤name≥;")
 				self.curClass.defLines.push self.fill("	≤type≥ ≤className≥Storage::≤name≥;")

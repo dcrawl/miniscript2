@@ -11,6 +11,7 @@ using static System.Runtime.CompilerServices.MethodImplOptions;
 // H: #include "value_map.h"
 // H: #include <sstream>
 // CPP: #include <cctype>
+// CPP: #include <cmath>
 // CPP: #include "IOHelper.g.h"
 
 namespace MiniScript {
@@ -44,6 +45,16 @@ public static class StringUtils {
 	[MethodImpl(AggressiveInlining)]
 	public static Double ParseDouble(String str) {
 		return Double.Parse(str);	// CPP: return std::stod(str.c_str());
+	}
+
+	[MethodImpl(AggressiveInlining)]
+	public static Boolean IsNaN(Double x) {
+		return double.IsNaN(x);	// CPP: return std::isnan(x);
+	}
+
+	[MethodImpl(AggressiveInlining)]
+	public static Boolean IsInfinity(Double x) {
+		return double.IsInfinity(x);	// CPP: return std::isinf(x);
 	}
 
 	public static String ZeroPad(Int32 value, Int32 digits = 5) {

@@ -170,8 +170,9 @@ class IndexedAssignmentNodeStorage : public ASTNodeStorage {
 	public: ASTNode Target; // the container (list/map) being assigned into
 	public: ASTNode Index; // the index/key expression
 	public: ASTNode Value; // the value being assigned
+	public: String LHSName; // human-readable LHS (e.g. "foo.bar"), used for function naming
 
-	public: IndexedAssignmentNodeStorage(ASTNode target, ASTNode index, ASTNode value);
+	public: IndexedAssignmentNodeStorage(ASTNode target, ASTNode index, ASTNode value, String lhsName);
 
 	public: String ToStr();
 
@@ -578,9 +579,11 @@ struct IndexedAssignmentNode : public ASTNode {
 	public: void set_Index(ASTNode _v); // the index/key expression
 	public: ASTNode Value(); // the value being assigned
 	public: void set_Value(ASTNode _v); // the value being assigned
+	public: String LHSName(); // human-readable LHS (e.g. "foo.bar"), used for function naming
+	public: void set_LHSName(String _v); // human-readable LHS (e.g. "foo.bar"), used for function naming
 
-	public: static IndexedAssignmentNode New(ASTNode target, ASTNode index, ASTNode value) {
-		return IndexedAssignmentNode(std::make_shared<IndexedAssignmentNodeStorage>(target, index, value));
+	public: static IndexedAssignmentNode New(ASTNode target, ASTNode index, ASTNode value, String lhsName) {
+		return IndexedAssignmentNode(std::make_shared<IndexedAssignmentNodeStorage>(target, index, value, lhsName));
 	}
 
 	public: String ToStr() { return get()->ToStr(); }
@@ -1148,6 +1151,8 @@ inline ASTNode IndexedAssignmentNode::Index() { return get()->Index; } // the in
 inline void IndexedAssignmentNode::set_Index(ASTNode _v) { get()->Index = _v; } // the index/key expression
 inline ASTNode IndexedAssignmentNode::Value() { return get()->Value; } // the value being assigned
 inline void IndexedAssignmentNode::set_Value(ASTNode _v) { get()->Value = _v; } // the value being assigned
+inline String IndexedAssignmentNode::LHSName() { return get()->LHSName; } // human-readable LHS (e.g. "foo.bar"), used for function naming
+inline void IndexedAssignmentNode::set_LHSName(String _v) { get()->LHSName = _v; } // human-readable LHS (e.g. "foo.bar"), used for function naming
 
 inline UnaryOpNode::UnaryOpNode(std::shared_ptr<UnaryOpNodeStorage> stor) : ASTNode(stor) {}
 inline UnaryOpNodeStorage* UnaryOpNode::get() const { return static_cast<UnaryOpNodeStorage*>(storage.get()); }

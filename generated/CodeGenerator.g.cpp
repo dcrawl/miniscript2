@@ -256,7 +256,18 @@ Int32 CodeGeneratorStorage::Visit(AssignmentNode node) {
 		Int32 nameIdx = _emitter.AddConstant(make_string(node.Variable()));
 		_emitter.EmitAB(Opcode::NAME_rA_kBC, varReg, nameIdx, Interp("use r{} for {}", varReg, node.Variable()));
 	}
+	// If the RHS is a function expression, note the current function count so we
+	// can assign the variable name to the resulting FuncDef afterward.
+	FunctionNode rhsFunc = As<FunctionNode, FunctionNodeStorage>(node.Value());
+	Int32 funcIndexBeforeRHS = _functions.Count();
+
 	CompileInto(node.Value(), varReg);  // get RHS directly into the variable's register
+
+	// If the RHS was a function expression, give that FuncDef the variable name.
+	if (!IsNull(rhsFunc) && funcIndexBeforeRHS < _functions.Count()) {
+		FuncDef rhsFuncDef = _functions[funcIndexBeforeRHS];
+		if (!IsNull(rhsFuncDef)) rhsFuncDef.set_Name(node.Variable());
+	}
 
 	// Note that we don't FreeReg(varReg) here, as we need this register to
 	// continue to serve as the storage for this variable for the life of
@@ -272,7 +283,21 @@ Int32 CodeGeneratorStorage::Visit(IndexedAssignmentNode node) {
 	CodeGenerator _this(std::static_pointer_cast<CodeGeneratorStorage>(shared_from_this()));
 	Int32 containerReg = node.Target().Accept(_this);
 	Int32 indexReg = node.Index().Accept(_this);
+
+	// If the RHS is a function expression, note the current function count so we
+	// can assign a name to the resulting FuncDef afterward.
+	FunctionNode rhsFunc = As<FunctionNode, FunctionNodeStorage>(node.Value());
+	Int32 funcIndexBeforeRHS = _functions.Count();
+
 	Int32 valueReg = node.Value().Accept(_this);
+
+	// If the RHS was a function expression, give it the LHS name.
+	if (!IsNull(rhsFunc) && funcIndexBeforeRHS < _functions.Count()) {
+		FuncDef rhsFuncDef = _functions[funcIndexBeforeRHS];
+		if (!IsNull(rhsFuncDef) && !IsNull(node.LHSName())) {
+			rhsFuncDef.set_Name(node.LHSName());
+		}
+	}
 
 	_emitter.EmitABC(Opcode::IDXSET_rA_rB_rC, containerReg, indexReg, valueReg,
 		Interp("{}[{}] = {}", node.Target().ToStr(), node.Index().ToStr(), node.Value().ToStr()));
@@ -979,8 +1004,20 @@ Int32 CodeGeneratorStorage::Visit(FunctionNode node) {
 		innerEmitter.EmitAB(Opcode::NAME_rA_kBC, paramReg, nameIdx, Interp("param {}", name));
 	}
 
+	// Check for a docstring: if the first body statement is a string literal,
+	// store it as the Note and skip compiling it (it's a no-op at runtime).
+	String noteText = "";
+	List<ASTNode> bodyToCompile = node.Body();
+	if (node.Body().Count() > 0) {
+		StringNode firstStmt = As<StringNode, StringNodeStorage>(node.Body()[0].Simplify());
+		if (!IsNull(firstStmt)) {
+			noteText = firstStmt.Value();
+			bodyToCompile.RemoveAt(0);
+		}
+	}
+
 	// Compile the function body
-	innerGen.CompileBody(node.Body());
+	innerGen.CompileBody(bodyToCompile);
 
 	// Emit implicit RETURN at end of body
 	innerEmitter.Emit(Opcode::RETURN, nullptr);
@@ -989,6 +1026,9 @@ Int32 CodeGeneratorStorage::Visit(FunctionNode node) {
 	Int32 globalFuncIndex = funcIndex + FunctionIndexOffset;
 	String funcName = StringUtils::Format("@f{0}", globalFuncIndex);
 	FuncDef funcDef = innerEmitter.Finalize(funcName);
+
+	// Set the note (docstring) if found
+	funcDef.set_Note(noteText);
 
 	// Set parameter info on the FuncDef
 	GC_PUSH_SCOPE();
