@@ -91,13 +91,13 @@ struct VarMapBacking {
 	friend bool IsNull(const VarMapBacking& inst) { return inst.storage == nullptr; }
 	private: VarMapBackingStorage* get() const;
 
-	private: List<Value> _regOrder(); // variable names, in insertion order
+	private: List<Value>& _regOrder() const; // variable names, in insertion order
 	private: void set__regOrder(List<Value> _v); // variable names, in insertion order
-	private: List<Int32> _regIndices(); // register index for each name (parallel to _regOrder)
+	private: List<Int32>& _regIndices() const; // register index for each name (parallel to _regOrder)
 	private: void set__regIndices(List<Int32> _v); // register index for each name (parallel to _regOrder)
-	private: List<Value> _registers(); // reference to the VM's register array
+	private: List<Value>& _registers() const; // reference to the VM's register array
 	private: void set__registers(List<Value> _v); // reference to the VM's register array
-	private: List<Value> _names(); // reference to the VM's names array
+	private: List<Value>& _names() const; // reference to the VM's names array
 	private: void set__names(List<Value> _v); // reference to the VM's names array
 
 	public: static VarMapBacking New(List<Value> registers, List<Value> names, Int32 firstIdx, Int32 lastIdx) {
@@ -166,13 +166,13 @@ struct VarMapBacking {
 // INLINE METHODS
 
 inline VarMapBackingStorage* VarMapBacking::get() const { return static_cast<VarMapBackingStorage*>(storage.get()); }
-inline List<Value> VarMapBacking::_regOrder() { return get()->_regOrder; } // variable names, in insertion order
+inline List<Value>& VarMapBacking::_regOrder() const { return get()->_regOrder; } // variable names, in insertion order
 inline void VarMapBacking::set__regOrder(List<Value> _v) { get()->_regOrder = _v; } // variable names, in insertion order
-inline List<Int32> VarMapBacking::_regIndices() { return get()->_regIndices; } // register index for each name (parallel to _regOrder)
+inline List<Int32>& VarMapBacking::_regIndices() const { return get()->_regIndices; } // register index for each name (parallel to _regOrder)
 inline void VarMapBacking::set__regIndices(List<Int32> _v) { get()->_regIndices = _v; } // register index for each name (parallel to _regOrder)
-inline List<Value> VarMapBacking::_registers() { return get()->_registers; } // reference to the VM's register array
+inline List<Value>& VarMapBacking::_registers() const { return get()->_registers; } // reference to the VM's register array
 inline void VarMapBacking::set__registers(List<Value> _v) { get()->_registers = _v; } // reference to the VM's register array
-inline List<Value> VarMapBacking::_names() { return get()->_names; } // reference to the VM's names array
+inline List<Value>& VarMapBacking::_names() const { return get()->_names; } // reference to the VM's names array
 inline void VarMapBacking::set__names(List<Value> _v) { get()->_names = _v; } // reference to the VM's names array
 inline Boolean VarMapBacking::TryGet(Value key,Value* value) { return get()->TryGet(key, value); }
 inline Boolean VarMapBacking::TrySet(Value key,Value value) { return get()->TrySet(key, value); }

@@ -200,17 +200,17 @@ struct Globals {
 	friend bool IsNull(const Globals& inst) { return inst.storage == nullptr; }
 	private: GlobalsStorage* get() const;
 
-	private: List<Value> _names(); // slot -> name (set once, never cleared)
+	private: List<Value>& _names() const; // slot -> name (set once, never cleared)
 	private: void set__names(List<Value> _v); // slot -> name (set once, never cleared)
-	private: List<Value> _values(); // slot -> value, or Value.Unassigned
+	private: List<Value>& _values() const; // slot -> value, or Value.Unassigned
 	private: void set__values(List<Value> _v); // slot -> value, or Value.Unassigned
-	private: Dictionary<Value, Int32> _index(); // name -> slot
+	private: Dictionary<Value, Int32>& _index() const; // name -> slot
 	private: void set__index(Dictionary<Value, Int32> _v); // name -> slot
-	private: Int32 _id(); // generation; see Id()
+	private: Int32& _id() const; // generation; see Id()
 	private: void set__id(Int32 _v); // generation; see Id()
-	private: Int32 _assignedCount(); // slots currently holding a value
+	private: Int32& _assignedCount() const; // slots currently holding a value
 	private: void set__assignedCount(Int32 _v); // slots currently holding a value
-	private: Value _mapValue(); // the `globals` map viewing this table
+	private: Value& _mapValue() const; // the `globals` map viewing this table
 	private: void set__mapValue(Value _v); // the `globals` map viewing this table
 	private: Int32 _lastId();
 	private: void set__lastId(Int32 _v);
@@ -351,17 +351,17 @@ struct Globals {
 // INLINE METHODS
 
 inline GlobalsStorage* Globals::get() const { return static_cast<GlobalsStorage*>(storage.get()); }
-inline List<Value> Globals::_names() { return get()->_names; } // slot -> name (set once, never cleared)
+inline List<Value>& Globals::_names() const { return get()->_names; } // slot -> name (set once, never cleared)
 inline void Globals::set__names(List<Value> _v) { get()->_names = _v; } // slot -> name (set once, never cleared)
-inline List<Value> Globals::_values() { return get()->_values; } // slot -> value, or Value.Unassigned
+inline List<Value>& Globals::_values() const { return get()->_values; } // slot -> value, or Value.Unassigned
 inline void Globals::set__values(List<Value> _v) { get()->_values = _v; } // slot -> value, or Value.Unassigned
-inline Dictionary<Value, Int32> Globals::_index() { return get()->_index; } // name -> slot
+inline Dictionary<Value, Int32>& Globals::_index() const { return get()->_index; } // name -> slot
 inline void Globals::set__index(Dictionary<Value, Int32> _v) { get()->_index = _v; } // name -> slot
-inline Int32 Globals::_id() { return get()->_id; } // generation; see Id()
+inline Int32& Globals::_id() const { return get()->_id; } // generation; see Id()
 inline void Globals::set__id(Int32 _v) { get()->_id = _v; } // generation; see Id()
-inline Int32 Globals::_assignedCount() { return get()->_assignedCount; } // slots currently holding a value
+inline Int32& Globals::_assignedCount() const { return get()->_assignedCount; } // slots currently holding a value
 inline void Globals::set__assignedCount(Int32 _v) { get()->_assignedCount = _v; } // slots currently holding a value
-inline Value Globals::_mapValue() { return get()->_mapValue; } // the `globals` map viewing this table
+inline Value& Globals::_mapValue() const { return get()->_mapValue; } // the `globals` map viewing this table
 inline void Globals::set__mapValue(Value _v) { get()->_mapValue = _v; } // the `globals` map viewing this table
 inline Int32 Globals::_lastId() { return get()->_lastId; }
 inline void Globals::set__lastId(Int32 _v) { get()->_lastId = _v; }

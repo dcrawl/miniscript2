@@ -135,21 +135,21 @@ struct Assembler {
 	public: static Assembler New() {
 		return Assembler(std::make_shared<AssemblerStorage>());
 	}
-	public: List<FuncDef> Functions(); // all functions
+	public: List<FuncDef>& Functions() const; // all functions
 	public: void set_Functions(List<FuncDef> _v); // all functions
-	public: FuncDef Current(); // function we are currently building
+	public: FuncDef& Current() const; // function we are currently building
 	public: void set_Current(FuncDef _v); // function we are currently building
-	private: List<String> _labelNames(); // label names within current function
+	private: List<String>& _labelNames() const; // label names within current function
 	private: void set__labelNames(List<String> _v); // label names within current function
-	private: List<Int32> _labelAddresses(); // corresponding instruction addresses within current function
+	private: List<Int32>& _labelAddresses() const; // corresponding instruction addresses within current function
 	private: void set__labelAddresses(List<Int32> _v); // corresponding instruction addresses within current function
-	public: Boolean HasError();
+	public: Boolean& HasError() const;
 	public: void set_HasError(Boolean _v);
-	public: String ErrorMessage();
+	public: String& ErrorMessage() const;
 	public: void set_ErrorMessage(String _v);
-	public: Int32 CurrentLineNumber();
+	public: Int32& CurrentLineNumber() const;
 	public: void set_CurrentLineNumber(Int32 _v);
-	public: String CurrentLine();
+	public: String& CurrentLine() const;
 	public: void set_CurrentLine(String _v);
 
 	// Multiple functions support
@@ -250,21 +250,21 @@ struct Assembler {
 // INLINE METHODS
 
 inline AssemblerStorage* Assembler::get() const { return static_cast<AssemblerStorage*>(storage.get()); }
-inline List<FuncDef> Assembler::Functions() { return get()->Functions; } // all functions
+inline List<FuncDef>& Assembler::Functions() const { return get()->Functions; } // all functions
 inline void Assembler::set_Functions(List<FuncDef> _v) { get()->Functions = _v; } // all functions
-inline FuncDef Assembler::Current() { return get()->Current; } // function we are currently building
+inline FuncDef& Assembler::Current() const { return get()->Current; } // function we are currently building
 inline void Assembler::set_Current(FuncDef _v) { get()->Current = _v; } // function we are currently building
-inline List<String> Assembler::_labelNames() { return get()->_labelNames; } // label names within current function
+inline List<String>& Assembler::_labelNames() const { return get()->_labelNames; } // label names within current function
 inline void Assembler::set__labelNames(List<String> _v) { get()->_labelNames = _v; } // label names within current function
-inline List<Int32> Assembler::_labelAddresses() { return get()->_labelAddresses; } // corresponding instruction addresses within current function
+inline List<Int32>& Assembler::_labelAddresses() const { return get()->_labelAddresses; } // corresponding instruction addresses within current function
 inline void Assembler::set__labelAddresses(List<Int32> _v) { get()->_labelAddresses = _v; } // corresponding instruction addresses within current function
-inline Boolean Assembler::HasError() { return get()->HasError; }
+inline Boolean& Assembler::HasError() const { return get()->HasError; }
 inline void Assembler::set_HasError(Boolean _v) { get()->HasError = _v; }
-inline String Assembler::ErrorMessage() { return get()->ErrorMessage; }
+inline String& Assembler::ErrorMessage() const { return get()->ErrorMessage; }
 inline void Assembler::set_ErrorMessage(String _v) { get()->ErrorMessage = _v; }
-inline Int32 Assembler::CurrentLineNumber() { return get()->CurrentLineNumber; }
+inline Int32& Assembler::CurrentLineNumber() const { return get()->CurrentLineNumber; }
 inline void Assembler::set_CurrentLineNumber(Int32 _v) { get()->CurrentLineNumber = _v; }
-inline String Assembler::CurrentLine() { return get()->CurrentLine; }
+inline String& Assembler::CurrentLine() const { return get()->CurrentLine; }
 inline void Assembler::set_CurrentLine(String _v) { get()->CurrentLine = _v; }
 inline Int32 Assembler::FindFunctionIndex(String name) { return get()->FindFunctionIndex(name); }
 inline FuncDef Assembler::FindFunction(String name) { return get()->FindFunction(name); }

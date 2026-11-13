@@ -225,21 +225,21 @@ struct Parser : public IParser {
 	friend bool IsNull(const Parser& inst) { return inst.storage == nullptr; }
 	private: ParserStorage* get() const;
 
-	private: Lexer _lexer();
+	private: Lexer& _lexer() const;
 	private: void set__lexer(Lexer _v);
-	private: Token _current();
+	private: Token& _current() const;
 	private: void set__current(Token _v);
-	private: TokenType _previousType();
+	private: TokenType& _previousType() const;
 	private: void set__previousType(TokenType _v);
-	private: Boolean _needMoreInput();
+	private: Boolean& _needMoreInput() const;
 	private: void set__needMoreInput(Boolean _v);
-	public: Value Error();
+	public: Value& Error() const;
 	public: void set_Error(Value _v);
-	public: String FileName(); // source file name, for error locations ("" if unnamed)
+	public: String& FileName() const; // source file name, for error locations ("" if unnamed)
 	public: void set_FileName(String _v); // source file name, for error locations ("" if unnamed)
-	private: Dictionary<TokenType, PrefixParselet> _prefixParselets();
+	private: Dictionary<TokenType, PrefixParselet>& _prefixParselets() const;
 	private: void set__prefixParselets(Dictionary<TokenType, PrefixParselet> _v);
-	private: Dictionary<TokenType, InfixParselet> _infixParselets();
+	private: Dictionary<TokenType, InfixParselet>& _infixParselets() const;
 	private: void set__infixParselets(Dictionary<TokenType, InfixParselet> _v);
 
 	// Parselet tables - indexed by TokenType
@@ -427,21 +427,21 @@ struct Parser : public IParser {
 // INLINE METHODS
 
 inline ParserStorage* Parser::get() const { return static_cast<ParserStorage*>(storage.get()); }
-inline Lexer Parser::_lexer() { return get()->_lexer; }
+inline Lexer& Parser::_lexer() const { return get()->_lexer; }
 inline void Parser::set__lexer(Lexer _v) { get()->_lexer = _v; }
-inline Token Parser::_current() { return get()->_current; }
+inline Token& Parser::_current() const { return get()->_current; }
 inline void Parser::set__current(Token _v) { get()->_current = _v; }
-inline TokenType Parser::_previousType() { return get()->_previousType; }
+inline TokenType& Parser::_previousType() const { return get()->_previousType; }
 inline void Parser::set__previousType(TokenType _v) { get()->_previousType = _v; }
-inline Boolean Parser::_needMoreInput() { return get()->_needMoreInput; }
+inline Boolean& Parser::_needMoreInput() const { return get()->_needMoreInput; }
 inline void Parser::set__needMoreInput(Boolean _v) { get()->_needMoreInput = _v; }
-inline Value Parser::Error() { return get()->Error; }
+inline Value& Parser::Error() const { return get()->Error; }
 inline void Parser::set_Error(Value _v) { get()->Error = _v; }
-inline String Parser::FileName() { return get()->FileName; } // source file name, for error locations ("" if unnamed)
+inline String& Parser::FileName() const { return get()->FileName; } // source file name, for error locations ("" if unnamed)
 inline void Parser::set_FileName(String _v) { get()->FileName = _v; } // source file name, for error locations ("" if unnamed)
-inline Dictionary<TokenType, PrefixParselet> Parser::_prefixParselets() { return get()->_prefixParselets; }
+inline Dictionary<TokenType, PrefixParselet>& Parser::_prefixParselets() const { return get()->_prefixParselets; }
 inline void Parser::set__prefixParselets(Dictionary<TokenType, PrefixParselet> _v) { get()->_prefixParselets = _v; }
-inline Dictionary<TokenType, InfixParselet> Parser::_infixParselets() { return get()->_infixParselets; }
+inline Dictionary<TokenType, InfixParselet>& Parser::_infixParselets() const { return get()->_infixParselets; }
 inline void Parser::set__infixParselets(Dictionary<TokenType, InfixParselet> _v) { get()->_infixParselets = _v; }
 inline void Parser::RegisterParselets() { return get()->RegisterParselets(); }
 inline void Parser::RegisterPrefix(TokenType type,PrefixParselet parselet) { return get()->RegisterPrefix(type, parselet); }

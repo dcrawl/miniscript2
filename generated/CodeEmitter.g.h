@@ -41,9 +41,9 @@ struct CodeEmitterBase {
 		return WrapperType(stor); 
 	}
 
-	public: FuncDef PendingFunc();
+	public: FuncDef& PendingFunc() const;
 	public: void set_PendingFunc(FuncDef _v);
-	public: Int32 CurrentLine();
+	public: Int32& CurrentLine() const;
 	public: void set_CurrentLine(Int32 _v);
 	public: void Emit(Opcode op, String comment); // INS: opcode only
 	public: void EmitA(Opcode op, Int32 a, String comment); // INS_A: 8-bit A field
@@ -190,11 +190,11 @@ struct BytecodeEmitter : public CodeEmitterBase {
 	BytecodeEmitter(std::nullptr_t) : CodeEmitterBase(nullptr) {}
 	private: BytecodeEmitterStorage* get() const;
 
-	private: Dictionary<Int32, Int32> _labelAddresses(); // labelId -> code address
+	private: Dictionary<Int32, Int32>& _labelAddresses() const; // labelId -> code address
 	private: void set__labelAddresses(Dictionary<Int32, Int32> _v); // labelId -> code address
-	private: List<LabelReference> _labelRefs(); // pending label references
+	private: List<LabelReference>& _labelRefs() const; // pending label references
 	private: void set__labelRefs(List<LabelReference> _v); // pending label references
-	private: Int32 _nextLabelId();
+	private: Int32& _nextLabelId() const;
 	private: void set__nextLabelId(Int32 _v);
 
 	public: static BytecodeEmitter New() {
@@ -230,11 +230,11 @@ struct AssemblyEmitter : public CodeEmitterBase {
 	AssemblyEmitter(std::nullptr_t) : CodeEmitterBase(nullptr) {}
 	private: AssemblyEmitterStorage* get() const;
 
-	private: List<String> _lines();
+	private: List<String>& _lines() const;
 	private: void set__lines(List<String> _v);
-	private: Dictionary<Int32, String> _labelNames();
+	private: Dictionary<Int32, String>& _labelNames() const;
 	private: void set__labelNames(Dictionary<Int32, String> _v);
-	private: Int32 _nextLabelId();
+	private: Int32& _nextLabelId() const;
 	private: void set__nextLabelId(Int32 _v);
 
 	public: static AssemblyEmitter New() {
@@ -269,9 +269,9 @@ struct AssemblyEmitter : public CodeEmitterBase {
 // INLINE METHODS
 
 inline CodeEmitterBaseStorage* CodeEmitterBase::get() const { return static_cast<CodeEmitterBaseStorage*>(storage.get()); }
-inline FuncDef CodeEmitterBase::PendingFunc() { return get()->PendingFunc; }
+inline FuncDef& CodeEmitterBase::PendingFunc() const { return get()->PendingFunc; }
 inline void CodeEmitterBase::set_PendingFunc(FuncDef _v) { get()->PendingFunc = _v; }
-inline Int32 CodeEmitterBase::CurrentLine() { return get()->CurrentLine; }
+inline Int32& CodeEmitterBase::CurrentLine() const { return get()->CurrentLine; }
 inline void CodeEmitterBase::set_CurrentLine(Int32 _v) { get()->CurrentLine = _v; }
 inline void CodeEmitterBase::Emit(Opcode op,String comment) { return get()->Emit(op, comment); } // INS: opcode only
 inline void CodeEmitterBase::EmitA(Opcode op,Int32 a,String comment) { return get()->EmitA(op, a, comment); } // INS_A: 8-bit A field
@@ -289,20 +289,20 @@ inline FuncDef CodeEmitterBase::Finalize(String name) { return get()->Finalize(n
 
 inline BytecodeEmitter::BytecodeEmitter(std::shared_ptr<BytecodeEmitterStorage> stor) : CodeEmitterBase(stor) {}
 inline BytecodeEmitterStorage* BytecodeEmitter::get() const { return static_cast<BytecodeEmitterStorage*>(storage.get()); }
-inline Dictionary<Int32, Int32> BytecodeEmitter::_labelAddresses() { return get()->_labelAddresses; } // labelId -> code address
+inline Dictionary<Int32, Int32>& BytecodeEmitter::_labelAddresses() const { return get()->_labelAddresses; } // labelId -> code address
 inline void BytecodeEmitter::set__labelAddresses(Dictionary<Int32, Int32> _v) { get()->_labelAddresses = _v; } // labelId -> code address
-inline List<LabelReference> BytecodeEmitter::_labelRefs() { return get()->_labelRefs; } // pending label references
+inline List<LabelReference>& BytecodeEmitter::_labelRefs() const { return get()->_labelRefs; } // pending label references
 inline void BytecodeEmitter::set__labelRefs(List<LabelReference> _v) { get()->_labelRefs = _v; } // pending label references
-inline Int32 BytecodeEmitter::_nextLabelId() { return get()->_nextLabelId; }
+inline Int32& BytecodeEmitter::_nextLabelId() const { return get()->_nextLabelId; }
 inline void BytecodeEmitter::set__nextLabelId(Int32 _v) { get()->_nextLabelId = _v; }
 
 inline AssemblyEmitter::AssemblyEmitter(std::shared_ptr<AssemblyEmitterStorage> stor) : CodeEmitterBase(stor) {}
 inline AssemblyEmitterStorage* AssemblyEmitter::get() const { return static_cast<AssemblyEmitterStorage*>(storage.get()); }
-inline List<String> AssemblyEmitter::_lines() { return get()->_lines; }
+inline List<String>& AssemblyEmitter::_lines() const { return get()->_lines; }
 inline void AssemblyEmitter::set__lines(List<String> _v) { get()->_lines = _v; }
-inline Dictionary<Int32, String> AssemblyEmitter::_labelNames() { return get()->_labelNames; }
+inline Dictionary<Int32, String>& AssemblyEmitter::_labelNames() const { return get()->_labelNames; }
 inline void AssemblyEmitter::set__labelNames(Dictionary<Int32, String> _v) { get()->_labelNames = _v; }
-inline Int32 AssemblyEmitter::_nextLabelId() { return get()->_nextLabelId; }
+inline Int32& AssemblyEmitter::_nextLabelId() const { return get()->_nextLabelId; }
 inline void AssemblyEmitter::set__nextLabelId(Int32 _v) { get()->_nextLabelId = _v; }
 inline List<String> AssemblyEmitter::GetLines() { return get()->GetLines(); }
 inline String AssemblyEmitter::GetAssembly() { return get()->GetAssembly(); }

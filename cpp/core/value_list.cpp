@@ -25,17 +25,24 @@ Value make_empty_list(void) {
 }
 
 // ── Access ──────────────────────────────────────────────────────────────
+//
+// Read-only paths that allocate nothing take the list by reference (GetRef)
+// rather than by value (Get): a by-value GCList copies, and refcounts, every
+// shared_ptr member, which showed up as a large share of native time in
+// profiles.  The reference is invalidated by any new list (the set's backing
+// array may grow), so paths that allocate, or mutate through a copy and write
+// back, still use Get.  See miniscript2 issue #30.
 
 int Value::ListCount() const {
     Value list_val = *this;
     if (!list_val.IsList()) return 0;
-    GCList l = GCManager::Lists.Get(list_val.ItemIndex());
+    GCList& l = GCManager::Lists.GetRef(list_val.ItemIndex());
     return l.Count();
 }
 
 int list_capacity(Value list_val) {
     if (!list_val.IsList()) return 0;
-    GCList l = GCManager::Lists.Get(list_val.ItemIndex());
+    GCList& l = GCManager::Lists.GetRef(list_val.ItemIndex());
     // No capacity accessor through the public API; report the element count.
     return l.Count();
 }
@@ -43,7 +50,7 @@ int list_capacity(Value list_val) {
 Value Value::ListGet(int index) const {
     Value list_val = *this;
     if (!list_val.IsList()) return Value::null;
-    GCList l = GCManager::Lists.Get(list_val.ItemIndex());
+    GCList& l = GCManager::Lists.GetRef(list_val.ItemIndex());
     return l.Get(index);
 }
 

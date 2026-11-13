@@ -27,17 +27,24 @@ Value Value::make_empty_map(void) {
 }
 
 // ── Access ──────────────────────────────────────────────────────────────
+//
+// Read-only paths that allocate nothing take the map by reference (GetRef)
+// rather than by value (Get): a by-value GCMap copies, and refcounts, every
+// shared_ptr member, which showed up as a large share of native time in
+// profiles.  The reference is invalidated by any new map (the set's backing
+// array may grow), so paths that allocate, or mutate through a copy and write
+// back, still use Get.  See miniscript2 issue #30.
 
 int Value::MapCount() const {
     Value map_val = *this;
     if (!map_val.IsMap()) return 0;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     return m.Count();
 }
 
 int map_capacity(Value map_val) {
     if (!map_val.IsMap()) return 0;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     // Best-effort: GCMap exposes size only via Count(). Return Count*2 as a
     // proxy since the underlying table maintains 50% load.
     return m.Count() * 2;
@@ -46,7 +53,7 @@ int map_capacity(Value map_val) {
 Value Value::MapGet(Value key) const {
     Value map_val = *this;
     if (!map_val.IsMap()) return Value::null;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     Value out;
     if (m.TryGet(key, &out)) return out;
     return Value::null;
@@ -55,24 +62,34 @@ Value Value::MapGet(Value key) const {
 bool Value::TryGet(Value key, Value* out_value) const {
     Value map_val = *this;
     if (!map_val.IsMap()) { if (out_value) *out_value = Value::null; return false; }
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     Value out;
     bool ok = m.TryGet(key, &out);
     if (out_value) *out_value = ok ? out : Value::null;
     return ok;
 }
 
-// Walks the __isa chain.
+// Walks the __isa chain.  The key and "__isa" are each hashed at most once,
+// not once per map along the chain (see miniscript2 issue #31).  "__isa" is
+// hashed only when the chain is actually followed, so a direct hit costs no
+// more than before.
+static inline int IsaHash(int& cache) {
+    if (cache < 0) cache = Hash(Value::magicIsA);   // Hash() is never negative
+    return cache;
+}
+
 bool Value::Lookup(Value key, Value* out_value) const {
     Value map_val = *this;
     Value current = map_val;
+    int keyHash = MiniScript::Hash(key);
+    int isaHash = -1;
     for (int depth = 0; depth < 256; depth++) {
         if (!current.IsMap()) { if (out_value) *out_value = Value::null; return false; }
-        GCMap m = GCManager::Maps.Get(current.ItemIndex());
+        GCMap& m = GCManager::Maps.GetRef(current.ItemIndex());
         Value v;
-        if (m.TryGet(key, &v)) { if (out_value) *out_value = v; return true; }
+        if (m.TryGetH(key, keyHash, &v)) { if (out_value) *out_value = v; return true; }
         Value isa;
-        if (!m.TryGet(Value::magicIsA, &isa)) { if (out_value) *out_value = Value::null; return false; }
+        if (!m.TryGetH(Value::magicIsA, IsaHash(isaHash), &isa)) { if (out_value) *out_value = Value::null; return false; }
         current = isa;
     }
     if (out_value) *out_value = Value::null;
@@ -82,23 +99,25 @@ bool Value::Lookup(Value key, Value* out_value) const {
 bool Value::LookupWithOrigin(Value key, Value* out_value, Value* out_super) const {
     Value map_val = *this;
     Value current = map_val;
+    int keyHash = MiniScript::Hash(key);                  // hashed once; see Lookup
+    int isaHash = -1;
     for (int depth = 0; depth < 256; depth++) {
         if (!current.IsMap()) {
             if (out_value) *out_value = Value::null;
             if (out_super) *out_super = Value::null;
             return false;
         }
-        GCMap m = GCManager::Maps.Get(current.ItemIndex());
+        GCMap& m = GCManager::Maps.GetRef(current.ItemIndex());
         Value v;
-        if (m.TryGet(key, &v)) {
+        if (m.TryGetH(key, keyHash, &v)) {
             Value isa;
-            m.TryGet(Value::magicIsA, &isa);
+            m.TryGetH(Value::magicIsA, IsaHash(isaHash), &isa);
             if (out_value) *out_value = v;
             if (out_super) *out_super = isa;
             return true;
         }
         Value isa;
-        if (!m.TryGet(Value::magicIsA, &isa)) {
+        if (!m.TryGetH(Value::magicIsA, IsaHash(isaHash), &isa)) {
             if (out_value) *out_value = Value::null;
             if (out_super) *out_super = Value::null;
             return false;
@@ -113,21 +132,23 @@ bool Value::LookupWithOrigin(Value key, Value* out_value, Value* out_super) cons
 bool Value::MapSet(Value key, Value value) const {
     Value map_val = *this;
     if (!map_val.IsMap()) return false;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
-    if (m.Frozen) { vm_raise_runtime_error("Attempt to modify a frozen map"); return false; }
+    int idx = map_val.ItemIndex();
+    if (GCManager::Maps.GetRef(idx).Frozen) { vm_raise_runtime_error("Attempt to modify a frozen map"); return false; }
     // A list or map key is stored as a frozen copy (or as itself, if already
     // frozen), so it can't be mutated while in the map; see FROZEN_VALUES.md.
     if (key.IsList() || key.IsMap()) key = key.FrozenCopy();
-    m.Set(key, value);
+    // By reference, not by copy (issue #31); taken only now, because
+    // FrozenCopy can make a new map, which may move the set's items.
+    GCManager::Maps.GetRef(idx).Set(key, value);
     // Storing a setter key here declares a property setter, and this path -- a
     // host, or an intrinsic class map being built -- goes around the VM's
     // assignment path, which is what would otherwise notice.  Through the set,
-    // not through m: GCMap is a struct and Get() returned a copy.  The
+    // as cs/Value.cs must (there GCMap is a struct and Get() returns a copy).  The
     // generation bump is needed because, unlike a map still being born (see
     // GCMap::SeedOrder), this map may already have descendants whose chains
     // were stamped clean.  Mirrors cs/Value.cs MapSet.
     if (key.IsSetterKey()) {
-        GCManager::Maps.SetSetterStatus(map_val.ItemIndex(), -1);
+        GCManager::Maps.SetSetterStatus(idx, -1);
         GCManager::NoteSetterChange();
     }
     return true;
@@ -147,7 +168,7 @@ bool Value::MapRemove(Value key) const {
 bool Value::HasKey(Value key) const {
     Value map_val = *this;
     if (!map_val.IsMap()) return false;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     Value v;
     return m.TryGet(key, &v);
 }
@@ -217,7 +238,7 @@ bool map_iterator_next(MapIterator* iter, Value* out_key, Value* out_value) {
         if (out_value) *out_value = Value::null;
         return false;
     }
-    GCMap m = GCManager::Maps.Get(iter->map_idx);
+    GCMap& m = GCManager::Maps.GetRef(iter->map_idx);
     int next = m.NextEntry(iter->iter);
     // -1, exactly, is NextEntry's "no more entries".  Other negatives are real
     // entries: a VarMap's register-backed keys are encoded as -(regIdx + 2),
@@ -251,7 +272,7 @@ Value Value::NthEntry(int n) const {
 int Value::IterNext(int iter) const {
     Value map_val = *this;
     if (!map_val.IsMap() || iter == Value::MAP_ITER_DONE) return Value::MAP_ITER_DONE;
-    GCMap m = GCManager::Maps.Get(map_val.ItemIndex());
+    GCMap& m = GCManager::Maps.GetRef(map_val.ItemIndex());
     int next = m.NextEntry(iter);
     return next == -1 ? Value::MAP_ITER_DONE : next;   // see map_iterator_next
 }

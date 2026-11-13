@@ -895,14 +895,14 @@ public class VM {
 	// Returns the PC after the CALL instruction, or -1 on error.
 	// Check whether pendingSelf should be injected as the first parameter.
 	// Returns 1 if the callee's first param is named "self" and we have pending context, else 0.
-	private Int32 SelfParamOffset(FuncDef callee) {
+	private Int32 SelfParamOffset(in FuncDef callee) {
 		if (hasPendingContext && callee.ParamNames.Count > 0 && callee.ParamNames[0] == Value.selfString) {
 			return 1;
 		}
 		return 0;
 	}
 
-	private Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, FuncDef callee, List<UInt32> code) {
+	private Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, in FuncDef callee, in List<UInt32> code) {
 		Int32 paramCount = callee.ParamNames.Count;
 
 		// Step 1: Validate argument count (selfParam accounts for the injected self)
@@ -948,7 +948,7 @@ public class VM {
 
 	// Apply pending self/super context to a callee's frame, if any.
 	// Called after SetupCallFrame to populate the callee's self/super registers.
-	private void ApplyPendingContext(Int32 calleeBase, FuncDef callee) {
+	private void ApplyPendingContext(Int32 calleeBase, in FuncDef callee) {
 		if (!hasPendingContext) return;
 		if (callee.SelfReg >= 0) {
 			stack[calleeBase + callee.SelfReg] = pendingSelf;
@@ -967,7 +967,7 @@ public class VM {
 	// Initialize remaining parameters with defaults and clear callee's registers.
 	// Note: Parameters start at r1 (r0 is reserved for return value)
 	// selfParam is 1 if pendingSelf was injected as the first arg, else 0.
-	private void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, FuncDef callee) {
+	private void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, in FuncDef callee) {
 		Int32 paramCount = callee.ParamNames.Count;
 
 		// Step 4: Set up remaining parameters with default values
@@ -1053,7 +1053,7 @@ public class VM {
 	// the intrinsic does not run at all: the call evaluates to that error, or
 	// terminates if the intrinsic affects state.  This returns the first such
 	// error among the arguments in place at calleeBase, or null if there is none.
-	private Value RefusedErrorArg(FuncDef callee, Int32 calleeBase) {
+	private Value RefusedErrorArg(in FuncDef callee, Int32 calleeBase) {
 		Int32 count = callee.ParamNames.Count;
 		for (Int32 i = 0; i < count; i++) {
 			Value arg = stack[calleeBase + 1 + i];
@@ -1067,7 +1067,7 @@ public class VM {
 	// Invoke a native callback and handle the result.  If done, writes the
 	// result to stack[absoluteResultIndex] and returns true.  If not done,
 	// stores the pending state for re-invocation and returns false.
-	private bool InvokeNativeCallback(NativeCallbackDelegate callback, FuncDef callee, Int32 calleeBase, Int32 argCount, IntrinsicResult partialResult, Int32 absoluteResultIndex) {
+	private bool InvokeNativeCallback(in NativeCallbackDelegate callback, in FuncDef callee, Int32 calleeBase, Int32 argCount, in IntrinsicResult partialResult, Int32 absoluteResultIndex) {
 		if (partialResult.done) {
 			// A first call, not a continuation: refuse any unwanted error argument.
 			Value refused = RefusedErrorArg(callee, calleeBase);
@@ -1158,7 +1158,13 @@ public class VM {
 			} else {
 				// Normal case: re-invoke the pending intrinsic callback.
 				IntrinsicResult partialResult = new IntrinsicResult(stack[_pendingResultIndex], false);
-				if (!InvokeNativeCallback(_pendingCallback, _pendingCallee, _pendingCalleeBase, _pendingArgCount, partialResult, _pendingResultIndex)) {
+				// Pass copies, not the fields themselves: InvokeNativeCallback takes
+				// these by reference (`in`), and it -- or a re-entrant call made
+				// by the callback -- may overwrite the _pending* fields while the
+				// callback is still running.
+				NativeCallbackDelegate pendingCallback = _pendingCallback;
+				FuncDef pendingCallee = _pendingCallee;
+				if (!InvokeNativeCallback(pendingCallback, pendingCallee, _pendingCalleeBase, _pendingArgCount, partialResult, _pendingResultIndex)) {
 					// Still not done; return without running any bytecode
 					_activeVM = previousVM;
 					return Value.Null;
@@ -2740,7 +2746,7 @@ public class VM {
 		Int32 toStamp = 0;   // maps from `map` up that this walk proves clean
 		for (Int32 depth = 0; depth < 256; depth++) {
 			if (!current.IsMap()) break;   // ran off the end of the chain: clean
-			Int32 status = GCManager.Maps.Get(current.ItemIndex())._setterStatus;
+			Int32 status = GCManager.Maps.Get(current.ItemIndex())._setterStatus; // CPP: Int32 status = GCManager::Maps.GetRef(current.ItemIndex())._setterStatus;
 			if (status == -1) return true;
 			if (status == gen) break;      // already stamped; so is everything above
 			toStamp++;                     // clean, if the rest of the walk agrees
@@ -2767,6 +2773,12 @@ public class VM {
 	private static Boolean IsIsaKey(Value key) {
 		if (key.RefEquals(Value.magicIsA)) return true;
 		if (key.IsTinyString() || !key.IsString()) return false;
+		// A heap string can equal "__isa" only if it is five characters long.
+		// Checking that first (the count is cached) keeps every ordinary
+		// assignment to a long-named field from paying for a full string
+		// compare, which in C++ also builds a temporary copy of the tiny
+		// "__isa".  See miniscript2 issue #31.
+		if (key.Length() != 5) return false;
 		return key == Value.magicIsA;
 	}
 

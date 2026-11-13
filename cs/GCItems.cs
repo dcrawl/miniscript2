@@ -312,6 +312,19 @@ public struct GCMap : IGCItem {
 		return false;
 	}
 
+	// TryGet, for a caller that already has the key's hash: in C++, `hash`
+	// must be Hash(key), and saves hashing the key again in each map of an
+	// __isa chain (Value::Lookup).  C#'s Dictionary takes no precomputed hash,
+	// so there this is just TryGet.  See miniscript2 issue #31.
+	public Boolean TryGetH(Value key, Int32 hash, out Value value) {
+		if (_gb != null) return _gb.TryGet(key, out value);
+		if (_vmb != null && _vmb.TryGet(key, out value)) return true;
+		if (Items == null) { value = Value.Null; return false; }
+		if (Items.TryGetValue(key, out value)) return true; // CPP: if (Items.TryGetValueH(key, hash, &*value)) return Boolean(true);
+		value = Value.Null;
+		return false;
+	}
+
 	public void Set(Value key, Value value) {
 		if (_gb != null) { _gb.Set(key, value); return; }
 

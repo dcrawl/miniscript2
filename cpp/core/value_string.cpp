@@ -34,7 +34,12 @@ namespace {
 // Goes through GCManager::GetString so it reads from the right set: a heap
 // string may be a BigStrings slot or an InternedStrings slot (see adopt_ss).
 const StringStorage* heap_string_storage(Value v) {
-    GCString s = GCManager::GetString(v);
+    // By reference: GCManager::GetString returns the GCString by value, and
+    // copying its String member costs a refcount round trip on every string
+    // access (issue #31).  Same set choice as GCManager.GetString.
+    GCString& s = (v.GCSetIndex() == GCManager::InternedStringSet)
+        ? GCManager::InternedStrings.GetRef(v.ItemIndex())
+        : GCManager::BigStrings.GetRef(v.ItemIndex());
     return s.Data.getStorageRaw();
 }
 

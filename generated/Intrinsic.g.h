@@ -108,23 +108,23 @@ struct Intrinsic {
 	friend bool IsNull(const Intrinsic& inst) { return inst.storage == nullptr; }
 	private: IntrinsicStorage* get() const;
 
-	public: String Name();
+	public: String& Name() const;
 	public: void set_Name(String _v);
-	public: NativeCallbackDelegate Code();
+	public: NativeCallbackDelegate& Code() const;
 	public: void set_Code(NativeCallbackDelegate _v);
-	private: List<String> _paramNames();
+	private: List<String>& _paramNames() const;
 	private: void set__paramNames(List<String> _v);
-	private: List<Value> _paramDefaults();
+	private: List<Value>& _paramDefaults() const;
 	private: void set__paramDefaults(List<Value> _v);
-	private: UInt32 _acceptsErrorMask();
+	private: UInt32& _acceptsErrorMask() const;
 	private: void set__acceptsErrorMask(UInt32 _v);
-	public: Boolean AffectsState();
+	public: Boolean& AffectsState() const;
 	public: void set_AffectsState(Boolean _v);
-	private: FuncDef _funcDef();
+	private: FuncDef& _funcDef() const;
 	private: void set__funcDef(FuncDef _v);
-	private: Value _funcRef();
+	private: Value& _funcRef() const;
 	private: void set__funcRef(Value _v);
-	private: Value _nameValue(); // Name as a Value, for the VM's lookup table
+	private: Value& _nameValue() const; // Name as a Value, for the VM's lookup table
 	private: void set__nameValue(Value _v); // Name as a Value, for the VM's lookup table
 	private: List<Intrinsic> _all();
 	private: void set__all(List<Intrinsic> _v);
@@ -203,23 +203,23 @@ struct Intrinsic {
 // INLINE METHODS
 
 inline IntrinsicStorage* Intrinsic::get() const { return static_cast<IntrinsicStorage*>(storage.get()); }
-inline String Intrinsic::Name() { return get()->Name; }
+inline String& Intrinsic::Name() const { return get()->Name; }
 inline void Intrinsic::set_Name(String _v) { get()->Name = _v; }
-inline NativeCallbackDelegate Intrinsic::Code() { return get()->Code; }
+inline NativeCallbackDelegate& Intrinsic::Code() const { return get()->Code; }
 inline void Intrinsic::set_Code(NativeCallbackDelegate _v) { get()->Code = _v; }
-inline List<String> Intrinsic::_paramNames() { return get()->_paramNames; }
+inline List<String>& Intrinsic::_paramNames() const { return get()->_paramNames; }
 inline void Intrinsic::set__paramNames(List<String> _v) { get()->_paramNames = _v; }
-inline List<Value> Intrinsic::_paramDefaults() { return get()->_paramDefaults; }
+inline List<Value>& Intrinsic::_paramDefaults() const { return get()->_paramDefaults; }
 inline void Intrinsic::set__paramDefaults(List<Value> _v) { get()->_paramDefaults = _v; }
-inline UInt32 Intrinsic::_acceptsErrorMask() { return get()->_acceptsErrorMask; }
+inline UInt32& Intrinsic::_acceptsErrorMask() const { return get()->_acceptsErrorMask; }
 inline void Intrinsic::set__acceptsErrorMask(UInt32 _v) { get()->_acceptsErrorMask = _v; }
-inline Boolean Intrinsic::AffectsState() { return get()->AffectsState; }
+inline Boolean& Intrinsic::AffectsState() const { return get()->AffectsState; }
 inline void Intrinsic::set_AffectsState(Boolean _v) { get()->AffectsState = _v; }
-inline FuncDef Intrinsic::_funcDef() { return get()->_funcDef; }
+inline FuncDef& Intrinsic::_funcDef() const { return get()->_funcDef; }
 inline void Intrinsic::set__funcDef(FuncDef _v) { get()->_funcDef = _v; }
-inline Value Intrinsic::_funcRef() { return get()->_funcRef; }
+inline Value& Intrinsic::_funcRef() const { return get()->_funcRef; }
 inline void Intrinsic::set__funcRef(Value _v) { get()->_funcRef = _v; }
-inline Value Intrinsic::_nameValue() { return get()->_nameValue; } // Name as a Value, for the VM's lookup table
+inline Value& Intrinsic::_nameValue() const { return get()->_nameValue; } // Name as a Value, for the VM's lookup table
 inline void Intrinsic::set__nameValue(Value _v) { get()->_nameValue = _v; } // Name as a Value, for the VM's lookup table
 inline List<Intrinsic> Intrinsic::_all() { return get()->_all; }
 inline void Intrinsic::set__all(List<Intrinsic> _v) { get()->_all = _v; }

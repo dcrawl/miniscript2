@@ -91,7 +91,7 @@ struct ASTNode {
 		return WrapperType(stor); 
 	}
 
-	public: Int32 Line(); // source line number (set by parser)
+	public: Int32& Line() const; // source line number (set by parser)
 	public: void set_Line(Int32 _v); // source line number (set by parser)
 	public: String ToStr();
 	public: ASTNode Simplify();
@@ -659,7 +659,7 @@ struct NumberNode : public ASTNode {
 	NumberNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: NumberNodeStorage* get() const;
 
-	public: Double Value();
+	public: Double& Value() const;
 	public: void set_Value(Double _v);
 
 	public: static NumberNode New(Double value) {
@@ -685,7 +685,7 @@ struct StringNode : public ASTNode {
 	StringNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: StringNodeStorage* get() const;
 
-	public: String Value();
+	public: String& Value() const;
 	public: void set_Value(String _v);
 
 	public: static StringNode New(String value) {
@@ -711,7 +711,7 @@ struct IdentifierNode : public ASTNode {
 	IdentifierNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: IdentifierNodeStorage* get() const;
 
-	public: String Name();
+	public: String& Name() const;
 	public: void set_Name(String _v);
 
 	public: static IdentifierNode New(String name) {
@@ -737,9 +737,9 @@ struct AssignmentNode : public ASTNode {
 	AssignmentNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: AssignmentNodeStorage* get() const;
 
-	public: String Variable(); // variable name being assigned to
+	public: String& Variable() const; // variable name being assigned to
 	public: void set_Variable(String _v); // variable name being assigned to
-	public: ASTNode Value(); // expression being assigned
+	public: ASTNode& Value() const; // expression being assigned
 	public: void set_Value(ASTNode _v); // expression being assigned
 
 	public: static AssignmentNode New(String variable, ASTNode value) {
@@ -765,17 +765,17 @@ struct IndexedAssignmentNode : public ASTNode {
 	IndexedAssignmentNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: IndexedAssignmentNodeStorage* get() const;
 
-	public: ASTNode Target(); // the container (list/map) being assigned into
+	public: ASTNode& Target() const; // the container (list/map) being assigned into
 	public: void set_Target(ASTNode _v); // the container (list/map) being assigned into
-	public: ASTNode Index(); // the index/key expression
+	public: ASTNode& Index() const; // the index/key expression
 	public: void set_Index(ASTNode _v); // the index/key expression
-	public: ASTNode Value(); // the value being assigned (for compound assignment, just the RHS)
+	public: ASTNode& Value() const; // the value being assigned (for compound assignment, just the RHS)
 	public: void set_Value(ASTNode _v); // the value being assigned (for compound assignment, just the RHS)
-	public: String LHSName(); // human-readable LHS (e.g. "foo.bar"), used for function naming
+	public: String& LHSName() const; // human-readable LHS (e.g. "foo.bar"), used for function naming
 	public: void set_LHSName(String _v); // human-readable LHS (e.g. "foo.bar"), used for function naming
-	public: String CompoundOp(); // Op.PLUS etc. for `+=` and friends; null for plain `=`
+	public: String& CompoundOp() const; // Op.PLUS etc. for `+=` and friends; null for plain `=`
 	public: void set_CompoundOp(String _v); // Op.PLUS etc. for `+=` and friends; null for plain `=`
-	public: Boolean IsDotAccess(); // LHS was written `foo.bar` (so a compound read calls a getter)
+	public: Boolean& IsDotAccess() const; // LHS was written `foo.bar` (so a compound read calls a getter)
 	public: void set_IsDotAccess(Boolean _v); // LHS was written `foo.bar` (so a compound read calls a getter)
 
 	// Compound assignment (`a[i] += v`) is kept as a single node rather than
@@ -804,9 +804,9 @@ struct UnaryOpNode : public ASTNode {
 	UnaryOpNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: UnaryOpNodeStorage* get() const;
 
-	public: String Op(); // Op.MINUS, Op.NOT, etc.
+	public: String& Op() const; // Op.MINUS, Op.NOT, etc.
 	public: void set_Op(String _v); // Op.MINUS, Op.NOT, etc.
-	public: ASTNode Operand(); // the expression being operated on
+	public: ASTNode& Operand() const; // the expression being operated on
 	public: void set_Operand(ASTNode _v); // the expression being operated on
 
 	public: static UnaryOpNode New(String op, ASTNode operand) {
@@ -832,11 +832,11 @@ struct BinaryOpNode : public ASTNode {
 	BinaryOpNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: BinaryOpNodeStorage* get() const;
 
-	public: String Op(); // Op.PLUS, etc.
+	public: String& Op() const; // Op.PLUS, etc.
 	public: void set_Op(String _v); // Op.PLUS, etc.
-	public: ASTNode Left(); // left operand
+	public: ASTNode& Left() const; // left operand
 	public: void set_Left(ASTNode _v); // left operand
-	public: ASTNode Right(); // right operand
+	public: ASTNode& Right() const; // right operand
 	public: void set_Right(ASTNode _v); // right operand
 
 	public: static BinaryOpNode New(String op, ASTNode left, ASTNode right) {
@@ -863,9 +863,9 @@ struct ComparisonChainNode : public ASTNode {
 	ComparisonChainNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ComparisonChainNodeStorage* get() const;
 
-	public: List<ASTNode> Operands(); // N+1 operands for N operators
+	public: List<ASTNode>& Operands() const; // N+1 operands for N operators
 	public: void set_Operands(List<ASTNode> _v); // N+1 operands for N operators
-	public: List<String> Operators(); // comparison operators (Op.LESS_THAN, etc.)
+	public: List<String>& Operators() const; // comparison operators (Op.LESS_THAN, etc.)
 	public: void set_Operators(List<String> _v); // comparison operators (Op.LESS_THAN, etc.)
 
 	public: static ComparisonChainNode New(List<ASTNode> operands, List<String> operators) {
@@ -891,9 +891,9 @@ struct CallNode : public ASTNode {
 	CallNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: CallNodeStorage* get() const;
 
-	public: String Function(); // function name
+	public: String& Function() const; // function name
 	public: void set_Function(String _v); // function name
-	public: List<ASTNode> Arguments(); // list of argument expressions
+	public: List<ASTNode>& Arguments() const; // list of argument expressions
 	public: void set_Arguments(List<ASTNode> _v); // list of argument expressions
 
 	public: static CallNode New(String function, List<ASTNode> arguments) {
@@ -924,7 +924,7 @@ struct GroupNode : public ASTNode {
 	GroupNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: GroupNodeStorage* get() const;
 
-	public: ASTNode Expression();
+	public: ASTNode& Expression() const;
 	public: void set_Expression(ASTNode _v);
 
 	public: static GroupNode New(ASTNode expression) {
@@ -950,7 +950,7 @@ struct ListNode : public ASTNode {
 	ListNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ListNodeStorage* get() const;
 
-	public: List<ASTNode> Elements();
+	public: List<ASTNode>& Elements() const;
 	public: void set_Elements(List<ASTNode> _v);
 
 	public: static ListNode New(List<ASTNode> elements) {
@@ -980,9 +980,9 @@ struct MapNode : public ASTNode {
 	MapNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: MapNodeStorage* get() const;
 
-	public: List<ASTNode> Keys();
+	public: List<ASTNode>& Keys() const;
 	public: void set_Keys(List<ASTNode> _v);
-	public: List<ASTNode> Values();
+	public: List<ASTNode>& Values() const;
 	public: void set_Values(List<ASTNode> _v);
 
 	public: static MapNode New(List<ASTNode> keys, List<ASTNode> values) {
@@ -1012,9 +1012,9 @@ struct IndexNode : public ASTNode {
 	IndexNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: IndexNodeStorage* get() const;
 
-	public: ASTNode Target(); // the list/map/string being indexed
+	public: ASTNode& Target() const; // the list/map/string being indexed
 	public: void set_Target(ASTNode _v); // the list/map/string being indexed
-	public: ASTNode Index(); // the index expression
+	public: ASTNode& Index() const; // the index expression
 	public: void set_Index(ASTNode _v); // the index expression
 
 	public: static IndexNode New(ASTNode target, ASTNode index) {
@@ -1040,11 +1040,11 @@ struct SliceNode : public ASTNode {
 	SliceNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: SliceNodeStorage* get() const;
 
-	public: ASTNode Target(); // container being sliced
+	public: ASTNode& Target() const; // container being sliced
 	public: void set_Target(ASTNode _v); // container being sliced
-	public: ASTNode StartIndex(); // null if omitted (means 0)
+	public: ASTNode& StartIndex() const; // null if omitted (means 0)
 	public: void set_StartIndex(ASTNode _v); // null if omitted (means 0)
-	public: ASTNode EndIndex(); // null if omitted (means len)
+	public: ASTNode& EndIndex() const; // null if omitted (means len)
 	public: void set_EndIndex(ASTNode _v); // null if omitted (means len)
 
 	public: static SliceNode New(ASTNode target, ASTNode startIndex, ASTNode endIndex) {
@@ -1070,9 +1070,9 @@ struct MemberNode : public ASTNode {
 	MemberNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: MemberNodeStorage* get() const;
 
-	public: ASTNode Target(); // the object being accessed
+	public: ASTNode& Target() const; // the object being accessed
 	public: void set_Target(ASTNode _v); // the object being accessed
-	public: String Member(); // the member name
+	public: String& Member() const; // the member name
 	public: void set_Member(String _v); // the member name
 
 	public: static MemberNode New(ASTNode target, String member) {
@@ -1099,11 +1099,11 @@ struct MethodCallNode : public ASTNode {
 	MethodCallNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: MethodCallNodeStorage* get() const;
 
-	public: ASTNode Target(); // the object whose method is being called
+	public: ASTNode& Target() const; // the object whose method is being called
 	public: void set_Target(ASTNode _v); // the object whose method is being called
-	public: String Method(); // the method name
+	public: String& Method() const; // the method name
 	public: void set_Method(String _v); // the method name
-	public: List<ASTNode> Arguments(); // list of argument expressions
+	public: List<ASTNode>& Arguments() const; // list of argument expressions
 	public: void set_Arguments(List<ASTNode> _v); // list of argument expressions
 
 	public: static MethodCallNode New(ASTNode target, String method, List<ASTNode> arguments) {
@@ -1131,9 +1131,9 @@ struct ExprCallNode : public ASTNode {
 	ExprCallNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ExprCallNodeStorage* get() const;
 
-	public: ASTNode Function(); // expression that evaluates to a function
+	public: ASTNode& Function() const; // expression that evaluates to a function
 	public: void set_Function(ASTNode _v); // expression that evaluates to a function
-	public: List<ASTNode> Arguments(); // list of argument expressions
+	public: List<ASTNode>& Arguments() const; // list of argument expressions
 	public: void set_Arguments(List<ASTNode> _v); // list of argument expressions
 
 	public: static ExprCallNode New(ASTNode function, List<ASTNode> arguments) {
@@ -1159,9 +1159,9 @@ struct WhileNode : public ASTNode {
 	WhileNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: WhileNodeStorage* get() const;
 
-	public: ASTNode Condition(); // the loop condition
+	public: ASTNode& Condition() const; // the loop condition
 	public: void set_Condition(ASTNode _v); // the loop condition
-	public: List<ASTNode> Body(); // statements in the loop body
+	public: List<ASTNode>& Body() const; // statements in the loop body
 	public: void set_Body(List<ASTNode> _v); // statements in the loop body
 
 	public: static WhileNode New(ASTNode condition, List<ASTNode> body) {
@@ -1189,11 +1189,11 @@ struct IfNode : public ASTNode {
 	IfNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: IfNodeStorage* get() const;
 
-	public: ASTNode Condition(); // the test expression
+	public: ASTNode& Condition() const; // the test expression
 	public: void set_Condition(ASTNode _v); // the test expression
-	public: List<ASTNode> ThenBody(); // statements if condition is true
+	public: List<ASTNode>& ThenBody() const; // statements if condition is true
 	public: void set_ThenBody(List<ASTNode> _v); // statements if condition is true
-	public: List<ASTNode> ElseBody(); // statements if condition is false (may contain IfNode for else-if)
+	public: List<ASTNode>& ElseBody() const; // statements if condition is false (may contain IfNode for else-if)
 	public: void set_ElseBody(List<ASTNode> _v); // statements if condition is false (may contain IfNode for else-if)
 
 	public: static IfNode New(ASTNode condition, List<ASTNode> thenBody, List<ASTNode> elseBody) {
@@ -1219,11 +1219,11 @@ struct ForNode : public ASTNode {
 	ForNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ForNodeStorage* get() const;
 
-	public: String Variable(); // the loop variable name
+	public: String& Variable() const; // the loop variable name
 	public: void set_Variable(String _v); // the loop variable name
-	public: ASTNode Iterable(); // the expression to iterate over
+	public: ASTNode& Iterable() const; // the expression to iterate over
 	public: void set_Iterable(ASTNode _v); // the expression to iterate over
-	public: List<ASTNode> Body(); // statements in the loop body
+	public: List<ASTNode>& Body() const; // statements in the loop body
 	public: void set_Body(List<ASTNode> _v); // statements in the loop body
 
 	public: static ForNode New(String variable, ASTNode iterable, List<ASTNode> body) {
@@ -1295,11 +1295,11 @@ struct FunctionNode : public ASTNode {
 	FunctionNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: FunctionNodeStorage* get() const;
 
-	public: List<String> ParamNames(); // parameter names
+	public: List<String>& ParamNames() const; // parameter names
 	public: void set_ParamNames(List<String> _v); // parameter names
-	public: List<ASTNode> ParamDefaults(); // default value expressions (null = no explicit default)
+	public: List<ASTNode>& ParamDefaults() const; // default value expressions (null = no explicit default)
 	public: void set_ParamDefaults(List<ASTNode> _v); // default value expressions (null = no explicit default)
-	public: List<ASTNode> Body(); // statements in the function body
+	public: List<ASTNode>& Body() const; // statements in the function body
 	public: void set_Body(List<ASTNode> _v); // statements in the function body
 
 	public: static FunctionNode New(List<String> paramNames, List<ASTNode> paramDefaults, List<ASTNode> body) {
@@ -1365,7 +1365,7 @@ struct ScopeNode : public ASTNode {
 	ScopeNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ScopeNodeStorage* get() const;
 
-	public: ScopeType Scope();
+	public: ScopeType& Scope() const;
 	public: void set_Scope(ScopeType _v);
 	public: static ScopeNode New(ScopeType scope) {
 		return ScopeNode(std::make_shared<ScopeNodeStorage>(scope));
@@ -1387,7 +1387,7 @@ struct ReturnNode : public ASTNode {
 	ReturnNode(std::nullptr_t) : ASTNode(nullptr) {}
 	private: ReturnNodeStorage* get() const;
 
-	public: ASTNode Value(); // expression to return (null for bare return)
+	public: ASTNode& Value() const; // expression to return (null for bare return)
 	public: void set_Value(ASTNode _v); // expression to return (null for bare return)
 
 	public: static ReturnNode New(ASTNode value) {
@@ -1408,7 +1408,7 @@ struct ReturnNode : public ASTNode {
 // INLINE METHODS
 
 inline ASTNodeStorage* ASTNode::get() const { return static_cast<ASTNodeStorage*>(storage.get()); }
-inline Int32 ASTNode::Line() { return get()->Line; } // source line number (set by parser)
+inline Int32& ASTNode::Line() const { return get()->Line; } // source line number (set by parser)
 inline void ASTNode::set_Line(Int32 _v) { get()->Line = _v; } // source line number (set by parser)
 inline String ASTNode::ToStr() { return get()->ToStr(); }
 inline ASTNode ASTNode::Simplify() { return get()->Simplify(); }
@@ -1419,150 +1419,150 @@ inline Int32 ASTNode::Accept(IASTVisitor& visitor) { return get()->Accept(visito
 
 inline NumberNode::NumberNode(std::shared_ptr<NumberNodeStorage> stor) : ASTNode(stor) {}
 inline NumberNodeStorage* NumberNode::get() const { return static_cast<NumberNodeStorage*>(storage.get()); }
-inline Double NumberNode::Value() { return get()->Value; }
+inline Double& NumberNode::Value() const { return get()->Value; }
 inline void NumberNode::set_Value(Double _v) { get()->Value = _v; }
 
 inline StringNode::StringNode(std::shared_ptr<StringNodeStorage> stor) : ASTNode(stor) {}
 inline StringNodeStorage* StringNode::get() const { return static_cast<StringNodeStorage*>(storage.get()); }
-inline String StringNode::Value() { return get()->Value; }
+inline String& StringNode::Value() const { return get()->Value; }
 inline void StringNode::set_Value(String _v) { get()->Value = _v; }
 
 inline IdentifierNode::IdentifierNode(std::shared_ptr<IdentifierNodeStorage> stor) : ASTNode(stor) {}
 inline IdentifierNodeStorage* IdentifierNode::get() const { return static_cast<IdentifierNodeStorage*>(storage.get()); }
-inline String IdentifierNode::Name() { return get()->Name; }
+inline String& IdentifierNode::Name() const { return get()->Name; }
 inline void IdentifierNode::set_Name(String _v) { get()->Name = _v; }
 
 inline AssignmentNode::AssignmentNode(std::shared_ptr<AssignmentNodeStorage> stor) : ASTNode(stor) {}
 inline AssignmentNodeStorage* AssignmentNode::get() const { return static_cast<AssignmentNodeStorage*>(storage.get()); }
-inline String AssignmentNode::Variable() { return get()->Variable; } // variable name being assigned to
+inline String& AssignmentNode::Variable() const { return get()->Variable; } // variable name being assigned to
 inline void AssignmentNode::set_Variable(String _v) { get()->Variable = _v; } // variable name being assigned to
-inline ASTNode AssignmentNode::Value() { return get()->Value; } // expression being assigned
+inline ASTNode& AssignmentNode::Value() const { return get()->Value; } // expression being assigned
 inline void AssignmentNode::set_Value(ASTNode _v) { get()->Value = _v; } // expression being assigned
 
 inline IndexedAssignmentNode::IndexedAssignmentNode(std::shared_ptr<IndexedAssignmentNodeStorage> stor) : ASTNode(stor) {}
 inline IndexedAssignmentNodeStorage* IndexedAssignmentNode::get() const { return static_cast<IndexedAssignmentNodeStorage*>(storage.get()); }
-inline ASTNode IndexedAssignmentNode::Target() { return get()->Target; } // the container (list/map) being assigned into
+inline ASTNode& IndexedAssignmentNode::Target() const { return get()->Target; } // the container (list/map) being assigned into
 inline void IndexedAssignmentNode::set_Target(ASTNode _v) { get()->Target = _v; } // the container (list/map) being assigned into
-inline ASTNode IndexedAssignmentNode::Index() { return get()->Index; } // the index/key expression
+inline ASTNode& IndexedAssignmentNode::Index() const { return get()->Index; } // the index/key expression
 inline void IndexedAssignmentNode::set_Index(ASTNode _v) { get()->Index = _v; } // the index/key expression
-inline ASTNode IndexedAssignmentNode::Value() { return get()->Value; } // the value being assigned (for compound assignment, just the RHS)
+inline ASTNode& IndexedAssignmentNode::Value() const { return get()->Value; } // the value being assigned (for compound assignment, just the RHS)
 inline void IndexedAssignmentNode::set_Value(ASTNode _v) { get()->Value = _v; } // the value being assigned (for compound assignment, just the RHS)
-inline String IndexedAssignmentNode::LHSName() { return get()->LHSName; } // human-readable LHS (e.g. "foo.bar"), used for function naming
+inline String& IndexedAssignmentNode::LHSName() const { return get()->LHSName; } // human-readable LHS (e.g. "foo.bar"), used for function naming
 inline void IndexedAssignmentNode::set_LHSName(String _v) { get()->LHSName = _v; } // human-readable LHS (e.g. "foo.bar"), used for function naming
-inline String IndexedAssignmentNode::CompoundOp() { return get()->CompoundOp; } // Op.PLUS etc. for `+=` and friends; null for plain `=`
+inline String& IndexedAssignmentNode::CompoundOp() const { return get()->CompoundOp; } // Op.PLUS etc. for `+=` and friends; null for plain `=`
 inline void IndexedAssignmentNode::set_CompoundOp(String _v) { get()->CompoundOp = _v; } // Op.PLUS etc. for `+=` and friends; null for plain `=`
-inline Boolean IndexedAssignmentNode::IsDotAccess() { return get()->IsDotAccess; } // LHS was written `foo.bar` (so a compound read calls a getter)
+inline Boolean& IndexedAssignmentNode::IsDotAccess() const { return get()->IsDotAccess; } // LHS was written `foo.bar` (so a compound read calls a getter)
 inline void IndexedAssignmentNode::set_IsDotAccess(Boolean _v) { get()->IsDotAccess = _v; } // LHS was written `foo.bar` (so a compound read calls a getter)
 
 inline UnaryOpNode::UnaryOpNode(std::shared_ptr<UnaryOpNodeStorage> stor) : ASTNode(stor) {}
 inline UnaryOpNodeStorage* UnaryOpNode::get() const { return static_cast<UnaryOpNodeStorage*>(storage.get()); }
-inline String UnaryOpNode::Op() { return get()->Op; } // Op.MINUS, Op.NOT, etc.
+inline String& UnaryOpNode::Op() const { return get()->Op; } // Op.MINUS, Op.NOT, etc.
 inline void UnaryOpNode::set_Op(String _v) { get()->Op = _v; } // Op.MINUS, Op.NOT, etc.
-inline ASTNode UnaryOpNode::Operand() { return get()->Operand; } // the expression being operated on
+inline ASTNode& UnaryOpNode::Operand() const { return get()->Operand; } // the expression being operated on
 inline void UnaryOpNode::set_Operand(ASTNode _v) { get()->Operand = _v; } // the expression being operated on
 
 inline BinaryOpNode::BinaryOpNode(std::shared_ptr<BinaryOpNodeStorage> stor) : ASTNode(stor) {}
 inline BinaryOpNodeStorage* BinaryOpNode::get() const { return static_cast<BinaryOpNodeStorage*>(storage.get()); }
-inline String BinaryOpNode::Op() { return get()->Op; } // Op.PLUS, etc.
+inline String& BinaryOpNode::Op() const { return get()->Op; } // Op.PLUS, etc.
 inline void BinaryOpNode::set_Op(String _v) { get()->Op = _v; } // Op.PLUS, etc.
-inline ASTNode BinaryOpNode::Left() { return get()->Left; } // left operand
+inline ASTNode& BinaryOpNode::Left() const { return get()->Left; } // left operand
 inline void BinaryOpNode::set_Left(ASTNode _v) { get()->Left = _v; } // left operand
-inline ASTNode BinaryOpNode::Right() { return get()->Right; } // right operand
+inline ASTNode& BinaryOpNode::Right() const { return get()->Right; } // right operand
 inline void BinaryOpNode::set_Right(ASTNode _v) { get()->Right = _v; } // right operand
 
 inline ComparisonChainNode::ComparisonChainNode(std::shared_ptr<ComparisonChainNodeStorage> stor) : ASTNode(stor) {}
 inline ComparisonChainNodeStorage* ComparisonChainNode::get() const { return static_cast<ComparisonChainNodeStorage*>(storage.get()); }
-inline List<ASTNode> ComparisonChainNode::Operands() { return get()->Operands; } // N+1 operands for N operators
+inline List<ASTNode>& ComparisonChainNode::Operands() const { return get()->Operands; } // N+1 operands for N operators
 inline void ComparisonChainNode::set_Operands(List<ASTNode> _v) { get()->Operands = _v; } // N+1 operands for N operators
-inline List<String> ComparisonChainNode::Operators() { return get()->Operators; } // comparison operators (Op.LESS_THAN, etc.)
+inline List<String>& ComparisonChainNode::Operators() const { return get()->Operators; } // comparison operators (Op.LESS_THAN, etc.)
 inline void ComparisonChainNode::set_Operators(List<String> _v) { get()->Operators = _v; } // comparison operators (Op.LESS_THAN, etc.)
 
 inline CallNode::CallNode(std::shared_ptr<CallNodeStorage> stor) : ASTNode(stor) {}
 inline CallNodeStorage* CallNode::get() const { return static_cast<CallNodeStorage*>(storage.get()); }
-inline String CallNode::Function() { return get()->Function; } // function name
+inline String& CallNode::Function() const { return get()->Function; } // function name
 inline void CallNode::set_Function(String _v) { get()->Function = _v; } // function name
-inline List<ASTNode> CallNode::Arguments() { return get()->Arguments; } // list of argument expressions
+inline List<ASTNode>& CallNode::Arguments() const { return get()->Arguments; } // list of argument expressions
 inline void CallNode::set_Arguments(List<ASTNode> _v) { get()->Arguments = _v; } // list of argument expressions
 
 inline GroupNode::GroupNode(std::shared_ptr<GroupNodeStorage> stor) : ASTNode(stor) {}
 inline GroupNodeStorage* GroupNode::get() const { return static_cast<GroupNodeStorage*>(storage.get()); }
-inline ASTNode GroupNode::Expression() { return get()->Expression; }
+inline ASTNode& GroupNode::Expression() const { return get()->Expression; }
 inline void GroupNode::set_Expression(ASTNode _v) { get()->Expression = _v; }
 
 inline ListNode::ListNode(std::shared_ptr<ListNodeStorage> stor) : ASTNode(stor) {}
 inline ListNodeStorage* ListNode::get() const { return static_cast<ListNodeStorage*>(storage.get()); }
-inline List<ASTNode> ListNode::Elements() { return get()->Elements; }
+inline List<ASTNode>& ListNode::Elements() const { return get()->Elements; }
 inline void ListNode::set_Elements(List<ASTNode> _v) { get()->Elements = _v; }
 
 inline MapNode::MapNode(std::shared_ptr<MapNodeStorage> stor) : ASTNode(stor) {}
 inline MapNodeStorage* MapNode::get() const { return static_cast<MapNodeStorage*>(storage.get()); }
-inline List<ASTNode> MapNode::Keys() { return get()->Keys; }
+inline List<ASTNode>& MapNode::Keys() const { return get()->Keys; }
 inline void MapNode::set_Keys(List<ASTNode> _v) { get()->Keys = _v; }
-inline List<ASTNode> MapNode::Values() { return get()->Values; }
+inline List<ASTNode>& MapNode::Values() const { return get()->Values; }
 inline void MapNode::set_Values(List<ASTNode> _v) { get()->Values = _v; }
 
 inline IndexNode::IndexNode(std::shared_ptr<IndexNodeStorage> stor) : ASTNode(stor) {}
 inline IndexNodeStorage* IndexNode::get() const { return static_cast<IndexNodeStorage*>(storage.get()); }
-inline ASTNode IndexNode::Target() { return get()->Target; } // the list/map/string being indexed
+inline ASTNode& IndexNode::Target() const { return get()->Target; } // the list/map/string being indexed
 inline void IndexNode::set_Target(ASTNode _v) { get()->Target = _v; } // the list/map/string being indexed
-inline ASTNode IndexNode::Index() { return get()->Index; } // the index expression
+inline ASTNode& IndexNode::Index() const { return get()->Index; } // the index expression
 inline void IndexNode::set_Index(ASTNode _v) { get()->Index = _v; } // the index expression
 
 inline SliceNode::SliceNode(std::shared_ptr<SliceNodeStorage> stor) : ASTNode(stor) {}
 inline SliceNodeStorage* SliceNode::get() const { return static_cast<SliceNodeStorage*>(storage.get()); }
-inline ASTNode SliceNode::Target() { return get()->Target; } // container being sliced
+inline ASTNode& SliceNode::Target() const { return get()->Target; } // container being sliced
 inline void SliceNode::set_Target(ASTNode _v) { get()->Target = _v; } // container being sliced
-inline ASTNode SliceNode::StartIndex() { return get()->StartIndex; } // null if omitted (means 0)
+inline ASTNode& SliceNode::StartIndex() const { return get()->StartIndex; } // null if omitted (means 0)
 inline void SliceNode::set_StartIndex(ASTNode _v) { get()->StartIndex = _v; } // null if omitted (means 0)
-inline ASTNode SliceNode::EndIndex() { return get()->EndIndex; } // null if omitted (means len)
+inline ASTNode& SliceNode::EndIndex() const { return get()->EndIndex; } // null if omitted (means len)
 inline void SliceNode::set_EndIndex(ASTNode _v) { get()->EndIndex = _v; } // null if omitted (means len)
 
 inline MemberNode::MemberNode(std::shared_ptr<MemberNodeStorage> stor) : ASTNode(stor) {}
 inline MemberNodeStorage* MemberNode::get() const { return static_cast<MemberNodeStorage*>(storage.get()); }
-inline ASTNode MemberNode::Target() { return get()->Target; } // the object being accessed
+inline ASTNode& MemberNode::Target() const { return get()->Target; } // the object being accessed
 inline void MemberNode::set_Target(ASTNode _v) { get()->Target = _v; } // the object being accessed
-inline String MemberNode::Member() { return get()->Member; } // the member name
+inline String& MemberNode::Member() const { return get()->Member; } // the member name
 inline void MemberNode::set_Member(String _v) { get()->Member = _v; } // the member name
 
 inline MethodCallNode::MethodCallNode(std::shared_ptr<MethodCallNodeStorage> stor) : ASTNode(stor) {}
 inline MethodCallNodeStorage* MethodCallNode::get() const { return static_cast<MethodCallNodeStorage*>(storage.get()); }
-inline ASTNode MethodCallNode::Target() { return get()->Target; } // the object whose method is being called
+inline ASTNode& MethodCallNode::Target() const { return get()->Target; } // the object whose method is being called
 inline void MethodCallNode::set_Target(ASTNode _v) { get()->Target = _v; } // the object whose method is being called
-inline String MethodCallNode::Method() { return get()->Method; } // the method name
+inline String& MethodCallNode::Method() const { return get()->Method; } // the method name
 inline void MethodCallNode::set_Method(String _v) { get()->Method = _v; } // the method name
-inline List<ASTNode> MethodCallNode::Arguments() { return get()->Arguments; } // list of argument expressions
+inline List<ASTNode>& MethodCallNode::Arguments() const { return get()->Arguments; } // list of argument expressions
 inline void MethodCallNode::set_Arguments(List<ASTNode> _v) { get()->Arguments = _v; } // list of argument expressions
 
 inline ExprCallNode::ExprCallNode(std::shared_ptr<ExprCallNodeStorage> stor) : ASTNode(stor) {}
 inline ExprCallNodeStorage* ExprCallNode::get() const { return static_cast<ExprCallNodeStorage*>(storage.get()); }
-inline ASTNode ExprCallNode::Function() { return get()->Function; } // expression that evaluates to a function
+inline ASTNode& ExprCallNode::Function() const { return get()->Function; } // expression that evaluates to a function
 inline void ExprCallNode::set_Function(ASTNode _v) { get()->Function = _v; } // expression that evaluates to a function
-inline List<ASTNode> ExprCallNode::Arguments() { return get()->Arguments; } // list of argument expressions
+inline List<ASTNode>& ExprCallNode::Arguments() const { return get()->Arguments; } // list of argument expressions
 inline void ExprCallNode::set_Arguments(List<ASTNode> _v) { get()->Arguments = _v; } // list of argument expressions
 
 inline WhileNode::WhileNode(std::shared_ptr<WhileNodeStorage> stor) : ASTNode(stor) {}
 inline WhileNodeStorage* WhileNode::get() const { return static_cast<WhileNodeStorage*>(storage.get()); }
-inline ASTNode WhileNode::Condition() { return get()->Condition; } // the loop condition
+inline ASTNode& WhileNode::Condition() const { return get()->Condition; } // the loop condition
 inline void WhileNode::set_Condition(ASTNode _v) { get()->Condition = _v; } // the loop condition
-inline List<ASTNode> WhileNode::Body() { return get()->Body; } // statements in the loop body
+inline List<ASTNode>& WhileNode::Body() const { return get()->Body; } // statements in the loop body
 inline void WhileNode::set_Body(List<ASTNode> _v) { get()->Body = _v; } // statements in the loop body
 
 inline IfNode::IfNode(std::shared_ptr<IfNodeStorage> stor) : ASTNode(stor) {}
 inline IfNodeStorage* IfNode::get() const { return static_cast<IfNodeStorage*>(storage.get()); }
-inline ASTNode IfNode::Condition() { return get()->Condition; } // the test expression
+inline ASTNode& IfNode::Condition() const { return get()->Condition; } // the test expression
 inline void IfNode::set_Condition(ASTNode _v) { get()->Condition = _v; } // the test expression
-inline List<ASTNode> IfNode::ThenBody() { return get()->ThenBody; } // statements if condition is true
+inline List<ASTNode>& IfNode::ThenBody() const { return get()->ThenBody; } // statements if condition is true
 inline void IfNode::set_ThenBody(List<ASTNode> _v) { get()->ThenBody = _v; } // statements if condition is true
-inline List<ASTNode> IfNode::ElseBody() { return get()->ElseBody; } // statements if condition is false (may contain IfNode for else-if)
+inline List<ASTNode>& IfNode::ElseBody() const { return get()->ElseBody; } // statements if condition is false (may contain IfNode for else-if)
 inline void IfNode::set_ElseBody(List<ASTNode> _v) { get()->ElseBody = _v; } // statements if condition is false (may contain IfNode for else-if)
 
 inline ForNode::ForNode(std::shared_ptr<ForNodeStorage> stor) : ASTNode(stor) {}
 inline ForNodeStorage* ForNode::get() const { return static_cast<ForNodeStorage*>(storage.get()); }
-inline String ForNode::Variable() { return get()->Variable; } // the loop variable name
+inline String& ForNode::Variable() const { return get()->Variable; } // the loop variable name
 inline void ForNode::set_Variable(String _v) { get()->Variable = _v; } // the loop variable name
-inline ASTNode ForNode::Iterable() { return get()->Iterable; } // the expression to iterate over
+inline ASTNode& ForNode::Iterable() const { return get()->Iterable; } // the expression to iterate over
 inline void ForNode::set_Iterable(ASTNode _v) { get()->Iterable = _v; } // the expression to iterate over
-inline List<ASTNode> ForNode::Body() { return get()->Body; } // statements in the loop body
+inline List<ASTNode>& ForNode::Body() const { return get()->Body; } // statements in the loop body
 inline void ForNode::set_Body(List<ASTNode> _v) { get()->Body = _v; } // statements in the loop body
 
 inline BreakNode::BreakNode(std::shared_ptr<BreakNodeStorage> stor) : ASTNode(stor) {}
@@ -1573,11 +1573,11 @@ inline ContinueNodeStorage* ContinueNode::get() const { return static_cast<Conti
 
 inline FunctionNode::FunctionNode(std::shared_ptr<FunctionNodeStorage> stor) : ASTNode(stor) {}
 inline FunctionNodeStorage* FunctionNode::get() const { return static_cast<FunctionNodeStorage*>(storage.get()); }
-inline List<String> FunctionNode::ParamNames() { return get()->ParamNames; } // parameter names
+inline List<String>& FunctionNode::ParamNames() const { return get()->ParamNames; } // parameter names
 inline void FunctionNode::set_ParamNames(List<String> _v) { get()->ParamNames = _v; } // parameter names
-inline List<ASTNode> FunctionNode::ParamDefaults() { return get()->ParamDefaults; } // default value expressions (null = no explicit default)
+inline List<ASTNode>& FunctionNode::ParamDefaults() const { return get()->ParamDefaults; } // default value expressions (null = no explicit default)
 inline void FunctionNode::set_ParamDefaults(List<ASTNode> _v) { get()->ParamDefaults = _v; } // default value expressions (null = no explicit default)
-inline List<ASTNode> FunctionNode::Body() { return get()->Body; } // statements in the function body
+inline List<ASTNode>& FunctionNode::Body() const { return get()->Body; } // statements in the function body
 inline void FunctionNode::set_Body(List<ASTNode> _v) { get()->Body = _v; } // statements in the function body
 
 inline SelfNode::SelfNode(std::shared_ptr<SelfNodeStorage> stor) : ASTNode(stor) {}
@@ -1588,12 +1588,12 @@ inline SuperNodeStorage* SuperNode::get() const { return static_cast<SuperNodeSt
 
 inline ScopeNode::ScopeNode(std::shared_ptr<ScopeNodeStorage> stor) : ASTNode(stor) {}
 inline ScopeNodeStorage* ScopeNode::get() const { return static_cast<ScopeNodeStorage*>(storage.get()); }
-inline ScopeType ScopeNode::Scope() { return get()->Scope; }
+inline ScopeType& ScopeNode::Scope() const { return get()->Scope; }
 inline void ScopeNode::set_Scope(ScopeType _v) { get()->Scope = _v; }
 
 inline ReturnNode::ReturnNode(std::shared_ptr<ReturnNodeStorage> stor) : ASTNode(stor) {}
 inline ReturnNodeStorage* ReturnNode::get() const { return static_cast<ReturnNodeStorage*>(storage.get()); }
-inline ASTNode ReturnNode::Value() { return get()->Value; } // expression to return (null for bare return)
+inline ASTNode& ReturnNode::Value() const { return get()->Value; } // expression to return (null for bare return)
 inline void ReturnNode::set_Value(ASTNode _v) { get()->Value = _v; } // expression to return (null for bare return)
 
 } // end of namespace MiniScript

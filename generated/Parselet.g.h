@@ -46,7 +46,7 @@ struct Parselet {
 		return WrapperType(stor); 
 	}
 
-	public: Precedence Prec();
+	public: Precedence& Prec() const;
 	public: void set_Prec(Precedence _v);
 }; // end of struct Parselet
 
@@ -262,7 +262,7 @@ struct ScopeParselet : public PrefixParselet {
 	ScopeParselet(std::nullptr_t) : PrefixParselet(nullptr) {}
 	private: ScopeParseletStorage* get() const;
 
-	private: ScopeType _scope();
+	private: ScopeType& _scope() const;
 	private: void set__scope(ScopeType _v);
 	public: static ScopeParselet New(ScopeType scope) {
 		return ScopeParselet(std::make_shared<ScopeParseletStorage>(scope));
@@ -309,7 +309,7 @@ struct UnaryOpParselet : public PrefixParselet {
 	UnaryOpParselet(std::nullptr_t) : PrefixParselet(nullptr) {}
 	private: UnaryOpParseletStorage* get() const;
 
-	private: String _op();
+	private: String& _op() const;
 	private: void set__op(String _v);
 
 	public: static UnaryOpParselet New(String op, Precedence prec) {
@@ -388,9 +388,9 @@ struct BinaryOpParselet : public InfixParselet {
 	BinaryOpParselet(std::nullptr_t) : InfixParselet(nullptr) {}
 	private: BinaryOpParseletStorage* get() const;
 
-	private: String _op();
+	private: String& _op() const;
 	private: void set__op(String _v);
-	private: Boolean _rightAssoc();
+	private: Boolean& _rightAssoc() const;
 	private: void set__rightAssoc(Boolean _v);
 
 	public: static BinaryOpParselet New(String op, Precedence prec, Boolean rightAssoc) {
@@ -413,7 +413,7 @@ struct ComparisonParselet : public InfixParselet {
 	ComparisonParselet(std::nullptr_t) : InfixParselet(nullptr) {}
 	private: ComparisonParseletStorage* get() const;
 
-	private: String _op();
+	private: String& _op() const;
 	private: void set__op(String _v);
 
 	public: static ComparisonParselet New(String op, Precedence prec) {
@@ -475,7 +475,7 @@ struct MemberParselet : public InfixParselet {
 // INLINE METHODS
 
 inline ParseletStorage* Parselet::get() const { return static_cast<ParseletStorage*>(storage.get()); }
-inline Precedence Parselet::Prec() { return get()->Prec; }
+inline Precedence& Parselet::Prec() const { return get()->Prec; }
 inline void Parselet::set_Prec(Precedence _v) { get()->Prec = _v; }
 
 inline PrefixParselet::PrefixParselet(std::shared_ptr<PrefixParseletStorage> stor) : Parselet(stor) {}
@@ -497,7 +497,7 @@ inline SuperParseletStorage* SuperParselet::get() const { return static_cast<Sup
 
 inline ScopeParselet::ScopeParselet(std::shared_ptr<ScopeParseletStorage> stor) : PrefixParselet(stor) {}
 inline ScopeParseletStorage* ScopeParselet::get() const { return static_cast<ScopeParseletStorage*>(storage.get()); }
-inline ScopeType ScopeParselet::_scope() { return get()->_scope; }
+inline ScopeType& ScopeParselet::_scope() const { return get()->_scope; }
 inline void ScopeParselet::set__scope(ScopeType _v) { get()->_scope = _v; }
 
 inline StringParselet::StringParselet(std::shared_ptr<StringParseletStorage> stor) : PrefixParselet(stor) {}
@@ -508,7 +508,7 @@ inline IdentifierParseletStorage* IdentifierParselet::get() const { return stati
 
 inline UnaryOpParselet::UnaryOpParselet(std::shared_ptr<UnaryOpParseletStorage> stor) : PrefixParselet(stor) {}
 inline UnaryOpParseletStorage* UnaryOpParselet::get() const { return static_cast<UnaryOpParseletStorage*>(storage.get()); }
-inline String UnaryOpParselet::_op() { return get()->_op; }
+inline String& UnaryOpParselet::_op() const { return get()->_op; }
 inline void UnaryOpParselet::set__op(String _v) { get()->_op = _v; }
 
 inline AddressOfParselet::AddressOfParselet(std::shared_ptr<AddressOfParseletStorage> stor) : PrefixParselet(stor) {}
@@ -525,14 +525,14 @@ inline MapParseletStorage* MapParselet::get() const { return static_cast<MapPars
 
 inline BinaryOpParselet::BinaryOpParselet(std::shared_ptr<BinaryOpParseletStorage> stor) : InfixParselet(stor) {}
 inline BinaryOpParseletStorage* BinaryOpParselet::get() const { return static_cast<BinaryOpParseletStorage*>(storage.get()); }
-inline String BinaryOpParselet::_op() { return get()->_op; }
+inline String& BinaryOpParselet::_op() const { return get()->_op; }
 inline void BinaryOpParselet::set__op(String _v) { get()->_op = _v; }
-inline Boolean BinaryOpParselet::_rightAssoc() { return get()->_rightAssoc; }
+inline Boolean& BinaryOpParselet::_rightAssoc() const { return get()->_rightAssoc; }
 inline void BinaryOpParselet::set__rightAssoc(Boolean _v) { get()->_rightAssoc = _v; }
 
 inline ComparisonParselet::ComparisonParselet(std::shared_ptr<ComparisonParseletStorage> stor) : InfixParselet(stor) {}
 inline ComparisonParseletStorage* ComparisonParselet::get() const { return static_cast<ComparisonParseletStorage*>(storage.get()); }
-inline String ComparisonParselet::_op() { return get()->_op; }
+inline String& ComparisonParselet::_op() const { return get()->_op; }
 inline void ComparisonParselet::set__op(String _v) { get()->_op = _v; }
 
 inline CallParselet::CallParselet(std::shared_ptr<CallParseletStorage> stor) : InfixParselet(stor) {}
