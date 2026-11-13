@@ -50,11 +50,15 @@ ValueType Value::Type() const noexcept {
 // Value's backing storage, so mutations write back to the Value.
 ValueDict Value::GetDict() const {
 	if (!IsMap()) return ValueDict();          // null dict for non-maps
-	return GCManager::GetMap(*this).Items;     // Dictionary shares its table
+	// Through a reference: GCManager::GetMap returns the whole GCMap by value,
+	// refcounting every member just to copy out Items (issue #30).
+	return GCManager::Maps.GetRef(ItemIndex()).Items;   // Dictionary shares its table
 }
 ValueList Value::GetList() const {
 	if (!IsList()) return ValueList();         // null list for non-lists
-	GCList gl = GCManager::GetList(*this);
+	GCList& ref = GCManager::Lists.GetRef(ItemIndex());
+	if (!ref.Computed) return ref.Items;       // the common case: no struct copy
+	GCList gl = ref;
 	if (gl.Computed) {
 		// A computed list (e.g. a range) has no real element vector; materialize
 		// it and write the now-materialized GCList struct back, so the Value and
