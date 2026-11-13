@@ -107,6 +107,14 @@ Boolean GCMap::TryGet(Value key,Value* value) {
 	*value = Value::Null;
 	return Boolean(false);
 }
+Boolean GCMap::TryGetH(Value key,Int32 hash,Value* value) {
+	if (!IsNull(_gb)) return _gb.TryGet(key, &*value);
+	if (!IsNull(_vmb) && _vmb.TryGet(key, &*value)) return Boolean(true);
+	if (IsNull(Items)) { *value = Value::Null; return Boolean(false); }
+	if (Items.TryGetValueH(key, hash, &*value)) return Boolean(true);
+	*value = Value::Null;
+	return Boolean(false);
+}
 void GCMap::Set(Value key,Value value) {
 	if (!IsNull(_gb)) { _gb.Set(key, value); return; }
 

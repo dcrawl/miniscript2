@@ -811,13 +811,13 @@ void VMStorage::CollectFunctions(FuncDef func,List<FuncDef> outList) {
 		if (consts[i].IsFuncRef()) CollectFunctions(consts[i].FunctionDef(), outList);
 	}
 }
-Int32 VMStorage::SelfParamOffset(FuncDef callee) {
+Int32 VMStorage::SelfParamOffset(const FuncDef& callee) {
 	if (hasPendingContext && callee.ParamNames().Count() > 0 && callee.ParamNames()[0] == Value::selfString) {
 		return 1;
 	}
 	return 0;
 }
-Int32 VMStorage::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDef callee,List<UInt32> code) {
+Int32 VMStorage::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,const FuncDef& callee,const List<UInt32>& code) {
 	Int32 paramCount = callee.ParamNames().Count();
 
 	// Step 1: Validate argument count (selfParam accounts for the injected self)
@@ -860,7 +860,7 @@ Int32 VMStorage::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,I
 
 	return currentPC + 1; // Return PC after the CALL instruction
 }
-void VMStorage::ApplyPendingContext(Int32 calleeBase,FuncDef callee) {
+void VMStorage::ApplyPendingContext(Int32 calleeBase,const FuncDef& callee) {
 	if (!hasPendingContext) return;
 	if (callee.SelfReg() >= 0) {
 		stack[calleeBase + callee.SelfReg()] = pendingSelf;
@@ -874,7 +874,7 @@ void VMStorage::ApplyPendingContext(Int32 calleeBase,FuncDef callee) {
 	pendingSuper = Value::Null;
 	hasPendingContext = Boolean(false);
 }
-void VMStorage::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,FuncDef callee) {
+void VMStorage::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,const FuncDef& callee) {
 	Int32 paramCount = callee.ParamNames().Count();
 
 	// Step 4: Set up remaining parameters with default values
@@ -942,7 +942,7 @@ Int32 VMStorage::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 return
 	*calleeOut = callee;
 	return 0;
 }
-Value VMStorage::RefusedErrorArg(FuncDef callee,Int32 calleeBase) {
+Value VMStorage::RefusedErrorArg(const FuncDef& callee,Int32 calleeBase) {
 	Int32 count = callee.ParamNames().Count();
 	for (Int32 i = 0; i < count; i++) {
 		Value arg = stack[calleeBase + 1 + i];
@@ -967,7 +967,7 @@ void VMStorage::UndoManualPush(Int32 callStackTopBefore,Boolean outerHasManual,I
 	_pendingManualCallDepth = outerManualDepth;
 	ManualCallResult = outerManualResult;
 }
-bool VMStorage::InvokeNativeCallback(NativeCallbackDelegate callback,FuncDef callee,Int32 calleeBase,Int32 argCount,IntrinsicResult partialResult,Int32 absoluteResultIndex) {
+bool VMStorage::InvokeNativeCallback(const NativeCallbackDelegate& callback,const FuncDef& callee,Int32 calleeBase,Int32 argCount,const IntrinsicResult& partialResult,Int32 absoluteResultIndex) {
 	if (partialResult.done) {
 		// A first call, not a continuation.  Erase the register names that
 		// argument setup gave the intrinsic's frame: an intrinsic pushes no
@@ -1115,7 +1115,9 @@ Value VMStorage::Run(UInt32 maxCycles) {
 		} else {
 			// Normal case: re-invoke the pending intrinsic callback.
 			IntrinsicResult partialResult = IntrinsicResult(stack[_pendingResultIndex], Boolean(false));
-			if (!InvokeNativeCallback(_pendingCallback, _pendingCallee, _pendingCalleeBase, _pendingArgCount, partialResult, _pendingResultIndex)) {
+			NativeCallbackDelegate pendingCallback = _pendingCallback;
+			FuncDef pendingCallee = _pendingCallee;
+			if (!InvokeNativeCallback(pendingCallback, pendingCallee, _pendingCalleeBase, _pendingArgCount, partialResult, _pendingResultIndex)) {
 				// Still not done.  If it pushed another call (PushCall, e.g.
 				// an intrinsic calling a callback once per list element), run
 				// that now; otherwise return without running any bytecode.
@@ -2721,7 +2723,7 @@ Boolean VMStorage::ChainHasSetter(Value map) {
 	Int32 toStamp = 0;   // maps from `map` up that this walk proves clean
 	for (Int32 depth = 0; depth < 256; depth++) {
 		if (!current.IsMap()) break;   // ran off the end of the chain: clean
-		Int32 status = GCManager::Maps.Get(current.ItemIndex())._setterStatus;
+		Int32 status = GCManager::Maps.GetRef(current.ItemIndex())._setterStatus;
 		if (status == -1) return Boolean(true);
 		if (status == gen) break;      // already stamped; so is everything above
 		toStamp++;                     // clean, if the rest of the walk agrees

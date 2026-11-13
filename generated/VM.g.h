@@ -460,19 +460,19 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	// Returns the PC after the CALL instruction, or -1 on error.
 	// Check whether pendingSelf should be injected as the first parameter.
 	// Returns 1 if the callee's first param is named "self" and we have pending context, else 0.
-	private: Int32 SelfParamOffset(FuncDef callee);
+	private: Int32 SelfParamOffset(const FuncDef& callee);
 
-	private: Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, FuncDef callee, List<UInt32> code);
+	private: Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, const FuncDef& callee, const List<UInt32>& code);
 
 	// Apply pending self/super context to a callee's frame, if any.
 	// Called after SetupCallFrame to populate the callee's self/super registers.
-	private: void ApplyPendingContext(Int32 calleeBase, FuncDef callee);
+	private: void ApplyPendingContext(Int32 calleeBase, const FuncDef& callee);
 
 	// Helper for call setup (FUNCTION_CALLS.md steps 4-6):
 	// Initialize remaining parameters with defaults and clear callee's registers.
 	// Note: Parameters start at r1 (r0 is reserved for return value)
 	// selfParam is 1 if pendingSelf was injected as the first arg, else 0.
-	private: void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, FuncDef callee);
+	private: void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, const FuncDef& callee);
 
 	// Auto-invoke a zero-arg funcref (used by LOADC and CALLIFREF).
 	// Resolves the funcref, then either:
@@ -489,7 +489,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	// the intrinsic does not run at all: the call evaluates to that error, or
 	// terminates if the intrinsic affects state.  This returns the first such
 	// error among the arguments in place at calleeBase, or null if there is none.
-	private: Value RefusedErrorArg(FuncDef callee, Int32 calleeBase);
+	private: Value RefusedErrorArg(const FuncDef& callee, Int32 calleeBase);
 
 	// Erase the register names over count registers starting at baseIndex.
 	private: void ClearNames(Int32 baseIndex, Int32 count);
@@ -504,7 +504,7 @@ class VMStorage : public std::enable_shared_from_this<VMStorage> {
 	// Invoke a native callback and handle the result.  If done, writes the
 	// result to stack[absoluteResultIndex] and returns true.  If not done,
 	// stores the pending state for re-invocation and returns false.
-	private: bool InvokeNativeCallback(NativeCallbackDelegate callback, FuncDef callee, Int32 calleeBase, Int32 argCount, IntrinsicResult partialResult, Int32 absoluteResultIndex);
+	private: bool InvokeNativeCallback(const NativeCallbackDelegate& callback, const FuncDef& callee, Int32 calleeBase, Int32 argCount, const IntrinsicResult& partialResult, Int32 absoluteResultIndex);
 
 	public: Value Execute(FuncDef entry);
 
@@ -670,11 +670,11 @@ struct VM {
 	friend bool IsNull(const VM& inst) { return inst.storage == nullptr; }
 	private: VMStorage* get() const;
 
-	public: Boolean DebugMode();
+	public: Boolean& DebugMode() const;
 	public: void set_DebugMode(Boolean _v);
-	private: List<Value> stack();
+	private: List<Value>& stack() const;
 	private: void set_stack(List<Value> _v);
-	private: List<Value> names(); // Variable names parallel to stack (null if unnamed)
+	private: List<Value>& names() const; // Variable names parallel to stack (null if unnamed)
 	private: void set_names(List<Value> _v); // Variable names parallel to stack (null if unnamed)
 
 	// Reference to the Interpreter that owns this VM (may be null if VM is used standalone).
@@ -685,37 +685,37 @@ struct VM {
 	public: operator void*() { return storage.get(); }
 	// Allows passing a VM where void* vm is expected, same as VMStorage.
 	public: Interpreter GetInterpreter(); // NO_INLINE
-	private: List<CallInfo> callStack();
+	private: List<CallInfo>& callStack() const;
 	private: void set_callStack(List<CallInfo> _v);
-	private: Int32 callStackTop();
+	private: Int32& callStackTop() const;
 	private: void set_callStackTop(Int32 _v);
-	public: Int32 DefaultMaxCallDepth();
-	private: Int32 _maxCallDepth();
+	public: Int32& DefaultMaxCallDepth() const;
+	private: Int32& _maxCallDepth() const;
 	private: void set__maxCallDepth(Int32 _v);
-	private: Int32 MaxStackSlots();
-	private: Dictionary<Value, Value> _intrinsics(); // intrinsic name -> FuncRef Value
+	private: Int32& MaxStackSlots() const;
+	private: Dictionary<Value, Value>& _intrinsics() const; // intrinsic name -> FuncRef Value
 	private: void set__intrinsics(Dictionary<Value, Value> _v); // intrinsic name -> FuncRef Value
-	private: Value _intrinsicsMap(); // the `intrinsics` map for this VM, built lazily
+	private: Value& _intrinsicsMap() const; // the `intrinsics` map for this VM, built lazily
 	private: void set__intrinsicsMap(Value _v); // the `intrinsics` map for this VM, built lazily
-	public: Int32 PC();
+	public: Int32& PC() const;
 	public: void set_PC(Int32 _v);
-	public: FuncDef CurrentFunction();
+	public: FuncDef& CurrentFunction() const;
 	public: void set_CurrentFunction(FuncDef _v);
-	public: Boolean IsRunning();
+	public: Boolean& IsRunning() const;
 	public: void set_IsRunning(Boolean _v);
-	public: Int32 BaseIndex();
+	public: Int32& BaseIndex() const;
 	public: void set_BaseIndex(Int32 _v);
-	public: Value Error();
+	public: Value& Error() const;
 	public: void set_Error(Value _v);
-	public: Boolean ExitRequested();
+	public: Boolean& ExitRequested() const;
 	public: void set_ExitRequested(Boolean _v);
-	public: Int32 ExitCode();
+	public: Int32& ExitCode() const;
 	public: void set_ExitCode(Int32 _v);
-	private: Boolean _errorStackPending();
+	private: Boolean& _errorStackPending() const;
 	private: void set__errorStackPending(Boolean _v);
-	private: Globals _globals();
+	private: Globals& _globals() const;
 	private: void set__globals(Globals _v);
-	private: Int64 _globalsId();
+	private: Int64& _globalsId() const;
 	private: void set__globalsId(Int64 _v);
 
 	// callStack is indexed by execution depth: callStack[0] is always @main's execution
@@ -798,41 +798,41 @@ struct VM {
 	// rather than the process-wide registry, so it lists exactly what this VM's
 	// code can reach by name.
 	public: inline Value IntrinsicsMap();
-	private: Value pendingSelf();
+	private: Value& pendingSelf() const;
 	private: void set_pendingSelf(Value _v);
-	private: Value pendingSuper();
+	private: Value& pendingSuper() const;
 	private: void set_pendingSuper(Value _v);
-	private: bool hasPendingContext();
+	private: bool& hasPendingContext() const;
 	private: void set_hasPendingContext(bool _v);
-	private: NativeCallbackDelegate _pendingCallback();
+	private: NativeCallbackDelegate& _pendingCallback() const;
 	private: void set__pendingCallback(NativeCallbackDelegate _v);
-	private: FuncDef _pendingCallee(); // callee FuncDef, for reconstructing Context (param names)
+	private: FuncDef& _pendingCallee() const; // callee FuncDef, for reconstructing Context (param names)
 	private: void set__pendingCallee(FuncDef _v); // callee FuncDef, for reconstructing Context (param names)
-	private: Int32 _pendingCalleeBase(); // base index for reconstructing Context
+	private: Int32& _pendingCalleeBase() const; // base index for reconstructing Context
 	private: void set__pendingCalleeBase(Int32 _v); // base index for reconstructing Context
-	private: Int32 _pendingArgCount(); // arg count for reconstructing Context
+	private: Int32& _pendingArgCount() const; // arg count for reconstructing Context
 	private: void set__pendingArgCount(Int32 _v); // arg count for reconstructing Context
-	private: Int32 _pendingResultIndex(); // absolute stack index for result (and partial result)
+	private: Int32& _pendingResultIndex() const; // absolute stack index for result (and partial result)
 	private: void set__pendingResultIndex(Int32 _v); // absolute stack index for result (and partial result)
-	private: Boolean _hasPendingManualCall();
+	private: Boolean& _hasPendingManualCall() const;
 	private: void set__hasPendingManualCall(Boolean _v);
-	private: Int32 _pendingManualCallDepth(); // callStackTop value after the push
+	private: Int32& _pendingManualCallDepth() const; // callStackTop value after the push
 	private: void set__pendingManualCallDepth(Int32 _v); // callStackTop value after the push
-	public: Value ManualCallResult(); // return value of the manually-pushed call
+	public: Value& ManualCallResult() const; // return value of the manually-pushed call
 	public: void set_ManualCallResult(Value _v); // return value of the manually-pushed call
-	private: Boolean _pendingOwnsSavedState();
+	private: Boolean& _pendingOwnsSavedState() const;
 	private: void set__pendingOwnsSavedState(Boolean _v);
-	private: List<PendingCallState> _pendingCallStack();
+	private: List<PendingCallState>& _pendingCallStack() const;
 	private: void set__pendingCallStack(List<PendingCallState> _v);
-	private: Int32 _nativeFrameTop();
+	private: Int32& _nativeFrameTop() const;
 	private: void set__nativeFrameTop(Int32 _v);
-	private: Int32 _nativeCallStackTop();
+	private: Int32& _nativeCallStackTop() const;
 	private: void set__nativeCallStackTop(Int32 _v);
-	private: Boolean _pushedCallDone();
+	private: Boolean& _pushedCallDone() const;
 	private: void set__pushedCallDone(Boolean _v);
-	private: Int32 _runFunctionDepth();
+	private: Int32& _runFunctionDepth() const;
 	private: void set__runFunctionDepth(Int32 _v);
-	public: bool yielding();
+	public: bool& yielding() const;
 	public: void set_yielding(bool _v);
 
 	// Pending self/super for method calls, set by METHFIND/SETSELF,
@@ -1100,19 +1100,19 @@ struct VM {
 	// Returns the PC after the CALL instruction, or -1 on error.
 	// Check whether pendingSelf should be injected as the first parameter.
 	// Returns 1 if the callee's first param is named "self" and we have pending context, else 0.
-	private: inline Int32 SelfParamOffset(FuncDef callee);
+	private: inline Int32 SelfParamOffset(const FuncDef& callee);
 
-	private: inline Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, FuncDef callee, List<UInt32> code);
+	private: inline Int32 ProcessArguments(Int32 argCount, Int32 selfParam, Int32 startPC, Int32 callerBase, Int32 calleeBase, const FuncDef& callee, const List<UInt32>& code);
 
 	// Apply pending self/super context to a callee's frame, if any.
 	// Called after SetupCallFrame to populate the callee's self/super registers.
-	private: inline void ApplyPendingContext(Int32 calleeBase, FuncDef callee);
+	private: inline void ApplyPendingContext(Int32 calleeBase, const FuncDef& callee);
 
 	// Helper for call setup (FUNCTION_CALLS.md steps 4-6):
 	// Initialize remaining parameters with defaults and clear callee's registers.
 	// Note: Parameters start at r1 (r0 is reserved for return value)
 	// selfParam is 1 if pendingSelf was injected as the first arg, else 0.
-	private: inline void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, FuncDef callee);
+	private: inline void SetupCallFrame(Int32 argCount, Int32 selfParam, Int32 calleeBase, const FuncDef& callee);
 
 	// Auto-invoke a zero-arg funcref (used by LOADC and CALLIFREF).
 	// Resolves the funcref, then either:
@@ -1129,7 +1129,7 @@ struct VM {
 	// the intrinsic does not run at all: the call evaluates to that error, or
 	// terminates if the intrinsic affects state.  This returns the first such
 	// error among the arguments in place at calleeBase, or null if there is none.
-	private: inline Value RefusedErrorArg(FuncDef callee, Int32 calleeBase);
+	private: inline Value RefusedErrorArg(const FuncDef& callee, Int32 calleeBase);
 
 	// Erase the register names over count registers starting at baseIndex.
 	private: inline void ClearNames(Int32 baseIndex, Int32 count);
@@ -1144,7 +1144,7 @@ struct VM {
 	// Invoke a native callback and handle the result.  If done, writes the
 	// result to stack[absoluteResultIndex] and returns true.  If not done,
 	// stores the pending state for re-invocation and returns false.
-	private: inline bool InvokeNativeCallback(NativeCallbackDelegate callback, FuncDef callee, Int32 calleeBase, Int32 argCount, IntrinsicResult partialResult, Int32 absoluteResultIndex);
+	private: inline bool InvokeNativeCallback(const NativeCallbackDelegate& callback, const FuncDef& callee, Int32 calleeBase, Int32 argCount, const IntrinsicResult& partialResult, Int32 absoluteResultIndex);
 
 	public: inline Value Execute(FuncDef entry);
 
@@ -1301,43 +1301,43 @@ struct VM {
 // INLINE METHODS
 
 inline VMStorage* VM::get() const { return static_cast<VMStorage*>(storage.get()); }
-inline Boolean VM::DebugMode() { return get()->DebugMode; }
+inline Boolean& VM::DebugMode() const { return get()->DebugMode; }
 inline void VM::set_DebugMode(Boolean _v) { get()->DebugMode = _v; }
-inline List<Value> VM::stack() { return get()->stack; }
+inline List<Value>& VM::stack() const { return get()->stack; }
 inline void VM::set_stack(List<Value> _v) { get()->stack = _v; }
-inline List<Value> VM::names() { return get()->names; } // Variable names parallel to stack (null if unnamed)
+inline List<Value>& VM::names() const { return get()->names; } // Variable names parallel to stack (null if unnamed)
 inline void VM::set_names(List<Value> _v) { get()->names = _v; } // Variable names parallel to stack (null if unnamed)
-inline List<CallInfo> VM::callStack() { return get()->callStack; }
+inline List<CallInfo>& VM::callStack() const { return get()->callStack; }
 inline void VM::set_callStack(List<CallInfo> _v) { get()->callStack = _v; }
-inline Int32 VM::callStackTop() { return get()->callStackTop; }
+inline Int32& VM::callStackTop() const { return get()->callStackTop; }
 inline void VM::set_callStackTop(Int32 _v) { get()->callStackTop = _v; }
-inline Int32 VM::DefaultMaxCallDepth() { return get()->DefaultMaxCallDepth; }
-inline Int32 VM::_maxCallDepth() { return get()->_maxCallDepth; }
+inline Int32& VM::DefaultMaxCallDepth() const { return get()->DefaultMaxCallDepth; }
+inline Int32& VM::_maxCallDepth() const { return get()->_maxCallDepth; }
 inline void VM::set__maxCallDepth(Int32 _v) { get()->_maxCallDepth = _v; }
-inline Int32 VM::MaxStackSlots() { return get()->MaxStackSlots; }
-inline Dictionary<Value, Value> VM::_intrinsics() { return get()->_intrinsics; } // intrinsic name -> FuncRef Value
+inline Int32& VM::MaxStackSlots() const { return get()->MaxStackSlots; }
+inline Dictionary<Value, Value>& VM::_intrinsics() const { return get()->_intrinsics; } // intrinsic name -> FuncRef Value
 inline void VM::set__intrinsics(Dictionary<Value, Value> _v) { get()->_intrinsics = _v; } // intrinsic name -> FuncRef Value
-inline Value VM::_intrinsicsMap() { return get()->_intrinsicsMap; } // the `intrinsics` map for this VM, built lazily
+inline Value& VM::_intrinsicsMap() const { return get()->_intrinsicsMap; } // the `intrinsics` map for this VM, built lazily
 inline void VM::set__intrinsicsMap(Value _v) { get()->_intrinsicsMap = _v; } // the `intrinsics` map for this VM, built lazily
-inline Int32 VM::PC() { return get()->PC; }
+inline Int32& VM::PC() const { return get()->PC; }
 inline void VM::set_PC(Int32 _v) { get()->PC = _v; }
-inline FuncDef VM::CurrentFunction() { return get()->CurrentFunction; }
+inline FuncDef& VM::CurrentFunction() const { return get()->CurrentFunction; }
 inline void VM::set_CurrentFunction(FuncDef _v) { get()->CurrentFunction = _v; }
-inline Boolean VM::IsRunning() { return get()->IsRunning; }
+inline Boolean& VM::IsRunning() const { return get()->IsRunning; }
 inline void VM::set_IsRunning(Boolean _v) { get()->IsRunning = _v; }
-inline Int32 VM::BaseIndex() { return get()->BaseIndex; }
+inline Int32& VM::BaseIndex() const { return get()->BaseIndex; }
 inline void VM::set_BaseIndex(Int32 _v) { get()->BaseIndex = _v; }
-inline Value VM::Error() { return get()->Error; }
+inline Value& VM::Error() const { return get()->Error; }
 inline void VM::set_Error(Value _v) { get()->Error = _v; }
-inline Boolean VM::ExitRequested() { return get()->ExitRequested; }
+inline Boolean& VM::ExitRequested() const { return get()->ExitRequested; }
 inline void VM::set_ExitRequested(Boolean _v) { get()->ExitRequested = _v; }
-inline Int32 VM::ExitCode() { return get()->ExitCode; }
+inline Int32& VM::ExitCode() const { return get()->ExitCode; }
 inline void VM::set_ExitCode(Int32 _v) { get()->ExitCode = _v; }
-inline Boolean VM::_errorStackPending() { return get()->_errorStackPending; }
+inline Boolean& VM::_errorStackPending() const { return get()->_errorStackPending; }
 inline void VM::set__errorStackPending(Boolean _v) { get()->_errorStackPending = _v; }
-inline Globals VM::_globals() { return get()->_globals; }
+inline Globals& VM::_globals() const { return get()->_globals; }
 inline void VM::set__globals(Globals _v) { get()->_globals = _v; }
-inline Int64 VM::_globalsId() { return get()->_globalsId; }
+inline Int64& VM::_globalsId() const { return get()->_globalsId; }
 inline void VM::set__globalsId(Int64 _v) { get()->_globalsId = _v; }
 inline Globals VM::GetGlobals() { return get()->GetGlobals(); }
 inline void VM::SetGlobals(Globals globals) { return get()->SetGlobals(globals); }
@@ -1348,41 +1348,41 @@ inline Value VM::NumberType() { return get()->NumberType(); }
 inline Value VM::FunctionType() { return get()->FunctionType(); }
 inline Value VM::ErrorType() { return get()->ErrorType(); }
 inline Value VM::IntrinsicsMap() { return get()->IntrinsicsMap(); }
-inline Value VM::pendingSelf() { return get()->pendingSelf; }
+inline Value& VM::pendingSelf() const { return get()->pendingSelf; }
 inline void VM::set_pendingSelf(Value _v) { get()->pendingSelf = _v; }
-inline Value VM::pendingSuper() { return get()->pendingSuper; }
+inline Value& VM::pendingSuper() const { return get()->pendingSuper; }
 inline void VM::set_pendingSuper(Value _v) { get()->pendingSuper = _v; }
-inline bool VM::hasPendingContext() { return get()->hasPendingContext; }
+inline bool& VM::hasPendingContext() const { return get()->hasPendingContext; }
 inline void VM::set_hasPendingContext(bool _v) { get()->hasPendingContext = _v; }
-inline NativeCallbackDelegate VM::_pendingCallback() { return get()->_pendingCallback; }
+inline NativeCallbackDelegate& VM::_pendingCallback() const { return get()->_pendingCallback; }
 inline void VM::set__pendingCallback(NativeCallbackDelegate _v) { get()->_pendingCallback = _v; }
-inline FuncDef VM::_pendingCallee() { return get()->_pendingCallee; } // callee FuncDef, for reconstructing Context (param names)
+inline FuncDef& VM::_pendingCallee() const { return get()->_pendingCallee; } // callee FuncDef, for reconstructing Context (param names)
 inline void VM::set__pendingCallee(FuncDef _v) { get()->_pendingCallee = _v; } // callee FuncDef, for reconstructing Context (param names)
-inline Int32 VM::_pendingCalleeBase() { return get()->_pendingCalleeBase; } // base index for reconstructing Context
+inline Int32& VM::_pendingCalleeBase() const { return get()->_pendingCalleeBase; } // base index for reconstructing Context
 inline void VM::set__pendingCalleeBase(Int32 _v) { get()->_pendingCalleeBase = _v; } // base index for reconstructing Context
-inline Int32 VM::_pendingArgCount() { return get()->_pendingArgCount; } // arg count for reconstructing Context
+inline Int32& VM::_pendingArgCount() const { return get()->_pendingArgCount; } // arg count for reconstructing Context
 inline void VM::set__pendingArgCount(Int32 _v) { get()->_pendingArgCount = _v; } // arg count for reconstructing Context
-inline Int32 VM::_pendingResultIndex() { return get()->_pendingResultIndex; } // absolute stack index for result (and partial result)
+inline Int32& VM::_pendingResultIndex() const { return get()->_pendingResultIndex; } // absolute stack index for result (and partial result)
 inline void VM::set__pendingResultIndex(Int32 _v) { get()->_pendingResultIndex = _v; } // absolute stack index for result (and partial result)
-inline Boolean VM::_hasPendingManualCall() { return get()->_hasPendingManualCall; }
+inline Boolean& VM::_hasPendingManualCall() const { return get()->_hasPendingManualCall; }
 inline void VM::set__hasPendingManualCall(Boolean _v) { get()->_hasPendingManualCall = _v; }
-inline Int32 VM::_pendingManualCallDepth() { return get()->_pendingManualCallDepth; } // callStackTop value after the push
+inline Int32& VM::_pendingManualCallDepth() const { return get()->_pendingManualCallDepth; } // callStackTop value after the push
 inline void VM::set__pendingManualCallDepth(Int32 _v) { get()->_pendingManualCallDepth = _v; } // callStackTop value after the push
-inline Value VM::ManualCallResult() { return get()->ManualCallResult; } // return value of the manually-pushed call
+inline Value& VM::ManualCallResult() const { return get()->ManualCallResult; } // return value of the manually-pushed call
 inline void VM::set_ManualCallResult(Value _v) { get()->ManualCallResult = _v; } // return value of the manually-pushed call
-inline Boolean VM::_pendingOwnsSavedState() { return get()->_pendingOwnsSavedState; }
+inline Boolean& VM::_pendingOwnsSavedState() const { return get()->_pendingOwnsSavedState; }
 inline void VM::set__pendingOwnsSavedState(Boolean _v) { get()->_pendingOwnsSavedState = _v; }
-inline List<PendingCallState> VM::_pendingCallStack() { return get()->_pendingCallStack; }
+inline List<PendingCallState>& VM::_pendingCallStack() const { return get()->_pendingCallStack; }
 inline void VM::set__pendingCallStack(List<PendingCallState> _v) { get()->_pendingCallStack = _v; }
-inline Int32 VM::_nativeFrameTop() { return get()->_nativeFrameTop; }
+inline Int32& VM::_nativeFrameTop() const { return get()->_nativeFrameTop; }
 inline void VM::set__nativeFrameTop(Int32 _v) { get()->_nativeFrameTop = _v; }
-inline Int32 VM::_nativeCallStackTop() { return get()->_nativeCallStackTop; }
+inline Int32& VM::_nativeCallStackTop() const { return get()->_nativeCallStackTop; }
 inline void VM::set__nativeCallStackTop(Int32 _v) { get()->_nativeCallStackTop = _v; }
-inline Boolean VM::_pushedCallDone() { return get()->_pushedCallDone; }
+inline Boolean& VM::_pushedCallDone() const { return get()->_pushedCallDone; }
 inline void VM::set__pushedCallDone(Boolean _v) { get()->_pushedCallDone = _v; }
-inline Int32 VM::_runFunctionDepth() { return get()->_runFunctionDepth; }
+inline Int32& VM::_runFunctionDepth() const { return get()->_runFunctionDepth; }
 inline void VM::set__runFunctionDepth(Int32 _v) { get()->_runFunctionDepth = _v; }
-inline bool VM::yielding() { return get()->yielding; }
+inline bool& VM::yielding() const { return get()->yielding; }
 inline void VM::set_yielding(bool _v) { get()->yielding = _v; }
 inline double VM::ElapsedTime() { return get()->ElapsedTime(); }
 inline VM VM::_activeVM() { return get()->_activeVM; }
@@ -1425,15 +1425,15 @@ inline IntrinsicResult VM::RaiseUncaughtError(Value error) { return get()->Raise
 inline bool VM::ReportRuntimeError() { return get()->ReportRuntimeError(); }
 inline Value VM::BuildStackTrace() { return get()->BuildStackTrace(); }
 inline List<FuncDef> VM::GetFunctions() { return get()->GetFunctions(); }
-inline Int32 VM::SelfParamOffset(FuncDef callee) { return get()->SelfParamOffset(callee); }
-inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,FuncDef callee,List<UInt32> code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
-inline void VM::ApplyPendingContext(Int32 calleeBase,FuncDef callee) { return get()->ApplyPendingContext(calleeBase, callee); }
-inline void VM::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,FuncDef callee) { return get()->SetupCallFrame(argCount, selfParam, calleeBase, callee); }
+inline Int32 VM::SelfParamOffset(const FuncDef& callee) { return get()->SelfParamOffset(callee); }
+inline Int32 VM::ProcessArguments(Int32 argCount,Int32 selfParam,Int32 startPC,Int32 callerBase,Int32 calleeBase,const FuncDef& callee,const List<UInt32>& code) { return get()->ProcessArguments(argCount, selfParam, startPC, callerBase, calleeBase, callee, code); }
+inline void VM::ApplyPendingContext(Int32 calleeBase,const FuncDef& callee) { return get()->ApplyPendingContext(calleeBase, callee); }
+inline void VM::SetupCallFrame(Int32 argCount,Int32 selfParam,Int32 calleeBase,const FuncDef& callee) { return get()->SetupCallFrame(argCount, selfParam, calleeBase, callee); }
 inline Int32 VM::AutoInvokeFuncRef(Value funcRefVal,Int32 resultReg,Int32 returnPC,Int32 baseIndex,FuncDef currentFunc,FuncDef* calleeOut) { return get()->AutoInvokeFuncRef(funcRefVal, resultReg, returnPC, baseIndex, currentFunc, calleeOut); }
-inline Value VM::RefusedErrorArg(FuncDef callee,Int32 calleeBase) { return get()->RefusedErrorArg(callee, calleeBase); }
+inline Value VM::RefusedErrorArg(const FuncDef& callee,Int32 calleeBase) { return get()->RefusedErrorArg(callee, calleeBase); }
 inline void VM::ClearNames(Int32 baseIndex,Int32 count) { return get()->ClearNames(baseIndex, count); }
 inline void VM::UndoManualPush(Int32 callStackTopBefore,Boolean outerHasManual,Int32 outerManualDepth,Value outerManualResult) { return get()->UndoManualPush(callStackTopBefore, outerHasManual, outerManualDepth, outerManualResult); }
-inline bool VM::InvokeNativeCallback(NativeCallbackDelegate callback,FuncDef callee,Int32 calleeBase,Int32 argCount,IntrinsicResult partialResult,Int32 absoluteResultIndex) { return get()->InvokeNativeCallback(callback, callee, calleeBase, argCount, partialResult, absoluteResultIndex); }
+inline bool VM::InvokeNativeCallback(const NativeCallbackDelegate& callback,const FuncDef& callee,Int32 calleeBase,Int32 argCount,const IntrinsicResult& partialResult,Int32 absoluteResultIndex) { return get()->InvokeNativeCallback(callback, callee, calleeBase, argCount, partialResult, absoluteResultIndex); }
 inline Value VM::Execute(FuncDef entry) { return get()->Execute(entry); }
 inline Value VM::Execute(FuncDef entry,UInt32 maxCycles) { return get()->Execute(entry, maxCycles); }
 inline Value VM::Run(UInt32 maxCycles) { return get()->Run(maxCycles); }
@@ -1450,6 +1450,12 @@ inline void VM::NoteKeyRemoved(Value key) { return get()->NoteKeyRemoved(key); }
 inline Boolean VMStorage::IsIsaKey(Value key) {
 	if (key.RefEquals(Value::magicIsA)) return Boolean(true);
 	if (key.IsTinyString() || !key.IsString()) return Boolean(false);
+	// A heap string can equal "__isa" only if it is five characters long.
+	// Checking that first (the count is cached) keeps every ordinary
+	// assignment to a long-named field from paying for a full string
+	// compare, which in C++ also builds a temporary copy of the tiny
+	// "__isa".  See miniscript2 issue #31.
+	if (key.Length() != 5) return Boolean(false);
 	return key == Value::magicIsA;
 }
 inline Boolean VMStorage::CanOrder(Value a,Value b) {

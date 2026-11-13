@@ -599,55 +599,55 @@ struct CodeGenerator : public IASTVisitor {
 	friend bool IsNull(const CodeGenerator& inst) { return inst.storage == nullptr; }
 	private: CodeGeneratorStorage* get() const;
 
-	private: CodeEmitterBase _emitter();
+	private: CodeEmitterBase& _emitter() const;
 	private: void set__emitter(CodeEmitterBase _v);
-	private: List<Boolean> _regInUse(); // Which registers are currently in use
+	private: List<Boolean>& _regInUse() const; // Which registers are currently in use
 	private: void set__regInUse(List<Boolean> _v); // Which registers are currently in use
-	private: Int32 _firstAvailable(); // Lowest index that might be free
+	private: Int32& _firstAvailable() const; // Lowest index that might be free
 	private: void set__firstAvailable(Int32 _v); // Lowest index that might be free
-	private: Int32 _maxRegUsed(); // High water mark for register usage
+	private: Int32& _maxRegUsed() const; // High water mark for register usage
 	private: void set__maxRegUsed(Int32 _v); // High water mark for register usage
-	private: Dictionary<String, Int32> _variableRegs(); // variable name -> register
+	private: Dictionary<String, Int32>& _variableRegs() const; // variable name -> register
 	private: void set__variableRegs(Dictionary<String, Int32> _v); // variable name -> register
-	private: List<String> _namedStack(); // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
+	private: List<String>& _namedStack() const; // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
 	private: void set__namedStack(List<String> _v); // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
-	private: List<Boolean> _namedIsReg(); // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
+	private: List<Boolean>& _namedIsReg() const; // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
 	private: void set__namedIsReg(List<Boolean> _v); // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
-	private: String _localOnlyName(); // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
+	private: String& _localOnlyName() const; // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
 	private: void set__localOnlyName(String _v); // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
-	private: Boolean _localOnlyDeferred(); // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
+	private: Boolean& _localOnlyDeferred() const; // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
 	private: void set__localOnlyDeferred(Boolean _v); // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
-	private: List<String> _breakNames();
+	private: List<String>& _breakNames() const;
 	private: void set__breakNames(List<String> _v);
-	private: List<Boolean> _breakIsReg();
+	private: List<Boolean>& _breakIsReg() const;
 	private: void set__breakIsReg(List<Boolean> _v);
-	private: List<Int32> _breakStarts(); // per open loop: where its accumulator starts
+	private: List<Int32>& _breakStarts() const; // per open loop: where its accumulator starts
 	private: void set__breakStarts(List<Int32> _v); // per open loop: where its accumulator starts
-	private: List<Boolean> _breakSeen(); // per open loop: has any break contributed yet?
+	private: List<Boolean>& _breakSeen() const; // per open loop: has any break contributed yet?
 	private: void set__breakSeen(List<Boolean> _v); // per open loop: has any break contributed yet?
-	private: List<Int32> _loopNameMarks(); // per open loop: _namedStack depth on entry
+	private: List<Int32>& _loopNameMarks() const; // per open loop: _namedStack depth on entry
 	private: void set__loopNameMarks(List<Int32> _v); // per open loop: _namedStack depth on entry
-	private: List<String> _loopReserved();
+	private: List<String>& _loopReserved() const;
 	private: void set__loopReserved(List<String> _v);
-	private: List<Int32> _loopReservedStarts();
+	private: List<Int32>& _loopReservedStarts() const;
 	private: void set__loopReservedStarts(List<Int32> _v);
-	private: Int32 _targetReg(); // Target register for next expression (-1 = allocate)
+	private: Int32& _targetReg() const; // Target register for next expression (-1 = allocate)
 	private: void set__targetReg(Int32 _v); // Target register for next expression (-1 = allocate)
-	private: List<Int32> _loopExitLabels(); // Stack of loop exit labels for break
+	private: List<Int32>& _loopExitLabels() const; // Stack of loop exit labels for break
 	private: void set__loopExitLabels(List<Int32> _v); // Stack of loop exit labels for break
-	private: List<Int32> _loopContinueLabels(); // Stack of loop continue labels for continue
+	private: List<Int32>& _loopContinueLabels() const; // Stack of loop continue labels for continue
 	private: void set__loopContinueLabels(List<Int32> _v); // Stack of loop continue labels for continue
-	private: List<FuncDef> _functions(); // Compile-time registry of all functions (for naming + disassembly)
+	private: List<FuncDef>& _functions() const; // Compile-time registry of all functions (for naming + disassembly)
 	private: void set__functions(List<FuncDef> _v); // Compile-time registry of all functions (for naming + disassembly)
-	private: Boolean _globalScope();
+	private: Boolean& _globalScope() const;
 	private: void set__globalScope(Boolean _v);
 	private: Int32 MaxRegIndex();
 	private: Int32 MaxVarRegIndex();
-	private: Dictionary<String, Boolean> _spilledVars();
+	private: Dictionary<String, Boolean>& _spilledVars() const;
 	private: void set__spilledVars(Dictionary<String, Boolean> _v);
-	public: String FileName(); // Source file name, copied to each compiled FuncDef
+	public: String& FileName() const; // Source file name, copied to each compiled FuncDef
 	public: void set_FileName(String _v); // Source file name, copied to each compiled FuncDef
-	public: Value Error();
+	public: Value& Error() const;
 	public: void set_Error(Value _v);
 	// Definite assignment at the `break`s of each open loop -- what survives past a
 	// loop that only ends by breaking out of it.  See NoteBreak/EndLoopNames.  The
@@ -1163,9 +1163,9 @@ struct CodeGenerator : public IASTVisitor {
 
 	// Allocate (or retrieve) the register for 'super'
 	private: inline Int32 GetSuperReg();
-	private: Boolean _scanUsesSelf();
+	private: Boolean& _scanUsesSelf() const;
 	private: void set__scanUsesSelf(Boolean _v);
-	private: Boolean _scanUsesSuper();
+	private: Boolean& _scanUsesSuper() const;
 	private: void set__scanUsesSuper(Boolean _v);
 
 	// Pre-scan a function body to reserve the self/super registers up front,
@@ -1201,55 +1201,55 @@ struct CodeGenerator : public IASTVisitor {
 // INLINE METHODS
 
 inline CodeGeneratorStorage* CodeGenerator::get() const { return static_cast<CodeGeneratorStorage*>(storage.get()); }
-inline CodeEmitterBase CodeGenerator::_emitter() { return get()->_emitter; }
+inline CodeEmitterBase& CodeGenerator::_emitter() const { return get()->_emitter; }
 inline void CodeGenerator::set__emitter(CodeEmitterBase _v) { get()->_emitter = _v; }
-inline List<Boolean> CodeGenerator::_regInUse() { return get()->_regInUse; } // Which registers are currently in use
+inline List<Boolean>& CodeGenerator::_regInUse() const { return get()->_regInUse; } // Which registers are currently in use
 inline void CodeGenerator::set__regInUse(List<Boolean> _v) { get()->_regInUse = _v; } // Which registers are currently in use
-inline Int32 CodeGenerator::_firstAvailable() { return get()->_firstAvailable; } // Lowest index that might be free
+inline Int32& CodeGenerator::_firstAvailable() const { return get()->_firstAvailable; } // Lowest index that might be free
 inline void CodeGenerator::set__firstAvailable(Int32 _v) { get()->_firstAvailable = _v; } // Lowest index that might be free
-inline Int32 CodeGenerator::_maxRegUsed() { return get()->_maxRegUsed; } // High water mark for register usage
+inline Int32& CodeGenerator::_maxRegUsed() const { return get()->_maxRegUsed; } // High water mark for register usage
 inline void CodeGenerator::set__maxRegUsed(Int32 _v) { get()->_maxRegUsed = _v; } // High water mark for register usage
-inline Dictionary<String, Int32> CodeGenerator::_variableRegs() { return get()->_variableRegs; } // variable name -> register
+inline Dictionary<String, Int32>& CodeGenerator::_variableRegs() const { return get()->_variableRegs; } // variable name -> register
 inline void CodeGenerator::set__variableRegs(Dictionary<String, Int32> _v) { get()->_variableRegs = _v; } // variable name -> register
-inline List<String> CodeGenerator::_namedStack() { return get()->_namedStack; } // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
+inline List<String>& CodeGenerator::_namedStack() const { return get()->_namedStack; } // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
 inline void CodeGenerator::set__namedStack(List<String> _v) { get()->_namedStack = _v; } // variables definitely assigned at the current point (stack-disciplined by conditional nesting)
-inline List<Boolean> CodeGenerator::_namedIsReg() { return get()->_namedIsReg; } // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
+inline List<Boolean>& CodeGenerator::_namedIsReg() const { return get()->_namedIsReg; } // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
 inline void CodeGenerator::set__namedIsReg(List<Boolean> _v) { get()->_namedIsReg = _v; } // parallel to _namedStack: true if bound to a register by a NAME op, false if declared only via `locals.x =`
-inline String CodeGenerator::_localOnlyName() { return get()->_localOnlyName; } // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
+inline String& CodeGenerator::_localOnlyName() const { return get()->_localOnlyName; } // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
 inline void CodeGenerator::set__localOnlyName(String _v) { get()->_localOnlyName = _v; } // while compiling the RHS of a first assignment, the variable being created ("" when inactive)
-inline Boolean CodeGenerator::_localOnlyDeferred() { return get()->_localOnlyDeferred; } // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
+inline Boolean& CodeGenerator::_localOnlyDeferred() const { return get()->_localOnlyDeferred; } // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
 inline void CodeGenerator::set__localOnlyDeferred(Boolean _v) { get()->_localOnlyDeferred = _v; } // ...and the local may already exist, from an earlier pass through a loop, so the check is CHKNAME at run time rather than an error here
-inline List<String> CodeGenerator::_breakNames() { return get()->_breakNames; }
+inline List<String>& CodeGenerator::_breakNames() const { return get()->_breakNames; }
 inline void CodeGenerator::set__breakNames(List<String> _v) { get()->_breakNames = _v; }
-inline List<Boolean> CodeGenerator::_breakIsReg() { return get()->_breakIsReg; }
+inline List<Boolean>& CodeGenerator::_breakIsReg() const { return get()->_breakIsReg; }
 inline void CodeGenerator::set__breakIsReg(List<Boolean> _v) { get()->_breakIsReg = _v; }
-inline List<Int32> CodeGenerator::_breakStarts() { return get()->_breakStarts; } // per open loop: where its accumulator starts
+inline List<Int32>& CodeGenerator::_breakStarts() const { return get()->_breakStarts; } // per open loop: where its accumulator starts
 inline void CodeGenerator::set__breakStarts(List<Int32> _v) { get()->_breakStarts = _v; } // per open loop: where its accumulator starts
-inline List<Boolean> CodeGenerator::_breakSeen() { return get()->_breakSeen; } // per open loop: has any break contributed yet?
+inline List<Boolean>& CodeGenerator::_breakSeen() const { return get()->_breakSeen; } // per open loop: has any break contributed yet?
 inline void CodeGenerator::set__breakSeen(List<Boolean> _v) { get()->_breakSeen = _v; } // per open loop: has any break contributed yet?
-inline List<Int32> CodeGenerator::_loopNameMarks() { return get()->_loopNameMarks; } // per open loop: _namedStack depth on entry
+inline List<Int32>& CodeGenerator::_loopNameMarks() const { return get()->_loopNameMarks; } // per open loop: _namedStack depth on entry
 inline void CodeGenerator::set__loopNameMarks(List<Int32> _v) { get()->_loopNameMarks = _v; } // per open loop: _namedStack depth on entry
-inline List<String> CodeGenerator::_loopReserved() { return get()->_loopReserved; }
+inline List<String>& CodeGenerator::_loopReserved() const { return get()->_loopReserved; }
 inline void CodeGenerator::set__loopReserved(List<String> _v) { get()->_loopReserved = _v; }
-inline List<Int32> CodeGenerator::_loopReservedStarts() { return get()->_loopReservedStarts; }
+inline List<Int32>& CodeGenerator::_loopReservedStarts() const { return get()->_loopReservedStarts; }
 inline void CodeGenerator::set__loopReservedStarts(List<Int32> _v) { get()->_loopReservedStarts = _v; }
-inline Int32 CodeGenerator::_targetReg() { return get()->_targetReg; } // Target register for next expression (-1 = allocate)
+inline Int32& CodeGenerator::_targetReg() const { return get()->_targetReg; } // Target register for next expression (-1 = allocate)
 inline void CodeGenerator::set__targetReg(Int32 _v) { get()->_targetReg = _v; } // Target register for next expression (-1 = allocate)
-inline List<Int32> CodeGenerator::_loopExitLabels() { return get()->_loopExitLabels; } // Stack of loop exit labels for break
+inline List<Int32>& CodeGenerator::_loopExitLabels() const { return get()->_loopExitLabels; } // Stack of loop exit labels for break
 inline void CodeGenerator::set__loopExitLabels(List<Int32> _v) { get()->_loopExitLabels = _v; } // Stack of loop exit labels for break
-inline List<Int32> CodeGenerator::_loopContinueLabels() { return get()->_loopContinueLabels; } // Stack of loop continue labels for continue
+inline List<Int32>& CodeGenerator::_loopContinueLabels() const { return get()->_loopContinueLabels; } // Stack of loop continue labels for continue
 inline void CodeGenerator::set__loopContinueLabels(List<Int32> _v) { get()->_loopContinueLabels = _v; } // Stack of loop continue labels for continue
-inline List<FuncDef> CodeGenerator::_functions() { return get()->_functions; } // Compile-time registry of all functions (for naming + disassembly)
+inline List<FuncDef>& CodeGenerator::_functions() const { return get()->_functions; } // Compile-time registry of all functions (for naming + disassembly)
 inline void CodeGenerator::set__functions(List<FuncDef> _v) { get()->_functions = _v; } // Compile-time registry of all functions (for naming + disassembly)
-inline Boolean CodeGenerator::_globalScope() { return get()->_globalScope; }
+inline Boolean& CodeGenerator::_globalScope() const { return get()->_globalScope; }
 inline void CodeGenerator::set__globalScope(Boolean _v) { get()->_globalScope = _v; }
 inline Int32 CodeGenerator::MaxRegIndex() { return get()->MaxRegIndex; }
 inline Int32 CodeGenerator::MaxVarRegIndex() { return get()->MaxVarRegIndex; }
-inline Dictionary<String, Boolean> CodeGenerator::_spilledVars() { return get()->_spilledVars; }
+inline Dictionary<String, Boolean>& CodeGenerator::_spilledVars() const { return get()->_spilledVars; }
 inline void CodeGenerator::set__spilledVars(Dictionary<String, Boolean> _v) { get()->_spilledVars = _v; }
-inline String CodeGenerator::FileName() { return get()->FileName; } // Source file name, copied to each compiled FuncDef
+inline String& CodeGenerator::FileName() const { return get()->FileName; } // Source file name, copied to each compiled FuncDef
 inline void CodeGenerator::set_FileName(String _v) { get()->FileName = _v; } // Source file name, copied to each compiled FuncDef
-inline Value CodeGenerator::Error() { return get()->Error; }
+inline Value& CodeGenerator::Error() const { return get()->Error; }
 inline void CodeGenerator::set_Error(Value _v) { get()->Error = _v; }
 inline List<FuncDef> CodeGenerator::GetFunctions() { return get()->GetFunctions(); }
 inline Int32 CodeGenerator::AllocReg() { return get()->AllocReg(); }
@@ -1335,9 +1335,9 @@ inline Int32 CodeGenerator::Visit(ContinueNode node) { return get()->Visit(node)
 inline Int32 CodeGenerator::Visit(FunctionNode node) { return get()->Visit(node); }
 inline Int32 CodeGenerator::GetSelfReg() { return get()->GetSelfReg(); }
 inline Int32 CodeGenerator::GetSuperReg() { return get()->GetSuperReg(); }
-inline Boolean CodeGenerator::_scanUsesSelf() { return get()->_scanUsesSelf; }
+inline Boolean& CodeGenerator::_scanUsesSelf() const { return get()->_scanUsesSelf; }
 inline void CodeGenerator::set__scanUsesSelf(Boolean _v) { get()->_scanUsesSelf = _v; }
-inline Boolean CodeGenerator::_scanUsesSuper() { return get()->_scanUsesSuper; }
+inline Boolean& CodeGenerator::_scanUsesSuper() const { return get()->_scanUsesSuper; }
 inline void CodeGenerator::set__scanUsesSuper(Boolean _v) { get()->_scanUsesSuper = _v; }
 inline void CodeGenerator::ReserveSelfSuperRegs(List<ASTNode> body) { return get()->ReserveSelfSuperRegs(body); }
 inline void CodeGenerator::ScanNodeList(List<ASTNode> nodes) { return get()->ScanNodeList(nodes); }

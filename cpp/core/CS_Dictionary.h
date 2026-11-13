@@ -123,8 +123,15 @@ class DictionaryStorage {
 
 	int findEntry(const TKey& key) const {
 		if (buckets.empty()) return -1;
+		return findEntryH(key, Hash(key));
+	}
 
-		int hashCode = Hash(key);
+	// findEntry with the key's hash already in hand, for callers that look the
+	// same key up in several dictionaries (e.g. walking an __isa chain).
+	// hashCode must be exactly Hash(key).
+	int findEntryH(const TKey& key, int hashCode) const {
+		if (buckets.empty()) return -1;
+
 		int capacity = static_cast<int>(buckets.size());
 		int bucket = hashCode % capacity;
 
@@ -202,10 +209,10 @@ private:
 	// exist in the dictionary; callers must guarantee this (e.g. operator[]
 	// only calls this after findEntry has failed). Does not check for or
 	// update an existing entry.
-	void AddNewEntry(const TKey& key, const TValue& value) {
+	// hashCode must be Hash(key).  Returns the new entry's index.
+	int AddNewEntry(const TKey& key, const TValue& value, int hashCode) {
 		ensureData();
 
-		int hashCode = Hash(key);
 		int capacity = static_cast<int>(data->buckets.size());
 		int bucket = hashCode % capacity;
 
@@ -223,26 +230,23 @@ private:
 		data->entries[index].next = data->buckets[bucket];
 		data->buckets[bucket] = index;
 		data->count++;
+		return index;
 	}
 
 public:
 	// Indexer - get value by key (returns default if not found)
 	TValue& operator[](const TKey& key) {
 		ensureData();
-		int index = data->findEntry(key);
+		int hashCode = Hash(key);
+		int index = data->findEntryH(key, hashCode);
 		if (index >= 0) {
 			return data->entries[index].value;
 		}
-		// Key not found - add with default value, then look it up
-		// again and return a reference to the value in the map
-		// so that it can be assigned to.
-		static TValue defaultValue = TValue();
-		AddNewEntry(key, defaultValue);
-		index = data->findEntry(key);
-		if (index >= 0) {
-			return data->entries[index].value;
-		}
-		return defaultValue;
+		// Key not found - add it with a default value and return a reference
+		// to that value, so that it can be assigned to.  (AddNewEntry says
+		// where it put the entry, so the key is hashed only once.)
+		index = AddNewEntry(key, TValue(), hashCode);
+		return data->entries[index].value;
 	}
 
 	// SetValue - add or update, MS1-compatible alias for `dict[key] = value`.
@@ -272,6 +276,17 @@ public:
 	bool TryGetValue(const TKey& key, TValue* value) const {
 		if (!data) return false;
 		int index = data->findEntry(key);
+		if (index >= 0) {
+			*value = data->entries[index].value;
+			return true;
+		}
+		return false;
+	}
+
+	// TryGetValue with the key's hash precomputed (see findEntryH).
+	bool TryGetValueH(const TKey& key, int hashCode, TValue* value) const {
+		if (!data) return false;
+		int index = data->findEntryH(key, hashCode);
 		if (index >= 0) {
 			*value = data->entries[index].value;
 			return true;

@@ -31,15 +31,15 @@ struct GCSetBase {
 		return WrapperType(stor); 
 	}
 
-	protected: List<Boolean> _inUse();
+	protected: List<Boolean>& _inUse() const;
 	protected: void set__inUse(List<Boolean> _v);
-	protected: List<Boolean> _marked();
+	protected: List<Boolean>& _marked() const;
 	protected: void set__marked(List<Boolean> _v);
-	protected: List<Byte> _retainCounts();
+	protected: List<Byte>& _retainCounts() const;
 	protected: void set__retainCounts(List<Byte> _v);
-	protected: List<Int32> _free();
+	protected: List<Int32>& _free() const;
 	protected: void set__free(List<Int32> _v);
-	protected: Int32 _liveCount();
+	protected: Int32& _liveCount() const;
 	protected: void set__liveCount(Int32 _v);
 	protected: void CallMarkChildren(Int32 idx);
 	protected: void CallOnSweep(Int32 idx);
@@ -189,6 +189,9 @@ class GCStringSetStorage : public GCSetBaseStorage {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity);
 
 	public: GCString Get(Int32 idx);
+	public: GCString& GetRef(Int32 idx) { return _items[idx]; }
+
+	// C++ only: the item by reference (see GCListSet.GetRef).
 
 	public: void SetData(Int32 idx, String s);
 
@@ -206,6 +209,14 @@ class GCListSetStorage : public GCSetBaseStorage {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity);
 
 	public: GCList Get(Int32 idx);
+	public: GCList& GetRef(Int32 idx) { return _items[idx]; }
+
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a list.  See miniscript2 issue #30.
 
 	public: void Init(Int32 idx, Int32 capacity);
 
@@ -229,6 +240,14 @@ class GCMapSetStorage : public GCSetBaseStorage {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity);
 
 	public: GCMap Get(Int32 idx);
+	public: GCMap& GetRef(Int32 idx) { return _items[idx]; }
+
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a map.  See miniscript2 issue #30.
 
 	public: void Init(Int32 idx, Int32 capacity);
 
@@ -310,7 +329,7 @@ struct GCStringSet : public GCSetBase {
 	GCStringSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCStringSetStorage* get() const;
 
-	private: List<GCString> _items();
+	private: List<GCString>& _items() const;
 	private: void set__items(List<GCString> _v);
 
 	public: static GCStringSet New(Int32 initialCapacity = 64) {
@@ -323,6 +342,9 @@ struct GCStringSet : public GCSetBase {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity) { return get()->TruncateItems(newCount, trimCapacity); }
 
 	public: inline GCString Get(Int32 idx);
+	public: GCString& GetRef(Int32 idx) { return get()->GetRef(idx); }
+
+	// C++ only: the item by reference (see GCListSet.GetRef).
 
 	public: inline void SetData(Int32 idx, String s);
 }; // end of struct GCStringSet
@@ -336,7 +358,7 @@ struct GCListSet : public GCSetBase {
 	GCListSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCListSetStorage* get() const;
 
-	private: List<GCList> _items();
+	private: List<GCList>& _items() const;
 	private: void set__items(List<GCList> _v);
 
 	public: static GCListSet New(Int32 initialCapacity = 64) {
@@ -349,6 +371,14 @@ struct GCListSet : public GCSetBase {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity) { return get()->TruncateItems(newCount, trimCapacity); }
 
 	public: inline GCList Get(Int32 idx);
+	public: GCList& GetRef(Int32 idx) { return get()->GetRef(idx); }
+
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a list.  See miniscript2 issue #30.
 
 	public: inline void Init(Int32 idx, Int32 capacity);
 
@@ -369,7 +399,7 @@ struct GCMapSet : public GCSetBase {
 	GCMapSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCMapSetStorage* get() const;
 
-	private: List<GCMap> _items();
+	private: List<GCMap>& _items() const;
 	private: void set__items(List<GCMap> _v);
 
 	public: static GCMapSet New(Int32 initialCapacity = 64) {
@@ -382,6 +412,14 @@ struct GCMapSet : public GCSetBase {
 	protected: void TruncateItems(Int32 newCount, Boolean trimCapacity) { return get()->TruncateItems(newCount, trimCapacity); }
 
 	public: inline GCMap Get(Int32 idx);
+	public: GCMap& GetRef(Int32 idx) { return get()->GetRef(idx); }
+
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a map.  See miniscript2 issue #30.
 
 	public: inline void Init(Int32 idx, Int32 capacity);
 
@@ -415,7 +453,7 @@ struct GCErrorSet : public GCSetBase {
 	GCErrorSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCErrorSetStorage* get() const;
 
-	private: List<GCError> _items();
+	private: List<GCError>& _items() const;
 	private: void set__items(List<GCError> _v);
 
 	public: static GCErrorSet New(Int32 initialCapacity = 64) {
@@ -441,7 +479,7 @@ struct GCHandleSet : public GCSetBase {
 	GCHandleSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCHandleSetStorage* get() const;
 
-	private: List<GCHandle> _items();
+	private: List<GCHandle>& _items() const;
 	private: void set__items(List<GCHandle> _v);
 
 	public: static GCHandleSet New(Int32 initialCapacity = 16) {
@@ -467,7 +505,7 @@ struct GCFuncRefSet : public GCSetBase {
 	GCFuncRefSet(std::nullptr_t) : GCSetBase(nullptr) {}
 	private: GCFuncRefSetStorage* get() const;
 
-	private: List<GCFunction> _items();
+	private: List<GCFunction>& _items() const;
 	private: void set__items(List<GCFunction> _v);
 
 	public: static GCFuncRefSet New(Int32 initialCapacity = 64) {
@@ -487,15 +525,15 @@ struct GCFuncRefSet : public GCSetBase {
 // INLINE METHODS
 
 inline GCSetBaseStorage* GCSetBase::get() const { return static_cast<GCSetBaseStorage*>(storage.get()); }
-inline List<Boolean> GCSetBase::_inUse() { return get()->_inUse; }
+inline List<Boolean>& GCSetBase::_inUse() const { return get()->_inUse; }
 inline void GCSetBase::set__inUse(List<Boolean> _v) { get()->_inUse = _v; }
-inline List<Boolean> GCSetBase::_marked() { return get()->_marked; }
+inline List<Boolean>& GCSetBase::_marked() const { return get()->_marked; }
 inline void GCSetBase::set__marked(List<Boolean> _v) { get()->_marked = _v; }
-inline List<Byte> GCSetBase::_retainCounts() { return get()->_retainCounts; }
+inline List<Byte>& GCSetBase::_retainCounts() const { return get()->_retainCounts; }
 inline void GCSetBase::set__retainCounts(List<Byte> _v) { get()->_retainCounts = _v; }
-inline List<Int32> GCSetBase::_free() { return get()->_free; }
+inline List<Int32>& GCSetBase::_free() const { return get()->_free; }
 inline void GCSetBase::set__free(List<Int32> _v) { get()->_free = _v; }
-inline Int32 GCSetBase::_liveCount() { return get()->_liveCount; }
+inline Int32& GCSetBase::_liveCount() const { return get()->_liveCount; }
 inline void GCSetBase::set__liveCount(Int32 _v) { get()->_liveCount = _v; }
 inline void GCSetBase::CallMarkChildren(Int32 idx) { return get()->CallMarkChildren(idx); }
 inline void GCSetBase::CallOnSweep(Int32 idx) { return get()->CallOnSweep(idx); }
@@ -515,7 +553,7 @@ inline Int32 GCSetBase::SlotCount() { return get()->SlotCount(); }
 
 inline GCStringSet::GCStringSet(std::shared_ptr<GCStringSetStorage> stor) : GCSetBase(stor) {}
 inline GCStringSetStorage* GCStringSet::get() const { return static_cast<GCStringSetStorage*>(storage.get()); }
-inline List<GCString> GCStringSet::_items() { return get()->_items; }
+inline List<GCString>& GCStringSet::_items() const { return get()->_items; }
 inline void GCStringSet::set__items(List<GCString> _v) { get()->_items = _v; }
 inline GCString GCStringSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCString GCStringSetStorage::Get(Int32 idx) {
@@ -530,7 +568,7 @@ inline void GCStringSetStorage::SetData(Int32 idx,String s) {
 
 inline GCListSet::GCListSet(std::shared_ptr<GCListSetStorage> stor) : GCSetBase(stor) {}
 inline GCListSetStorage* GCListSet::get() const { return static_cast<GCListSetStorage*>(storage.get()); }
-inline List<GCList> GCListSet::_items() { return get()->_items; }
+inline List<GCList>& GCListSet::_items() const { return get()->_items; }
 inline void GCListSet::set__items(List<GCList> _v) { get()->_items = _v; }
 inline GCList GCListSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCList GCListSetStorage::Get(Int32 idx) {
@@ -550,7 +588,7 @@ inline void GCListSetStorage::Set(Int32 idx,GCList item) {
 
 inline GCMapSet::GCMapSet(std::shared_ptr<GCMapSetStorage> stor) : GCSetBase(stor) {}
 inline GCMapSetStorage* GCMapSet::get() const { return static_cast<GCMapSetStorage*>(storage.get()); }
-inline List<GCMap> GCMapSet::_items() { return get()->_items; }
+inline List<GCMap>& GCMapSet::_items() const { return get()->_items; }
 inline void GCMapSet::set__items(List<GCMap> _v) { get()->_items = _v; }
 inline GCMap GCMapSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCMap GCMapSetStorage::Get(Int32 idx) {
@@ -590,7 +628,7 @@ inline void GCMapSetStorage::SetItems(Int32 idx,Dictionary<Value, Value> items) 
 
 inline GCErrorSet::GCErrorSet(std::shared_ptr<GCErrorSetStorage> stor) : GCSetBase(stor) {}
 inline GCErrorSetStorage* GCErrorSet::get() const { return static_cast<GCErrorSetStorage*>(storage.get()); }
-inline List<GCError> GCErrorSet::_items() { return get()->_items; }
+inline List<GCError>& GCErrorSet::_items() const { return get()->_items; }
 inline void GCErrorSet::set__items(List<GCError> _v) { get()->_items = _v; }
 inline GCError GCErrorSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCError GCErrorSetStorage::Get(Int32 idx) {
@@ -608,7 +646,7 @@ inline void GCErrorSetStorage::SetFields(Int32 idx,Value message,Value inner,Val
 
 inline GCHandleSet::GCHandleSet(std::shared_ptr<GCHandleSetStorage> stor) : GCSetBase(stor) {}
 inline GCHandleSetStorage* GCHandleSet::get() const { return static_cast<GCHandleSetStorage*>(storage.get()); }
-inline List<GCHandle> GCHandleSet::_items() { return get()->_items; }
+inline List<GCHandle>& GCHandleSet::_items() const { return get()->_items; }
 inline void GCHandleSet::set__items(List<GCHandle> _v) { get()->_items = _v; }
 inline GCHandle GCHandleSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCHandle GCHandleSetStorage::Get(Int32 idx) {
@@ -624,7 +662,7 @@ inline void GCHandleSetStorage::SetFields(Int32 idx,object userData,HandleFinali
 
 inline GCFuncRefSet::GCFuncRefSet(std::shared_ptr<GCFuncRefSetStorage> stor) : GCSetBase(stor) {}
 inline GCFuncRefSetStorage* GCFuncRefSet::get() const { return static_cast<GCFuncRefSetStorage*>(storage.get()); }
-inline List<GCFunction> GCFuncRefSet::_items() { return get()->_items; }
+inline List<GCFunction>& GCFuncRefSet::_items() const { return get()->_items; }
 inline void GCFuncRefSet::set__items(List<GCFunction> _v) { get()->_items = _v; }
 inline GCFunction GCFuncRefSet::Get(Int32 idx) { return get()->Get(idx); }
 inline GCFunction GCFuncRefSetStorage::Get(Int32 idx) {

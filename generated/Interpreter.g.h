@@ -342,35 +342,35 @@ struct Interpreter {
 	friend bool IsNull(const Interpreter& inst) { return inst.storage == nullptr; }
 	private: InterpreterStorage* get() const;
 
-	public: TextOutputMethod standardOutput();
+	public: TextOutputMethod& standardOutput() const;
 	public: void set_standardOutput(TextOutputMethod _v);
-	public: TextOutputMethod implicitOutput();
+	public: TextOutputMethod& implicitOutput() const;
 	public: void set_implicitOutput(TextOutputMethod _v);
-	public: TextOutputMethod errorOutput();
+	public: TextOutputMethod& errorOutput() const;
 	public: void set_errorOutput(TextOutputMethod _v);
-	public: object hostData();
+	public: object& hostData() const;
 	public: void set_hostData(object _v);
-	public: VM vm();
+	public: VM& vm() const;
 	public: void set_vm(VM _v);
-	public: String SourceFile();
+	public: String& SourceFile() const;
 	public: void set_SourceFile(String _v);
-	public: Int32 MaxCallDepth();
+	public: Int32& MaxCallDepth() const;
 	public: void set_MaxCallDepth(Int32 _v);
-	protected: String source();
+	protected: String& source() const;
 	protected: void set_source(String _v);
-	protected: Parser parser();
+	protected: Parser& parser() const;
 	protected: void set_parser(Parser _v);
-	protected: List<FuncDef> compiledFunctions();
+	protected: List<FuncDef>& compiledFunctions() const;
 	protected: void set_compiledFunctions(List<FuncDef> _v);
-	public: Value Error();
+	public: Value& Error() const;
 	public: void set_Error(Value _v);
-	public: Value lastImplicitResult();
+	public: Value& lastImplicitResult() const;
 	public: void set_lastImplicitResult(Value _v);
-	private: String _pendingSource(); // accumulated REPL lines so far
+	private: String& _pendingSource() const; // accumulated REPL lines so far
 	private: void set__pendingSource(String _v); // accumulated REPL lines so far
-	private: Boolean _replHasImplicitOutput(); // does the current REPL run end in a bare expression?
+	private: Boolean& _replHasImplicitOutput() const; // does the current REPL run end in a bare expression?
 	private: void set__replHasImplicitOutput(Boolean _v); // does the current REPL run end in a bare expression?
-	private: Globals _globals();
+	private: Globals& _globals() const;
 	private: void set__globals(Globals _v);
 	public: Interpreter(InterpreterStorage* p) : storage(p ? p->shared_from_this() : nullptr) {}  
 
@@ -668,35 +668,35 @@ struct Interpreter {
 // INLINE METHODS
 
 inline InterpreterStorage* Interpreter::get() const { return static_cast<InterpreterStorage*>(storage.get()); }
-inline TextOutputMethod Interpreter::standardOutput() { return get()->standardOutput; }
+inline TextOutputMethod& Interpreter::standardOutput() const { return get()->standardOutput; }
 inline void Interpreter::set_standardOutput(TextOutputMethod _v) { get()->standardOutput = _v; }
-inline TextOutputMethod Interpreter::implicitOutput() { return get()->implicitOutput; }
+inline TextOutputMethod& Interpreter::implicitOutput() const { return get()->implicitOutput; }
 inline void Interpreter::set_implicitOutput(TextOutputMethod _v) { get()->implicitOutput = _v; }
-inline TextOutputMethod Interpreter::errorOutput() { return get()->errorOutput; }
+inline TextOutputMethod& Interpreter::errorOutput() const { return get()->errorOutput; }
 inline void Interpreter::set_errorOutput(TextOutputMethod _v) { get()->errorOutput = _v; }
-inline object Interpreter::hostData() { return get()->hostData; }
+inline object& Interpreter::hostData() const { return get()->hostData; }
 inline void Interpreter::set_hostData(object _v) { get()->hostData = _v; }
-inline VM Interpreter::vm() { return get()->vm; }
+inline VM& Interpreter::vm() const { return get()->vm; }
 inline void Interpreter::set_vm(VM _v) { get()->vm = _v; }
-inline String Interpreter::SourceFile() { return get()->SourceFile; }
+inline String& Interpreter::SourceFile() const { return get()->SourceFile; }
 inline void Interpreter::set_SourceFile(String _v) { get()->SourceFile = _v; }
-inline Int32 Interpreter::MaxCallDepth() { return get()->MaxCallDepth; }
+inline Int32& Interpreter::MaxCallDepth() const { return get()->MaxCallDepth; }
 inline void Interpreter::set_MaxCallDepth(Int32 _v) { get()->MaxCallDepth = _v; }
-inline String Interpreter::source() { return get()->source; }
+inline String& Interpreter::source() const { return get()->source; }
 inline void Interpreter::set_source(String _v) { get()->source = _v; }
-inline Parser Interpreter::parser() { return get()->parser; }
+inline Parser& Interpreter::parser() const { return get()->parser; }
 inline void Interpreter::set_parser(Parser _v) { get()->parser = _v; }
-inline List<FuncDef> Interpreter::compiledFunctions() { return get()->compiledFunctions; }
+inline List<FuncDef>& Interpreter::compiledFunctions() const { return get()->compiledFunctions; }
 inline void Interpreter::set_compiledFunctions(List<FuncDef> _v) { get()->compiledFunctions = _v; }
-inline Value Interpreter::Error() { return get()->Error; }
+inline Value& Interpreter::Error() const { return get()->Error; }
 inline void Interpreter::set_Error(Value _v) { get()->Error = _v; }
-inline Value Interpreter::lastImplicitResult() { return get()->lastImplicitResult; }
+inline Value& Interpreter::lastImplicitResult() const { return get()->lastImplicitResult; }
 inline void Interpreter::set_lastImplicitResult(Value _v) { get()->lastImplicitResult = _v; }
-inline String Interpreter::_pendingSource() { return get()->_pendingSource; } // accumulated REPL lines so far
+inline String& Interpreter::_pendingSource() const { return get()->_pendingSource; } // accumulated REPL lines so far
 inline void Interpreter::set__pendingSource(String _v) { get()->_pendingSource = _v; } // accumulated REPL lines so far
-inline Boolean Interpreter::_replHasImplicitOutput() { return get()->_replHasImplicitOutput; } // does the current REPL run end in a bare expression?
+inline Boolean& Interpreter::_replHasImplicitOutput() const { return get()->_replHasImplicitOutput; } // does the current REPL run end in a bare expression?
 inline void Interpreter::set__replHasImplicitOutput(Boolean _v) { get()->_replHasImplicitOutput = _v; } // does the current REPL run end in a bare expression?
-inline Globals Interpreter::_globals() { return get()->_globals; }
+inline Globals& Interpreter::_globals() const { return get()->_globals; }
 inline void Interpreter::set__globals(Globals _v) { get()->_globals = _v; }
 inline void Interpreter::Init(String _source,TextOutputMethod _standardOutput,TextOutputMethod _errorOutput) { return get()->Init(_source, _standardOutput, _errorOutput); }
 inline Globals Interpreter::GetGlobals() { return get()->GetGlobals(); }

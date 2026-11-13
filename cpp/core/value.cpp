@@ -640,8 +640,8 @@ uint32_t value_hash(Value v, int depth) {
 
 bool Value::IsFrozen() const {
     Value v = *this;
-    if (v.IsList()) return GCManager::Lists.Get(v.ItemIndex()).Frozen;
-    if (v.IsMap())  return GCManager::Maps.Get(v.ItemIndex()).Frozen;
+    if (v.IsList()) return GCManager::Lists.GetRef(v.ItemIndex()).Frozen;
+    if (v.IsMap())  return GCManager::Maps.GetRef(v.ItemIndex()).Frozen;
     return false;
 }
 

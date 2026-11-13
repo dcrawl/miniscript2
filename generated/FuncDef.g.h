@@ -100,33 +100,33 @@ struct FuncDef {
 	friend bool IsNull(const FuncDef& inst) { return inst.storage == nullptr; }
 	private: FuncDefStorage* get() const;
 
-	public: String Name();
+	public: String& Name() const;
 	public: void set_Name(String _v);
-	public: List<UInt32> Code();
+	public: List<UInt32>& Code() const;
 	public: void set_Code(List<UInt32> _v);
-	public: List<Value> Constants();
+	public: List<Value>& Constants() const;
 	public: void set_Constants(List<Value> _v);
-	public: UInt16 MaxRegs(); // how many registers to reserve for this function
+	public: UInt16& MaxRegs() const; // how many registers to reserve for this function
 	public: void set_MaxRegs(UInt16 _v); // how many registers to reserve for this function
-	public: List<Value> ParamNames(); // parameter names (as Value strings)
+	public: List<Value>& ParamNames() const; // parameter names (as Value strings)
 	public: void set_ParamNames(List<Value> _v); // parameter names (as Value strings)
-	public: List<Value> ParamDefaults(); // default values for parameters
+	public: List<Value>& ParamDefaults() const; // default values for parameters
 	public: void set_ParamDefaults(List<Value> _v); // default values for parameters
-	public: Int16 SelfReg(); // register for 'self' (-1 if not used)
+	public: Int16& SelfReg() const; // register for 'self' (-1 if not used)
 	public: void set_SelfReg(Int16 _v); // register for 'self' (-1 if not used)
-	public: Int16 SuperReg(); // register for 'super' (-1 if not used)
+	public: Int16& SuperReg() const; // register for 'super' (-1 if not used)
 	public: void set_SuperReg(Int16 _v); // register for 'super' (-1 if not used)
-	public: String Note();
+	public: String& Note() const;
 	public: void set_Note(String _v);
-	public: String SourceLoc();
+	public: String& SourceLoc() const;
 	public: void set_SourceLoc(String _v);
-	public: String FileName();
+	public: String& FileName() const;
 	public: void set_FileName(String _v);
-	public: List<Value> GlobalNames();
+	public: List<Value>& GlobalNames() const;
 	public: void set_GlobalNames(List<Value> _v);
-	public: List<Int32> GlobalSlots();
+	public: List<Int32>& GlobalSlots() const;
 	public: void set_GlobalSlots(List<Int32> _v);
-	public: Int64 GlobalCacheId();
+	public: Int64& GlobalCacheId() const;
 	public: void set_GlobalCacheId(Int64 _v);
 
 	// ── Global-reference table ────────────────────────────────────────────────
@@ -143,9 +143,9 @@ struct FuncDef {
 	// Intern a name into the global-reference table, returning its index.  Used
 	// by the code generator and the assembler while building this function.
 	public: inline Int32 AddGlobalRef(Value name);
-	private: List<Int32> _lineRLEPC();
+	private: List<Int32>& _lineRLEPC() const;
 	private: void set__lineRLEPC(List<Int32> _v);
-	private: List<Int32> _lineRLELine();
+	private: List<Int32>& _lineRLELine() const;
 	private: void set__lineRLELine(List<Int32> _v);
 
 	// RLE line-number table: _lineRLEPC[i] is the first bytecode PC whose source
@@ -160,11 +160,11 @@ struct FuncDef {
 	// Return the source line number for the instruction at the given PC index.
 	// Returns 0 if no line information is available.
 	public: inline Int32 GetLineNumber(Int32 pc);
-	public: NativeCallbackDelegate NativeCallback();
+	public: NativeCallbackDelegate& NativeCallback() const;
 	public: void set_NativeCallback(NativeCallbackDelegate _v);
-	public: UInt32 AcceptsErrorMask();
+	public: UInt32& AcceptsErrorMask() const;
 	public: void set_AcceptsErrorMask(UInt32 _v);
-	public: Boolean AffectsState();
+	public: Boolean& AffectsState() const;
 	public: void set_AffectsState(Boolean _v);
 
 	// Native callback for intrinsic functions. When non-null, this FuncDef
@@ -194,46 +194,46 @@ struct FuncDef {
 // INLINE METHODS
 
 inline FuncDefStorage* FuncDef::get() const { return static_cast<FuncDefStorage*>(storage.get()); }
-inline String FuncDef::Name() { return get()->Name; }
+inline String& FuncDef::Name() const { return get()->Name; }
 inline void FuncDef::set_Name(String _v) { get()->Name = _v; }
-inline List<UInt32> FuncDef::Code() { return get()->Code; }
+inline List<UInt32>& FuncDef::Code() const { return get()->Code; }
 inline void FuncDef::set_Code(List<UInt32> _v) { get()->Code = _v; }
-inline List<Value> FuncDef::Constants() { return get()->Constants; }
+inline List<Value>& FuncDef::Constants() const { return get()->Constants; }
 inline void FuncDef::set_Constants(List<Value> _v) { get()->Constants = _v; }
-inline UInt16 FuncDef::MaxRegs() { return get()->MaxRegs; } // how many registers to reserve for this function
+inline UInt16& FuncDef::MaxRegs() const { return get()->MaxRegs; } // how many registers to reserve for this function
 inline void FuncDef::set_MaxRegs(UInt16 _v) { get()->MaxRegs = _v; } // how many registers to reserve for this function
-inline List<Value> FuncDef::ParamNames() { return get()->ParamNames; } // parameter names (as Value strings)
+inline List<Value>& FuncDef::ParamNames() const { return get()->ParamNames; } // parameter names (as Value strings)
 inline void FuncDef::set_ParamNames(List<Value> _v) { get()->ParamNames = _v; } // parameter names (as Value strings)
-inline List<Value> FuncDef::ParamDefaults() { return get()->ParamDefaults; } // default values for parameters
+inline List<Value>& FuncDef::ParamDefaults() const { return get()->ParamDefaults; } // default values for parameters
 inline void FuncDef::set_ParamDefaults(List<Value> _v) { get()->ParamDefaults = _v; } // default values for parameters
-inline Int16 FuncDef::SelfReg() { return get()->SelfReg; } // register for 'self' (-1 if not used)
+inline Int16& FuncDef::SelfReg() const { return get()->SelfReg; } // register for 'self' (-1 if not used)
 inline void FuncDef::set_SelfReg(Int16 _v) { get()->SelfReg = _v; } // register for 'self' (-1 if not used)
-inline Int16 FuncDef::SuperReg() { return get()->SuperReg; } // register for 'super' (-1 if not used)
+inline Int16& FuncDef::SuperReg() const { return get()->SuperReg; } // register for 'super' (-1 if not used)
 inline void FuncDef::set_SuperReg(Int16 _v) { get()->SuperReg = _v; } // register for 'super' (-1 if not used)
-inline String FuncDef::Note() { return get()->Note; }
+inline String& FuncDef::Note() const { return get()->Note; }
 inline void FuncDef::set_Note(String _v) { get()->Note = _v; }
-inline String FuncDef::SourceLoc() { return get()->SourceLoc; }
+inline String& FuncDef::SourceLoc() const { return get()->SourceLoc; }
 inline void FuncDef::set_SourceLoc(String _v) { get()->SourceLoc = _v; }
-inline String FuncDef::FileName() { return get()->FileName; }
+inline String& FuncDef::FileName() const { return get()->FileName; }
 inline void FuncDef::set_FileName(String _v) { get()->FileName = _v; }
-inline List<Value> FuncDef::GlobalNames() { return get()->GlobalNames; }
+inline List<Value>& FuncDef::GlobalNames() const { return get()->GlobalNames; }
 inline void FuncDef::set_GlobalNames(List<Value> _v) { get()->GlobalNames = _v; }
-inline List<Int32> FuncDef::GlobalSlots() { return get()->GlobalSlots; }
+inline List<Int32>& FuncDef::GlobalSlots() const { return get()->GlobalSlots; }
 inline void FuncDef::set_GlobalSlots(List<Int32> _v) { get()->GlobalSlots = _v; }
-inline Int64 FuncDef::GlobalCacheId() { return get()->GlobalCacheId; }
+inline Int64& FuncDef::GlobalCacheId() const { return get()->GlobalCacheId; }
 inline void FuncDef::set_GlobalCacheId(Int64 _v) { get()->GlobalCacheId = _v; }
 inline Int32 FuncDef::AddGlobalRef(Value name) { return get()->AddGlobalRef(name); }
-inline List<Int32> FuncDef::_lineRLEPC() { return get()->_lineRLEPC; }
+inline List<Int32>& FuncDef::_lineRLEPC() const { return get()->_lineRLEPC; }
 inline void FuncDef::set__lineRLEPC(List<Int32> _v) { get()->_lineRLEPC = _v; }
-inline List<Int32> FuncDef::_lineRLELine() { return get()->_lineRLELine; }
+inline List<Int32>& FuncDef::_lineRLELine() const { return get()->_lineRLELine; }
 inline void FuncDef::set__lineRLELine(List<Int32> _v) { get()->_lineRLELine = _v; }
 inline void FuncDef::AddInstruction(UInt32 instruction,Int32 lineNumber) { return get()->AddInstruction(instruction, lineNumber); }
 inline Int32 FuncDef::GetLineNumber(Int32 pc) { return get()->GetLineNumber(pc); }
-inline NativeCallbackDelegate FuncDef::NativeCallback() { return get()->NativeCallback; }
+inline NativeCallbackDelegate& FuncDef::NativeCallback() const { return get()->NativeCallback; }
 inline void FuncDef::set_NativeCallback(NativeCallbackDelegate _v) { get()->NativeCallback = _v; }
-inline UInt32 FuncDef::AcceptsErrorMask() { return get()->AcceptsErrorMask; }
+inline UInt32& FuncDef::AcceptsErrorMask() const { return get()->AcceptsErrorMask; }
 inline void FuncDef::set_AcceptsErrorMask(UInt32 _v) { get()->AcceptsErrorMask = _v; }
-inline Boolean FuncDef::AffectsState() { return get()->AffectsState; }
+inline Boolean& FuncDef::AffectsState() const { return get()->AffectsState; }
 inline void FuncDef::set_AffectsState(Boolean _v) { get()->AffectsState = _v; }
 inline void FuncDef::ReserveRegister(Int32 registerNumber) { return get()->ReserveRegister(registerNumber); }
 inline FuncDefStorage::operator bool() const {

@@ -194,6 +194,12 @@ public class GCStringSet : GCSetBase {
 		return _items[idx];
 	}
 
+	// C++ only: the item by reference (see GCListSet.GetRef).
+	/*** BEGIN H_ONLY ***
+	public: GCString& GetRef(Int32 idx) { return _items[idx]; }
+	*** END H_ONLY ***/
+	// H_WRAPPER: public: GCString& GetRef(Int32 idx) { return get()->GetRef(idx); }
+
 	[MethodImpl(AggressiveInlining)]
 	public void SetData(Int32 idx, String s) {
 		GCString item = _items[idx];
@@ -270,6 +276,17 @@ public class GCListSet : GCSetBase {
 		return _items[idx];
 	}
 
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a list.  See miniscript2 issue #30.
+	/*** BEGIN H_ONLY ***
+	public: GCList& GetRef(Int32 idx) { return _items[idx]; }
+	*** END H_ONLY ***/
+	// H_WRAPPER: public: GCList& GetRef(Int32 idx) { return get()->GetRef(idx); }
+
 	public void Init(Int32 idx, Int32 capacity) {
 		GCList item = _items[idx];
 		item.Init(capacity);
@@ -321,6 +338,17 @@ public class GCMapSet : GCSetBase {
 	public GCMap Get(Int32 idx) {
 		return _items[idx];
 	}
+
+	// C++ only: the item by reference, for read-only hot paths.  Get() returns
+	// the struct by value, which in C++ copies (and refcounts) every shared_ptr
+	// member.  C# needs no such accessor: copying a struct of references there
+	// is cheap.  The reference is only good until the next allocation in this
+	// set (which may grow _items), so never hold it across anything that could
+	// create a map.  See miniscript2 issue #30.
+	/*** BEGIN H_ONLY ***
+	public: GCMap& GetRef(Int32 idx) { return _items[idx]; }
+	*** END H_ONLY ***/
+	// H_WRAPPER: public: GCMap& GetRef(Int32 idx) { return get()->GetRef(idx); }
 
 	public void Init(Int32 idx, Int32 capacity) {
 		GCMap item = _items[idx];

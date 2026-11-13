@@ -159,6 +159,12 @@ struct GCMap {
 
 	public: Boolean TryGet(Value key, Value* value);
 
+	// TryGet, for a caller that already has the key's hash: in C++, `hash`
+	// must be Hash(key), and saves hashing the key again in each map of an
+	// __isa chain (Value::Lookup).  C#'s Dictionary takes no precomputed hash,
+	// so there this is just TryGet.  See miniscript2 issue #31.
+	public: Boolean TryGetH(Value key, Int32 hash, Value* value);
+
 	public: void Set(Value key, Value value);
 
 	public: Boolean Remove(Value key);

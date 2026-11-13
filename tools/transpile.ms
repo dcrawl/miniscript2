@@ -732,6 +732,15 @@ Transpiler.transformParams = function(paramStr)
 	// Fix up any language transformations needed for the given parameters string.
 	result = []
 	for part in splitParams(paramStr)
+		// C# `in` (read-only reference) parameters become const references.
+		// Unlike ref/out, these need no pointer syntax at the call site or in
+		// the body, and they work in C# too, so a large argument (a class
+		// wrapper, List, delegate, or struct) can be passed without a copy.
+		m = part.match("in ≤type:w≥ ≤whatever≥")
+		if m then
+			result.push "const ≤type≥& ≤whatever≥".fill(m)
+			continue
+		end if
 		m = part.match("out ≤type:w≥ ≤whatever≥")
 		if not m then m = part.match("ref ≤type:w≥ ≤whatever≥")
 		if m then
@@ -757,6 +766,12 @@ Transpiler.parseParams = function(paramStr)
 		m = part.match("≤type:w≥ ≤name:w≥ = ≤value≥")
 		if not m then m = part.match("≤type:w≥ ≤name:w≥=≤value≥")
 		if not m then m = part.match("≤type:w≥ ≤name:w≥")
+		if m then
+			result.push VariableInfo.Make(m.name, m.type, Scope.LOCAL)
+			continue
+		end if
+		// read-only reference parameters (const T& in C++; used like plain values)
+		m = part.match("in ≤type:w≥ ≤name:w≥")
 		if m then
 			result.push VariableInfo.Make(m.name, m.type, Scope.LOCAL)
 			continue
@@ -1197,8 +1212,14 @@ Transpiler.updateStateCLASS = function
 			end if
 			if self.curClass.type == ClassType.CLASS then
 				self.curClass.storageLines.push self.fill("	≤dec≥;")
-				self.curClass.wrapperLines.push self.fill("	≤scope≥: ≤type≥ ≤name≥();")
-				self.curClass.inlineLines.push  self.fill("inline ≤type≥ ≤className≥::≤name≥() { return get()->≤name≥; }")
+				// The getter returns the field by reference, and is const: the
+				// wrapper is a handle, so (like shared_ptr's operator*) a const
+				// handle still reaches a mutable object.  Returning by value made
+				// every read of a List/String/class field copy a shared_ptr (an
+				// atomic refcount round trip), and made getters unusable through
+				// the const references that `in` parameters become.
+				self.curClass.wrapperLines.push self.fill("	≤scope≥: ≤type≥& ≤name≥() const;")
+				self.curClass.inlineLines.push  self.fill("inline ≤type≥& ≤className≥::≤name≥() const { return get()->≤name≥; }")
 				self.curClass.wrapperLines.push self.fill("	≤scope≥: void set_≤name≥(≤type≥ _v);")
 				self.curClass.inlineLines.push  self.fill("inline void ≤className≥::set_≤name≥(≤type≥ _v) { get()->≤name≥ = _v; }")
 			else
