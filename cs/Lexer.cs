@@ -21,7 +21,7 @@ public struct Token {
 	public Int32 Column;
 	public Boolean AfterSpace;  // True if whitespace preceded this token
 
-	// H: public: Token() {}
+	// H: public: Token() : Type(TokenType::END_OF_INPUT) {}
 	public Token(TokenType type, String text, Int32 line, Int32 column) {
 		Type = type;
 		Text = text;
