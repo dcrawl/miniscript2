@@ -689,10 +689,10 @@ struct VM {
 	private: void set_callStack(List<CallInfo> _v);
 	private: Int32& callStackTop() const;
 	private: void set_callStackTop(Int32 _v);
-	public: Int32& DefaultMaxCallDepth() const;
+	public: Int32 DefaultMaxCallDepth();
 	private: Int32& _maxCallDepth() const;
 	private: void set__maxCallDepth(Int32 _v);
-	private: Int32& MaxStackSlots() const;
+	private: Int32 MaxStackSlots();
 	private: Dictionary<Value, Value>& _intrinsics() const; // intrinsic name -> FuncRef Value
 	private: void set__intrinsics(Dictionary<Value, Value> _v); // intrinsic name -> FuncRef Value
 	private: Value& _intrinsicsMap() const; // the `intrinsics` map for this VM, built lazily
@@ -1311,10 +1311,10 @@ inline List<CallInfo>& VM::callStack() const { return get()->callStack; }
 inline void VM::set_callStack(List<CallInfo> _v) { get()->callStack = _v; }
 inline Int32& VM::callStackTop() const { return get()->callStackTop; }
 inline void VM::set_callStackTop(Int32 _v) { get()->callStackTop = _v; }
-inline Int32& VM::DefaultMaxCallDepth() const { return get()->DefaultMaxCallDepth; }
+inline Int32 VM::DefaultMaxCallDepth() { return get()->DefaultMaxCallDepth; }
 inline Int32& VM::_maxCallDepth() const { return get()->_maxCallDepth; }
 inline void VM::set__maxCallDepth(Int32 _v) { get()->_maxCallDepth = _v; }
-inline Int32& VM::MaxStackSlots() const { return get()->MaxStackSlots; }
+inline Int32 VM::MaxStackSlots() { return get()->MaxStackSlots; }
 inline Dictionary<Value, Value>& VM::_intrinsics() const { return get()->_intrinsics; } // intrinsic name -> FuncRef Value
 inline void VM::set__intrinsics(Dictionary<Value, Value> _v) { get()->_intrinsics = _v; } // intrinsic name -> FuncRef Value
 inline Value& VM::_intrinsicsMap() const { return get()->_intrinsicsMap; } // the `intrinsics` map for this VM, built lazily
