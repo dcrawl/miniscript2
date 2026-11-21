@@ -1115,6 +1115,10 @@ Value VMStorage::Run(UInt32 maxCycles) {
 		} else {
 			// Normal case: re-invoke the pending intrinsic callback.
 			IntrinsicResult partialResult = IntrinsicResult(stack[_pendingResultIndex], Boolean(false));
+			// Pass copies, not the fields themselves: InvokeNativeCallback takes
+			// these by reference (`in`), and it -- or a re-entrant call made
+			// by the callback -- may overwrite the _pending* fields while the
+			// callback is still running.
 			NativeCallbackDelegate pendingCallback = _pendingCallback;
 			FuncDef pendingCallee = _pendingCallee;
 			if (!InvokeNativeCallback(pendingCallback, pendingCallee, _pendingCalleeBase, _pendingArgCount, partialResult, _pendingResultIndex)) {

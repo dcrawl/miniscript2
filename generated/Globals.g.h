@@ -240,7 +240,7 @@ struct Globals {
 	private: void set__assignedCount(Int32 _v); // slots currently holding a value
 	private: Value& _mapValue() const; // the `globals` map viewing this table
 	private: void set__mapValue(Value _v); // the `globals` map viewing this table
-	private: List<Value> _perProgram();
+	private: List<Value>& _perProgram() const;
 	private: void set__perProgram(List<Value> _v);
 	private: Int64 _lastId();
 	private: void set__lastId(Int64 _v);
@@ -420,7 +420,7 @@ inline Int32& Globals::_assignedCount() const { return get()->_assignedCount; } 
 inline void Globals::set__assignedCount(Int32 _v) { get()->_assignedCount = _v; } // slots currently holding a value
 inline Value& Globals::_mapValue() const { return get()->_mapValue; } // the `globals` map viewing this table
 inline void Globals::set__mapValue(Value _v) { get()->_mapValue = _v; } // the `globals` map viewing this table
-inline List<Value> Globals::_perProgram() { return get()->_perProgram; }
+inline List<Value>& Globals::_perProgram() const { return get()->_perProgram; }
 inline void Globals::set__perProgram(List<Value> _v) { get()->_perProgram = _v; }
 inline Int64 Globals::_lastId() { return get()->_lastId; }
 inline void Globals::set__lastId(Int64 _v) { get()->_lastId = _v; }

@@ -86,9 +86,9 @@ struct PerProgram {
 
 	private: List<String> _displayNames();
 	private: void set__displayNames(List<String> _v);
-	private: Int32 _index(); // this value's position in each Globals
+	private: Int32& _index() const; // this value's position in each Globals
 	private: void set__index(Int32 _v); // this value's position in each Globals
-	private: PerProgramBuilder _builder(); // makes a fresh value
+	private: PerProgramBuilder& _builder() const; // makes a fresh value
 	private: void set__builder(PerProgramBuilder _v); // makes a fresh value
 
 	// Display name for each index ("" for none), indexed by _index.
@@ -123,9 +123,9 @@ struct PerProgram {
 inline PerProgramStorage* PerProgram::get() const { return static_cast<PerProgramStorage*>(storage.get()); }
 inline List<String> PerProgram::_displayNames() { return get()->_displayNames; }
 inline void PerProgram::set__displayNames(List<String> _v) { get()->_displayNames = _v; }
-inline Int32 PerProgram::_index() { return get()->_index; } // this value's position in each Globals
+inline Int32& PerProgram::_index() const { return get()->_index; } // this value's position in each Globals
 inline void PerProgram::set__index(Int32 _v) { get()->_index = _v; } // this value's position in each Globals
-inline PerProgramBuilder PerProgram::_builder() { return get()->_builder; } // makes a fresh value
+inline PerProgramBuilder& PerProgram::_builder() const { return get()->_builder; } // makes a fresh value
 inline void PerProgram::set__builder(PerProgramBuilder _v) { get()->_builder = _v; } // makes a fresh value
 inline Value PerProgram::Get(Context ctx) { return get()->Get(ctx); }
 inline Value PerProgram::Get() { return get()->Get(); }
